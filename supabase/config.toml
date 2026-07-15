@@ -1,0 +1,7 @@
+# Supabase CLI configuration (M0.3 / RHEA-007).
+# Minimal pin; run `supabase init` to regenerate the full default set of sections
+# if needed. Migrations live in supabase/migrations and apply in lexical order.
+project_id = "rhea"
+
+[db]
+major_version = 15

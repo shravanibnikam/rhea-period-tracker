@@ -1,0 +1,559 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`averages > irregular cycles (non-zero stdDev) 1`] = `
+{
+  "avgCycleLength": 28,
+  "avgPeriodLength": 5,
+  "stdDev": 2.6457513110645907,
+}
+`;
+
+exports[`averages > regular cycles 1`] = `
+{
+  "avgCycleLength": 28,
+  "avgPeriodLength": 5,
+  "stdDev": 0,
+}
+`;
+
+exports[`averages > respects a manual cycle-length override 1`] = `
+{
+  "avgCycleLength": 30,
+  "avgPeriodLength": 5,
+  "stdDev": 0,
+}
+`;
+
+exports[`date utils characterization (TZ-independent invariants preserved by M1.3) > documents the oracle replacing the legacy engines (M1.3) 1`] = `
+[
+  "menstrual",
+  "menstrual",
+  "follicular",
+  "ovulation",
+  "ovulation",
+  "luteal",
+  "luteal",
+  "luteal",
+]
+`;
+
+exports[`date utils characterization (TZ-independent invariants preserved by M1.3) > documents the oracle replacing the legacy engines (M1.3) 2`] = `
+{
+  "follicular": 4,
+  "luteal": 13,
+  "menstrual": 5,
+  "ovulation": 6,
+}
+`;
+
+exports[`deriveCycleState (full golden master) > empty history returns the documented defaults 1`] = `
+{
+  "avgCycleLength": 28,
+  "avgPeriodLength": 5,
+  "confidence": "early",
+  "currentCycleStart": null,
+  "cycleDay": 0,
+  "cycles": [],
+  "daysUntilPeriod": 0,
+  "fertileWindow": null,
+  "isLate": false,
+  "nextPeriodDate": null,
+  "phase": "follicular",
+  "predictions": [],
+  "stdDev": 0,
+}
+`;
+
+exports[`deriveCycleState (full golden master) > irregular history 1`] = `
+{
+  "avgCycleLength": 28,
+  "avgPeriodLength": 5,
+  "confidence": "building",
+  "currentCycleStart": "2026-03-26",
+  "cycleDay": 5,
+  "cycles": [
+    {
+      "cycleLength": 26,
+      "excluded": false,
+      "periodEnd": "2026-01-06",
+      "periodLength": 6,
+      "periodStart": "2026-01-01",
+    },
+    {
+      "cycleLength": 31,
+      "excluded": false,
+      "periodEnd": "2026-01-30",
+      "periodLength": 4,
+      "periodStart": "2026-01-27",
+    },
+    {
+      "cycleLength": 27,
+      "excluded": false,
+      "periodEnd": "2026-03-03",
+      "periodLength": 5,
+      "periodStart": "2026-02-27",
+    },
+    {
+      "cycleLength": null,
+      "excluded": false,
+      "periodEnd": "2026-03-30",
+      "periodLength": 5,
+      "periodStart": "2026-03-26",
+    },
+  ],
+  "daysUntilPeriod": 23,
+  "fertileWindow": {
+    "confidence": 0.6,
+    "end": 2026-04-11T00:00:00.000Z,
+    "ovulationDate": 2026-04-09T00:00:00.000Z,
+    "start": 2026-04-03T00:00:00.000Z,
+  },
+  "isLate": false,
+  "nextPeriodDate": 2026-04-23T00:00:00.000Z,
+  "phase": "menstrual",
+  "predictions": [
+    {
+      "cycleNumber": 5,
+      "end": 2026-05-20T00:00:00.000Z,
+      "start": 2026-04-23T00:00:00.000Z,
+      "uncertainty": 3,
+    },
+    {
+      "cycleNumber": 6,
+      "end": 2026-06-17T00:00:00.000Z,
+      "start": 2026-05-21T00:00:00.000Z,
+      "uncertainty": 4,
+    },
+    {
+      "cycleNumber": 7,
+      "end": 2026-07-15T00:00:00.000Z,
+      "start": 2026-06-18T00:00:00.000Z,
+      "uncertainty": 5,
+    },
+    {
+      "cycleNumber": 8,
+      "end": 2026-08-12T00:00:00.000Z,
+      "start": 2026-07-16T00:00:00.000Z,
+      "uncertainty": 7,
+    },
+  ],
+  "stdDev": 2.6457513110645907,
+}
+`;
+
+exports[`deriveCycleState (full golden master) > regular history 1`] = `
+{
+  "avgCycleLength": 28,
+  "avgPeriodLength": 5,
+  "confidence": "building",
+  "currentCycleStart": "2026-03-26",
+  "cycleDay": 5,
+  "cycles": [
+    {
+      "cycleLength": 28,
+      "excluded": false,
+      "periodEnd": "2026-01-05",
+      "periodLength": 5,
+      "periodStart": "2026-01-01",
+    },
+    {
+      "cycleLength": 28,
+      "excluded": false,
+      "periodEnd": "2026-02-02",
+      "periodLength": 5,
+      "periodStart": "2026-01-29",
+    },
+    {
+      "cycleLength": 28,
+      "excluded": false,
+      "periodEnd": "2026-03-02",
+      "periodLength": 5,
+      "periodStart": "2026-02-26",
+    },
+    {
+      "cycleLength": null,
+      "excluded": false,
+      "periodEnd": "2026-03-30",
+      "periodLength": 5,
+      "periodStart": "2026-03-26",
+    },
+  ],
+  "daysUntilPeriod": 23,
+  "fertileWindow": {
+    "confidence": 0.6,
+    "end": 2026-04-10T00:00:00.000Z,
+    "ovulationDate": 2026-04-09T00:00:00.000Z,
+    "start": 2026-04-04T00:00:00.000Z,
+  },
+  "isLate": false,
+  "nextPeriodDate": 2026-04-23T00:00:00.000Z,
+  "phase": "menstrual",
+  "predictions": [
+    {
+      "cycleNumber": 5,
+      "end": 2026-05-20T00:00:00.000Z,
+      "start": 2026-04-23T00:00:00.000Z,
+      "uncertainty": 0,
+    },
+    {
+      "cycleNumber": 6,
+      "end": 2026-06-17T00:00:00.000Z,
+      "start": 2026-05-21T00:00:00.000Z,
+      "uncertainty": 0,
+    },
+    {
+      "cycleNumber": 7,
+      "end": 2026-07-15T00:00:00.000Z,
+      "start": 2026-06-18T00:00:00.000Z,
+      "uncertainty": 0,
+    },
+    {
+      "cycleNumber": 8,
+      "end": 2026-08-12T00:00:00.000Z,
+      "start": 2026-07-16T00:00:00.000Z,
+      "uncertainty": 0,
+    },
+  ],
+  "stdDev": 0,
+}
+`;
+
+exports[`deriveCycleState (full golden master) > single period (no completed cycle) 1`] = `
+{
+  "avgCycleLength": 28,
+  "avgPeriodLength": 5,
+  "confidence": "early",
+  "currentCycleStart": "2026-01-01",
+  "cycleDay": 89,
+  "cycles": [
+    {
+      "cycleLength": null,
+      "excluded": false,
+      "periodEnd": "2026-01-05",
+      "periodLength": 5,
+      "periodStart": "2026-01-01",
+    },
+  ],
+  "daysUntilPeriod": -61,
+  "fertileWindow": null,
+  "isLate": true,
+  "nextPeriodDate": 2026-01-29T00:00:00.000Z,
+  "phase": "luteal",
+  "predictions": [
+    {
+      "cycleNumber": 2,
+      "end": 2026-02-25T00:00:00.000Z,
+      "start": 2026-01-29T00:00:00.000Z,
+      "uncertainty": 0,
+    },
+    {
+      "cycleNumber": 3,
+      "end": 2026-03-25T00:00:00.000Z,
+      "start": 2026-02-26T00:00:00.000Z,
+      "uncertainty": 0,
+    },
+    {
+      "cycleNumber": 4,
+      "end": 2026-04-22T00:00:00.000Z,
+      "start": 2026-03-26T00:00:00.000Z,
+      "uncertainty": 0,
+    },
+    {
+      "cycleNumber": 5,
+      "end": 2026-05-20T00:00:00.000Z,
+      "start": 2026-04-23T00:00:00.000Z,
+      "uncertainty": 0,
+    },
+  ],
+  "stdDev": 0,
+}
+`;
+
+exports[`fertile window + predictions > computes the fertile window (regular) 1`] = `
+{
+  "confidence": 0.6,
+  "end": 2026-04-10T00:00:00.000Z,
+  "ovulationDate": 2026-04-09T00:00:00.000Z,
+  "start": 2026-04-04T00:00:00.000Z,
+}
+`;
+
+exports[`fertile window + predictions > predicts future cycles with widening uncertainty 1`] = `
+[
+  {
+    "cycleNumber": 4,
+    "end": 2026-05-20T00:00:00.000Z,
+    "start": 2026-04-23T00:00:00.000Z,
+    "uncertainty": 2,
+  },
+  {
+    "cycleNumber": 5,
+    "end": 2026-06-17T00:00:00.000Z,
+    "start": 2026-05-21T00:00:00.000Z,
+    "uncertainty": 3,
+  },
+  {
+    "cycleNumber": 6,
+    "end": 2026-07-15T00:00:00.000Z,
+    "start": 2026-06-18T00:00:00.000Z,
+    "uncertainty": 4,
+  },
+]
+`;
+
+exports[`fertile window + predictions > widens the fertile window under high variability 1`] = `
+{
+  "confidence": 0.42,
+  "end": 2026-04-12T00:00:00.000Z,
+  "ovulationDate": 2026-04-09T00:00:00.000Z,
+  "start": 2026-04-02T00:00:00.000Z,
+}
+`;
+
+exports[`period + cycle detection > builds cycles (current cycle has null length) 1`] = `
+[
+  {
+    "cycleLength": 28,
+    "excluded": false,
+    "periodEnd": "2026-01-05",
+    "periodLength": 5,
+    "periodStart": "2026-01-01",
+  },
+  {
+    "cycleLength": 28,
+    "excluded": false,
+    "periodEnd": "2026-02-02",
+    "periodLength": 5,
+    "periodStart": "2026-01-29",
+  },
+  {
+    "cycleLength": 28,
+    "excluded": false,
+    "periodEnd": "2026-03-02",
+    "periodLength": 5,
+    "periodStart": "2026-02-26",
+  },
+  {
+    "cycleLength": null,
+    "excluded": false,
+    "periodEnd": "2026-03-30",
+    "periodLength": 5,
+    "periodStart": "2026-03-26",
+  },
+]
+`;
+
+exports[`period + cycle detection > detects periods from irregular logs 1`] = `
+[
+  {
+    "endDate": "2026-01-06",
+    "length": 6,
+    "startDate": "2026-01-01",
+  },
+  {
+    "endDate": "2026-01-30",
+    "length": 4,
+    "startDate": "2026-01-27",
+  },
+  {
+    "endDate": "2026-03-03",
+    "length": 5,
+    "startDate": "2026-02-27",
+  },
+  {
+    "endDate": "2026-03-30",
+    "length": 5,
+    "startDate": "2026-03-26",
+  },
+]
+`;
+
+exports[`period + cycle detection > detects periods from regular logs 1`] = `
+[
+  {
+    "endDate": "2026-01-05",
+    "length": 5,
+    "startDate": "2026-01-01",
+  },
+  {
+    "endDate": "2026-02-02",
+    "length": 5,
+    "startDate": "2026-01-29",
+  },
+  {
+    "endDate": "2026-03-02",
+    "length": 5,
+    "startDate": "2026-02-26",
+  },
+  {
+    "endDate": "2026-03-30",
+    "length": 5,
+    "startDate": "2026-03-26",
+  },
+]
+`;
+
+exports[`phase boundaries (28-day / 5-day config) > maps cycle days to phases 1`] = `
+[
+  [
+    1,
+    "menstrual",
+  ],
+  [
+    2,
+    "menstrual",
+  ],
+  [
+    3,
+    "menstrual",
+  ],
+  [
+    4,
+    "menstrual",
+  ],
+  [
+    5,
+    "menstrual",
+  ],
+  [
+    6,
+    "follicular",
+  ],
+  [
+    7,
+    "follicular",
+  ],
+  [
+    8,
+    "follicular",
+  ],
+  [
+    9,
+    "follicular",
+  ],
+  [
+    10,
+    "ovulation",
+  ],
+  [
+    11,
+    "ovulation",
+  ],
+  [
+    12,
+    "ovulation",
+  ],
+  [
+    13,
+    "ovulation",
+  ],
+  [
+    14,
+    "ovulation",
+  ],
+  [
+    15,
+    "ovulation",
+  ],
+  [
+    16,
+    "luteal",
+  ],
+  [
+    17,
+    "luteal",
+  ],
+  [
+    18,
+    "luteal",
+  ],
+  [
+    19,
+    "luteal",
+  ],
+  [
+    20,
+    "luteal",
+  ],
+  [
+    21,
+    "luteal",
+  ],
+  [
+    22,
+    "luteal",
+  ],
+  [
+    23,
+    "luteal",
+  ],
+  [
+    24,
+    "luteal",
+  ],
+  [
+    25,
+    "luteal",
+  ],
+  [
+    26,
+    "luteal",
+  ],
+  [
+    27,
+    "luteal",
+  ],
+  [
+    28,
+    "luteal",
+  ],
+]
+`;
+
+exports[`symptom patterns + variability label > analyzes symptom patterns by phase 1`] = `
+[
+  {
+    "byPhase": {
+      "follicular": 0,
+      "luteal": 0,
+      "menstrual": 3,
+      "ovulation": 0,
+    },
+    "peakPhase": "menstrual",
+    "symptom": "Cramps",
+    "totalCount": 3,
+  },
+  {
+    "byPhase": {
+      "follicular": 0,
+      "luteal": 0,
+      "menstrual": 2,
+      "ovulation": 0,
+    },
+    "peakPhase": "menstrual",
+    "symptom": "Fatigue",
+    "totalCount": 2,
+  },
+  {
+    "byPhase": {
+      "follicular": 0,
+      "luteal": 0,
+      "menstrual": 0,
+      "ovulation": 1,
+    },
+    "peakPhase": "ovulation",
+    "symptom": "Headache",
+    "totalCount": 1,
+  },
+]
+`;
+
+exports[`symptom patterns + variability label > labels variability by stdDev threshold 1`] = `
+[
+  "Very regular",
+  "Very regular",
+  "Regular",
+  "Somewhat variable",
+  "Irregular",
+]
+`;

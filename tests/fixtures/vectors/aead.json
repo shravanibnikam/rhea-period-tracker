@@ -1,0 +1,68 @@
+{
+  "generator": "scratchpad/gen-aead-vectors.mjs (2026-07-15, M2.1/RHEA-062)",
+  "library": "libsodium-wrappers-sumo@0.8.4 (libsodium.js — audited upstream implementation)",
+  "construction": "crypto_aead_xchacha20poly1305_ietf_encrypt(pt, canonicalJSON({keyId,recordKey,scope,updatedAt}), null, nonce24, key32); base64 variant ORIGINAL",
+  "note": "Self-generated against the audited library and PINNED: any refactor that changes these bytes changed the wire construction.",
+  "vectors": [
+    {
+      "name": "owner-log-basic",
+      "keyHex": "000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f",
+      "nonceHex": "000102030405060708090a0b0c0d0e0f1011121314151617",
+      "ptUtf8": "rhea-kat-1: {\"flow\":\"medium\"}",
+      "aadFields": {
+        "keyId": "dek:1",
+        "recordKey": "log:2026-07-15",
+        "scope": "owner",
+        "updatedAt": "0000019c9f0a0000:0001:kat-device-a"
+      },
+      "envelope": {
+        "v": 1,
+        "alg": "xchacha20poly1305",
+        "keyId": "dek:1",
+        "nonce": "AAECAwQFBgcICQoLDA0ODxAREhMUFRYX",
+        "ct": "7KpqHr257NoedRzusHDOhCQwCp/fu3iPFm9SlECPA5RLswCyFD/3dd0Zpj54",
+        "aad": "eyJrZXlJZCI6ImRlazoxIiwicmVjb3JkS2V5IjoibG9nOjIwMjYtMDctMTUiLCJzY29wZSI6Im93bmVyIiwidXBkYXRlZEF0IjoiMDAwMDAxOWM5ZjBhMDAwMDowMDAxOmthdC1kZXZpY2UtYSJ9"
+      }
+    },
+    {
+      "name": "empty-plaintext",
+      "keyHex": "80a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5",
+      "nonceHex": "ff3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c",
+      "ptUtf8": "",
+      "aadFields": {
+        "keyId": "dek:2",
+        "recordKey": "meta:excludedCycles",
+        "scope": "meta",
+        "updatedAt": "000000000000:0000:kat-device-b"
+      },
+      "envelope": {
+        "v": 1,
+        "alg": "xchacha20poly1305",
+        "keyId": "dek:2",
+        "nonce": "/zw8PDw8PDw8PDw8PDw8PDw8PDw8PDw8",
+        "ct": "yy+5nPOoap0aPDp6VP427g==",
+        "aad": "eyJrZXlJZCI6ImRlazoyIiwicmVjb3JkS2V5IjoibWV0YTpleGNsdWRlZEN5Y2xlcyIsInNjb3BlIjoibWV0YSIsInVwZGF0ZWRBdCI6IjAwMDAwMDAwMDAwMDowMDAwOmthdC1kZXZpY2UtYiJ9"
+      }
+    },
+    {
+      "name": "unicode-projection",
+      "keyHex": "d10f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f",
+      "nonceHex": "07e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2",
+      "ptUtf8": "phase→luteal · humör 🌙 · ⏱ 28d",
+      "aadFields": {
+        "keyId": "kpair:11111111-2222-3333-4444-555555555555:1",
+        "recordKey": "projection:current",
+        "scope": "projection",
+        "updatedAt": "0000019c9f0affff:fffe:kat-device-c"
+      },
+      "envelope": {
+        "v": 1,
+        "alg": "xchacha20poly1305",
+        "keyId": "kpair:11111111-2222-3333-4444-555555555555:1",
+        "nonce": "B+Li4uLi4uLi4uLi4uLi4uLi4uLi4uLi",
+        "ct": "l6NQhfVzlLi1zhq6z2tWg7tqr9h5XN3fNWASBoMjP5gcvD0Gl0L+Vh+38UUid6lIYpRRDVUqwZM=",
+        "aad": "eyJrZXlJZCI6ImtwYWlyOjExMTExMTExLTIyMjItMzMzMy00NDQ0LTU1NTU1NTU1NTU1NToxIiwicmVjb3JkS2V5IjoicHJvamVjdGlvbjpjdXJyZW50Iiwic2NvcGUiOiJwcm9qZWN0aW9uIiwidXBkYXRlZEF0IjoiMDAwMDAxOWM5ZjBhZmZmZjpmZmZlOmthdC1kZXZpY2UtYyJ9"
+      }
+    }
+  ]
+}
