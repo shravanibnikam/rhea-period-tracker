@@ -166,7 +166,7 @@ export default function App() {
   // ── Should we show the My View / Partner toggle? ──
   // Partners: never (they only see partner view)
   // Owners: only when they have a partner linked
-  const showViewToggle = isOwner && auth.hasPartnerLinked;
+  const showViewToggle = isOwner;
 
   // ── Main app ──
   return (
@@ -193,7 +193,7 @@ export default function App() {
             ownerId={auth.linkedOwnerId}
             currentUserId={auth.user?.id}
           />
-        ) : view === "partner" && showViewToggle ? (
+        ) : view === "partner" ? (
           /* ── Owner previewing partner view ── */
           <PartnerView
             phaseData={phaseData}
