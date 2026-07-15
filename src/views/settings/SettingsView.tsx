@@ -166,6 +166,27 @@ export function SettingsView({
             </div>
           )}
 
+          {/* Account (when logged in) — at the top for easy access */}
+          {userId && onSignOut && (
+            <div className="flex items-center justify-between p-4 rounded-xl border border-border">
+              <div>
+                <p className="text-sm font-medium text-foreground">
+                  {userEmail}
+                </p>
+                <p className="text-xs text-muted-foreground capitalize">
+                  {role ?? "owner"}
+                </p>
+              </div>
+              <button
+                onClick={onSignOut}
+                className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-medium text-destructive hover:bg-destructive/10 transition-colors"
+              >
+                <LogOut size={14} />
+                Sign out
+              </button>
+            </div>
+          )}
+
           {/* Import preview */}
           {importPreview && (
             <div className="p-4 rounded-xl border-2 border-primary/30 bg-primary/5">
@@ -356,32 +377,6 @@ export function SettingsView({
           {/* Sharing controls (owner only, when paired) */}
           {userId && role === "owner" && (
             <SharingControls ownerId={userId} />
-          )}
-
-          {/* Account (when logged in) */}
-          {userId && onSignOut && (
-            <div>
-              <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-3">
-                Account
-              </p>
-              <div className="flex items-center justify-between p-4 rounded-xl border border-border">
-                <div>
-                  <p className="text-sm font-medium text-foreground">
-                    {userEmail}
-                  </p>
-                  <p className="text-xs text-muted-foreground capitalize">
-                    {role ?? "owner"}
-                  </p>
-                </div>
-                <button
-                  onClick={onSignOut}
-                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
-                >
-                  <LogOut size={14} />
-                  Sign out
-                </button>
-              </div>
-            </div>
           )}
 
           {/* App info */}
