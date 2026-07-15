@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { Eye, EyeOff, Moon } from "lucide-react";
+import { logAudit, getAuditLog, formatAction, type AuditEntry } from "@/lib/audit";
 import {
   SHARE_KEYS,
   getShareSettings,
@@ -25,6 +26,8 @@ export function SharingControls({ ownerId }: SharingControlsProps) {
   const [quietStart, setQuietStart] = useState(() => toDateKey(new Date()));
   const [quietEnd, setQuietEnd] = useState(() => toDateKey(new Date()));
   const [loading, setLoading] = useState(true);
+  const [auditEntries, setAuditEntries] = useState<AuditEntry[]>([]);
+  const [showAudit, setShowAudit] = useState(false);
 
   useEffect(() => {
     Promise.all([
@@ -42,10 +45,12 @@ export function SharingControls({ ownerId }: SharingControlsProps) {
     const newValue = !settings[key];
     setSettings({ ...settings, [key]: newValue });
     await setShareSetting(ownerId, key, newValue);
+    await logAudit(ownerId, newValue ? "share.toggle_on" : "share.toggle_off", key);
   };
 
   const handleAddQuiet = async () => {
     await addQuietWindow(ownerId, quietStart, quietEnd);
+    await logAudit(ownerId, "quiet.added", `${quietStart} to ${quietEnd}`);
     const updated = await getQuietWindows(ownerId);
     setQuietWindows(updated);
     setShowAddQuiet(false);
@@ -53,6 +58,7 @@ export function SharingControls({ ownerId }: SharingControlsProps) {
 
   const handleRemoveQuiet = async (id: string) => {
     await removeQuietWindow(id);
+    await logAudit(ownerId, "quiet.removed", id);
     setQuietWindows((prev) => prev.filter((qw) => qw.id !== id));
   };
 
@@ -178,6 +184,49 @@ export function SharingControls({ ownerId }: SharingControlsProps) {
           >
             + Add quiet window
           </button>
+        )}
+      </div>
+
+      {/* Audit log */}
+      <div className="pt-4 border-t border-border">
+        <button
+          onClick={async () => {
+            if (!showAudit) {
+              const entries = await getAuditLog(ownerId);
+              setAuditEntries(entries);
+            }
+            setShowAudit(!showAudit);
+          }}
+          className="text-xs text-primary hover:underline"
+        >
+          {showAudit ? "Hide activity log" : "View activity log"}
+        </button>
+
+        {showAudit && auditEntries.length > 0 && (
+          <div className="mt-3 space-y-1.5 max-h-48 overflow-y-auto">
+            {auditEntries.map((entry) => (
+              <div key={entry.id} className="flex items-center justify-between py-1.5">
+                <div>
+                  <p className="text-xs text-foreground">{formatAction(entry.action)}</p>
+                  {entry.target && (
+                    <p className="text-xs text-muted-foreground">{entry.target}</p>
+                  )}
+                </div>
+                <p className="text-xs text-muted-foreground flex-shrink-0 ml-3">
+                  {new Date(entry.created_at).toLocaleDateString("en-US", {
+                    month: "short",
+                    day: "numeric",
+                    hour: "numeric",
+                    minute: "2-digit",
+                  })}
+                </p>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {showAudit && auditEntries.length === 0 && (
+          <p className="mt-3 text-xs text-muted-foreground">No activity yet.</p>
         )}
       </div>
     </div>
