@@ -66,6 +66,9 @@ export function AuthScreen({ onSignUp, onSignIn }: AuthScreenProps) {
           <h1 className="font-serif text-3xl font-bold text-foreground mb-1">
             Rhea
           </h1>
+          <p className="text-xs text-muted-foreground mb-2">
+            Your period tracking app
+          </p>
           <p className="text-sm text-muted-foreground">
             {mode === "signin"
               ? "Welcome back"
