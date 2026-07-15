@@ -177,6 +177,9 @@ export default function App() {
         onSettingsClick={() => setShowSettings(true)}
         showToggle={showViewToggle}
         isPartner={isPartner}
+        userEmail={auth.user?.email}
+        userRole={auth.role}
+        onSignOut={auth.user ? auth.signOut : undefined}
       />
 
       <main id="main-content" role="main" className="max-w-4xl mx-auto px-4 sm:px-6 py-8 pb-24">

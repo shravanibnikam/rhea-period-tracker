@@ -1,4 +1,5 @@
 import { Heart, User, Settings } from "lucide-react";
+import { UserMenu } from "./UserMenu";
 
 interface HeaderProps {
   view: "personal" | "partner";
@@ -6,9 +7,21 @@ interface HeaderProps {
   onSettingsClick: () => void;
   showToggle?: boolean;
   isPartner?: boolean;
+  userEmail?: string | null;
+  userRole?: string | null;
+  onSignOut?: () => void;
 }
 
-export function Header({ view, setView, onSettingsClick, showToggle = true, isPartner = false }: HeaderProps) {
+export function Header({
+  view,
+  setView,
+  onSettingsClick,
+  showToggle = true,
+  isPartner = false,
+  userEmail,
+  userRole,
+  onSignOut,
+}: HeaderProps) {
   return (
     <header className="sticky top-0 z-50 bg-background/95 backdrop-blur-sm border-b border-border">
       <a
@@ -76,6 +89,14 @@ export function Header({ view, setView, onSettingsClick, showToggle = true, isPa
           >
             <Settings size={16} aria-hidden="true" />
           </button>
+
+          {userEmail && onSignOut && (
+            <UserMenu
+              email={userEmail}
+              role={userRole ?? "owner"}
+              onSignOut={onSignOut}
+            />
+          )}
         </div>
       </div>
     </header>
