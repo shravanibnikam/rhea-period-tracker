@@ -1,9 +1,14 @@
 # Next Session Brief — resume at M2.2
 
-**Written 2026-07-15 (session S3), paused at user request after completing M2.1.**
-Repo state: all four gates green (`tsc` ✓ · `eslint --max-warnings=0` ✓ ·
-**228/228 tests** ✓ · `vite build` ✓). No git commits — everything is
-uncommitted working-tree state. **M2.2 has NOT been started.**
+**Written 2026-07-15 (session S3), paused after completing M2.1. The project is being
+handed off to a new engineer — read [HANDOFF.md](HANDOFF.md) FIRST; this file is the
+task-level resume brief it points to.**
+
+Repo state: branch `rhea-v2-preparation`, working tree **clean** (all work is in HEAD
+`16d4360`, committed by the repository owner; the implementation sessions created no
+commits and pushed nothing). All four gates green (`tsc` ✓ ·
+`eslint --max-warnings=0` ✓ · **228/228 tests** ✓ · `vite build` ✓).
+**M2.2 has NOT been started.**
 
 ## Exact stopping point
 - Phase 2, after **M2.1 (RHEA-060…062)**: `src/crypto/{sodium,envelope,errors,aead,index}.ts`
@@ -15,6 +20,10 @@ uncommitted working-tree state. **M2.2 has NOT been started.**
 
 ## Suggested first task: RHEA-063 (`SecureStore` seam + `WebSecureStore`)
 Then RHEA-064 (keyring), RHEA-065 (suite) — that completes M2.2.
+Before any code: write **ADR-0006** (web key-custody decision) — cryptographic
+decisions require an ADR first (project rule; see docs/adr/0001).
+A ready-to-paste Codex prompt for exactly this work is at the end of
+[HANDOFF.md](HANDOFF.md).
 
 Implementation notes agreed in the docs (read these first):
 - Spec Ch5 §3.3–§3.4 (SecureStore + Keyring contracts), Ch3 §3.2 (seam

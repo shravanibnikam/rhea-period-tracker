@@ -1,7 +1,10 @@
 # Rhea v2 — Implementation Status
 
-**Paused at user request — 2026-07-15, after M2.1.**
-No git commits were created (per instructions); everything is uncommitted working-tree state.
+**Paused at user request — 2026-07-15, after M2.1. Project is being HANDED OFF —
+start at [HANDOFF.md](HANDOFF.md).**
+Repository state: branch `rhea-v2-preparation`, working tree **clean** — all work to date
+is contained in HEAD (`16d4360`, committed by the repository owner). The implementation
+sessions themselves created no commits and pushed nothing.
 
 | | |
 |---|---|
@@ -12,9 +15,9 @@ No git commits were created (per instructions); everything is uncommitted workin
 | **Lint** | ✅ `eslint . --max-warnings=0` clean (gate tightened this session) |
 | **Tests** | ✅ **228 passed / 228, 25 files** (`vitest run`) |
 | **Build** | ✅ `vite build` (chunk-size warning only — sumo bundle, tracked debt) |
-| **Dev server** | http://localhost:5173 (background task, entry `src/app/main.tsx`) |
+| **Dev server** | `npm run dev` → http://localhost:5173 (entry `src/app/main.tsx`) |
 
-Decision history: [IMPLEMENTATION_JOURNAL.md](IMPLEMENTATION_JOURNAL.md) (session S3 = today) · ADRs: [docs/adr/](adr/) · Resume brief: [NEXT_SESSION.md](NEXT_SESSION.md)
+Handoff brief: [HANDOFF.md](HANDOFF.md) · Resume brief: [NEXT_SESSION.md](NEXT_SESSION.md) · Decision history: [IMPLEMENTATION_JOURNAL.md](IMPLEMENTATION_JOURNAL.md) (session S3 = today) · ADRs: [docs/adr/](adr/)
 
 ---
 

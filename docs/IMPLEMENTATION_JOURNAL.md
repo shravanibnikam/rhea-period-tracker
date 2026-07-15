@@ -523,3 +523,28 @@ Environment notes that shape Phase 1–4 execution:
 
 **PAUSED at user request after M2.1** — M2.2 (keyring + SecureStore,
 RHEA-063..065) NOT started. Resume pointer: docs/NEXT_SESSION.md.
+
+### S3.6 · Handoff preparation (2026-07-15)
+- **Time:** S3 +90m · **Milestone:** — · **Task:** — (no source code modified)
+- **Decision:** Implementation hands off to another engineer (continuing with
+  Codex). Created `docs/HANDOFF.md` — project summary, progress, branch/build
+  state, per-layer architecture, decision index (ADRs 0001–0005 + journal),
+  crypto/sync status, risks & debt, exact resume point (M2.2 / RHEA-063, with
+  ADR-0006 required first), commands, reading order, a "Things To Avoid"
+  pitfall list distilled from sessions S0–S3, and a ready-to-paste Codex
+  prompt. Updated NEXT_SESSION.md and IMPLEMENTATION_STATUS.md to lead with
+  the handoff.
+- **Repository-state correction recorded:** the working tree is CLEAN — all
+  work to date (Phases 0–1 + M2.1 + docs) is contained in HEAD `16d4360`
+  ("chore: prepare repository for Rhea v2 implementation") on branch
+  `rhea-v2-preparation`, committed by the repository owner between sessions.
+  The implementation sessions themselves created no commits and pushed
+  nothing (per standing instruction). Earlier status-doc claims of
+  "uncommitted working-tree state" were corrected.
+- **Files:** docs/HANDOFF.md (new), docs/NEXT_SESSION.md,
+  docs/IMPLEMENTATION_STATUS.md, docs/IMPLEMENTATION_JOURNAL.md (this entry).
+- **Follow-up for the next engineer:** everything in HANDOFF.md "How To
+  Continue"; session numbering continues at S4.
+
+**HANDED OFF after M2.1** — gates at handoff: tsc ✓ · lint 0 warnings ✓ ·
+228/228 tests ✓ · build ✓.
