@@ -243,6 +243,8 @@ export default function App() {
             phase={phase}
             state={state}
             today={today}
+            ownerId={auth.linkedOwnerId ?? auth.user?.id}
+            currentUserId={auth.user?.id}
           />
         )}
       </main>
