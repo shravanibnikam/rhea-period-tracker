@@ -4,9 +4,11 @@ interface HeaderProps {
   view: "personal" | "partner";
   setView: (v: "personal" | "partner") => void;
   onSettingsClick: () => void;
+  showToggle?: boolean;
+  isPartner?: boolean;
 }
 
-export function Header({ view, setView, onSettingsClick }: HeaderProps) {
+export function Header({ view, setView, onSettingsClick, showToggle = true, isPartner = false }: HeaderProps) {
   return (
     <header className="sticky top-0 z-50 bg-background/95 backdrop-blur-sm border-b border-border">
       <a
@@ -21,42 +23,51 @@ export function Header({ view, setView, onSettingsClick }: HeaderProps) {
           <span className="font-serif text-base font-semibold text-foreground tracking-tight">
             Rhea
           </span>
-          <span className="text-muted-foreground text-xs hidden sm:inline" aria-hidden="true">
-            &middot; Cycle Tracker
-          </span>
+          {isPartner && (
+            <span className="text-xs px-2 py-0.5 rounded-full bg-primary/10 text-primary font-medium">
+              Partner
+            </span>
+          )}
+          {!isPartner && (
+            <span className="text-muted-foreground text-xs hidden sm:inline" aria-hidden="true">
+              &middot; Cycle Tracker
+            </span>
+          )}
         </div>
 
         <div className="flex items-center gap-2">
-          <nav aria-label="View toggle" role="tablist" className="flex bg-muted rounded-full p-0.5 gap-0.5">
-            <button
-              onClick={() => setView("personal")}
-              role="tab"
-              aria-selected={view === "personal"}
-              aria-controls="main-content"
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 ${
-                view === "personal"
-                  ? "bg-card text-foreground shadow-sm"
-                  : "text-muted-foreground hover:text-foreground"
-              }`}
-            >
-              <User size={11} aria-hidden="true" />
-              My View
-            </button>
-            <button
-              onClick={() => setView("partner")}
-              role="tab"
-              aria-selected={view === "partner"}
-              aria-controls="main-content"
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 ${
-                view === "partner"
-                  ? "bg-card text-foreground shadow-sm"
-                  : "text-muted-foreground hover:text-foreground"
-              }`}
-            >
-              <Heart size={11} aria-hidden="true" />
-              Partner
-            </button>
-          </nav>
+          {showToggle && !isPartner && (
+            <nav aria-label="View toggle" role="tablist" className="flex bg-muted rounded-full p-0.5 gap-0.5">
+              <button
+                onClick={() => setView("personal")}
+                role="tab"
+                aria-selected={view === "personal"}
+                aria-controls="main-content"
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 ${
+                  view === "personal"
+                    ? "bg-card text-foreground shadow-sm"
+                    : "text-muted-foreground hover:text-foreground"
+                }`}
+              >
+                <User size={11} aria-hidden="true" />
+                My View
+              </button>
+              <button
+                onClick={() => setView("partner")}
+                role="tab"
+                aria-selected={view === "partner"}
+                aria-controls="main-content"
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 ${
+                  view === "partner"
+                    ? "bg-card text-foreground shadow-sm"
+                    : "text-muted-foreground hover:text-foreground"
+                }`}
+              >
+                <Heart size={11} aria-hidden="true" />
+                Partner
+              </button>
+            </nav>
+          )}
 
           <button
             onClick={onSettingsClick}

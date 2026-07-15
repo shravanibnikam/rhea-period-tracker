@@ -9,10 +9,12 @@ interface UseAuthReturn {
   session: Session | null;
   role: UserRole;
   linkedOwnerId: string | null;
+  hasPartnerLinked: boolean;
   loading: boolean;
   signUp: (email: string, password: string) => Promise<string | null>;
   signIn: (email: string, password: string) => Promise<string | null>;
   signOut: () => Promise<void>;
+  refreshRole: () => Promise<void>;
   isConfigured: boolean;
 }
 
@@ -21,26 +23,38 @@ export function useAuth(): UseAuthReturn {
   const [session, setSession] = useState<Session | null>(null);
   const [role, setRole] = useState<UserRole>(null);
   const [linkedOwnerId, setLinkedOwnerId] = useState<string | null>(null);
+  const [hasPartnerLinked, setHasPartnerLinked] = useState(false);
   const [loading, setLoading] = useState(true);
   const configured = isSupabaseConfigured();
 
-  // Determine role: if user has a partner_links row as partner_id, they're a partner
   const detectRole = useCallback(async (userId: string) => {
     if (!supabase) return;
 
-    const { data: partnerLink } = await supabase
+    // Check if user is a partner (linked to an owner)
+    const { data: asPartner } = await supabase
       .from("partner_links")
       .select("owner_id")
       .eq("partner_id", userId)
       .maybeSingle();
 
-    if (partnerLink) {
+    if (asPartner) {
       setRole("partner");
-      setLinkedOwnerId(partnerLink.owner_id);
-    } else {
-      setRole("owner");
-      setLinkedOwnerId(null);
+      setLinkedOwnerId(asPartner.owner_id);
+      setHasPartnerLinked(false);
+      return;
     }
+
+    // User is an owner — check if they have a partner linked
+    setRole("owner");
+    setLinkedOwnerId(null);
+
+    const { data: asOwner } = await supabase
+      .from("partner_links")
+      .select("partner_id")
+      .eq("owner_id", userId)
+      .maybeSingle();
+
+    setHasPartnerLinked(asOwner !== null);
   }, []);
 
   useEffect(() => {
@@ -105,17 +119,24 @@ export function useAuth(): UseAuthReturn {
     setSession(null);
     setRole(null);
     setLinkedOwnerId(null);
+    setHasPartnerLinked(false);
   }, []);
+
+  const refreshRole = useCallback(async () => {
+    if (user) await detectRole(user.id);
+  }, [user, detectRole]);
 
   return {
     user,
     session,
     role,
     linkedOwnerId,
+    hasPartnerLinked,
     loading,
     signUp,
     signIn,
     signOut,
+    refreshRole,
     isConfigured: configured,
   };
 }
