@@ -3,6 +3,7 @@ import { X, Download, Upload, Trash2, AlertTriangle, FileUp, LogOut } from "luci
 import { exportData, importData, eraseAllData, downloadJSON, saveLog, type ExportData } from "@/lib/db";
 import { parseImportFile, sourceLabel, type ImportResult } from "@/lib/import";
 import { PairingSection } from "./PairingSection";
+import { SharingControls } from "./SharingControls";
 import type { UserRole } from "@/hooks/useAuth";
 
 interface SettingsViewProps {
@@ -348,6 +349,11 @@ export function SettingsView({
               role={role ?? null}
               onRoleChanged={onRoleChanged}
             />
+          )}
+
+          {/* Sharing controls (owner only, when paired) */}
+          {userId && role === "owner" && (
+            <SharingControls ownerId={userId} />
           )}
 
           {/* Account (when logged in) */}
