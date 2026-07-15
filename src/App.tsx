@@ -67,7 +67,7 @@ export default function App() {
     if (!auth.user) return;
 
     const ownerId = auth.linkedOwnerId ?? auth.user.id;
-    initialSync(ownerId).then(() => refresh());
+    initialSync(ownerId).then(() => refresh()).catch(console.error);
 
     const channel = subscribeToLogs(ownerId, refresh);
     channelRef.current = channel;

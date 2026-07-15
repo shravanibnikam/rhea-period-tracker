@@ -9,6 +9,7 @@ import "@fontsource/dm-sans/300.css";
 import "@fontsource/dm-sans/400.css";
 import "@fontsource/dm-sans/500.css";
 import "@fontsource/dm-sans/600.css";
+import { ErrorBoundary } from "./components/ErrorBoundary";
 import App from "./App";
 import "./styles/index.css";
 
@@ -16,7 +17,9 @@ const root = document.getElementById("root");
 if (root) {
   createRoot(root).render(
     <StrictMode>
-      <App />
+      <ErrorBoundary>
+        <App />
+      </ErrorBoundary>
     </StrictMode>
   );
 }
@@ -24,8 +27,6 @@ if (root) {
 // Register service worker for offline PWA support
 if ("serviceWorker" in navigator) {
   window.addEventListener("load", () => {
-    navigator.serviceWorker.register("/sw.js").catch(() => {
-      // SW registration failed — app works fine without it
-    });
+    navigator.serviceWorker.register("/sw.js").catch(() => {});
   });
 }

@@ -11,4 +11,14 @@ export default defineConfig({
     },
   },
   assetsInclude: ["**/*.svg", "**/*.csv"],
+  build: {
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          recharts: ["recharts"],
+          supabase: ["@supabase/supabase-js"],
+        },
+      },
+    },
+  },
 });

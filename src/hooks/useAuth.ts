@@ -30,31 +30,39 @@ export function useAuth(): UseAuthReturn {
   const detectRole = useCallback(async (userId: string) => {
     if (!supabase) return;
 
-    // Check if user is a partner (linked to an owner)
-    const { data: asPartner } = await supabase
-      .from("partner_links")
-      .select("owner_id")
-      .eq("partner_id", userId)
-      .maybeSingle();
+    try {
+      // Check if user is a partner (linked to an owner)
+      const { data: asPartner } = await supabase
+        .from("partner_links")
+        .select("owner_id")
+        .eq("partner_id", userId)
+        .maybeSingle();
 
-    if (asPartner) {
-      setRole("partner");
-      setLinkedOwnerId(asPartner.owner_id);
+      if (asPartner) {
+        setRole("partner");
+        setLinkedOwnerId(asPartner.owner_id);
+        setHasPartnerLinked(false);
+        return;
+      }
+
+      // User is an owner — check if they have a partner linked
+      setRole("owner");
+      setLinkedOwnerId(null);
+
+      const { data: asOwner } = await supabase
+        .from("partner_links")
+        .select("partner_id")
+        .eq("owner_id", userId)
+        .maybeSingle();
+
+      setHasPartnerLinked(asOwner !== null);
+    } catch (err) {
+      console.error("Failed to detect role:", err);
+      // Default to owner so the app doesn't hang
+      setRole("owner");
+      setLinkedOwnerId(null);
       setHasPartnerLinked(false);
-      return;
     }
-
-    // User is an owner — check if they have a partner linked
-    setRole("owner");
-    setLinkedOwnerId(null);
-
-    const { data: asOwner } = await supabase
-      .from("partner_links")
-      .select("partner_id")
-      .eq("owner_id", userId)
-      .maybeSingle();
-
-    setHasPartnerLinked(asOwner !== null);
   }, []);
 
   useEffect(() => {
@@ -63,32 +71,42 @@ export function useAuth(): UseAuthReturn {
       return;
     }
 
-    // Get initial session
-    supabase.auth.getSession().then(({ data: { session: s } }) => {
+    let handled = false;
+
+    // Use onAuthStateChange as the single source of truth (Supabase v2 pattern)
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange(async (_event, s) => {
       setSession(s);
       setUser(s?.user ?? null);
+
       if (s?.user) {
-        detectRole(s.user.id).then(() => setLoading(false));
+        await detectRole(s.user.id).catch(() => {});
       } else {
+        setRole(null);
+        setLinkedOwnerId(null);
+        setHasPartnerLinked(false);
+      }
+
+      // Always resolve loading regardless of outcome
+      if (!handled) {
+        handled = true;
         setLoading(false);
       }
     });
 
-    // Listen for auth changes
-    const {
-      data: { subscription },
-    } = supabase.auth.onAuthStateChange((_event, s) => {
-      setSession(s);
-      setUser(s?.user ?? null);
-      if (s?.user) {
-        detectRole(s.user.id);
-      } else {
-        setRole(null);
-        setLinkedOwnerId(null);
+    // Fallback: if no auth event fires within 3 seconds, stop loading
+    const timeout = setTimeout(() => {
+      if (!handled) {
+        handled = true;
+        setLoading(false);
       }
-    });
+    }, 3000);
 
-    return () => subscription.unsubscribe();
+    return () => {
+      subscription.unsubscribe();
+      clearTimeout(timeout);
+    };
   }, [detectRole]);
 
   const signUp = useCallback(
