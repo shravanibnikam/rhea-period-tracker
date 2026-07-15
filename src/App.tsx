@@ -18,6 +18,7 @@ import { QuickAddPeriod } from "@/views/tracker/QuickAddPeriod";
 import { Onboarding } from "@/views/tracker/Onboarding";
 import { SettingsView } from "@/views/settings/SettingsView";
 import { SourcesView } from "@/views/settings/SourcesView";
+import { PrivacyPolicy } from "@/views/settings/PrivacyPolicy";
 import { AuthScreen } from "@/views/auth/AuthScreen";
 
 export default function App() {
@@ -28,6 +29,7 @@ export default function App() {
   const [cycleLengthOverride, setCycleLengthOverride] = useState<number | null>(null);
   const [logSheetDate, setLogSheetDate] = useState<Date | null>(null);
   const [showSources, setShowSources] = useState(false);
+  const [showPrivacy, setShowPrivacy] = useState(false);
 
   const today = useMemo(() => new Date(), []);
 
@@ -154,7 +156,7 @@ export default function App() {
         onSettingsClick={() => setShowSettings(true)}
       />
 
-      <main className="max-w-4xl mx-auto px-4 sm:px-6 py-8 pb-24">
+      <main id="main-content" role="main" className="max-w-4xl mx-auto px-4 sm:px-6 py-8 pb-24">
         {view === "personal" ? (
           !hasData ? (
             <Onboarding
@@ -221,18 +223,18 @@ export default function App() {
               <div className="fixed bottom-6 right-6 sm:bottom-8 sm:right-8 flex flex-col gap-3 items-end">
                 <button
                   onClick={() => setShowQuickAdd(true)}
-                  className="w-11 h-11 rounded-full shadow-md flex items-center justify-center text-sm transition-all hover:scale-105 active:scale-95 bg-card border border-border"
-                  title="Add a past period"
+                  aria-label="Add a past period"
+                  className="w-11 h-11 rounded-full shadow-md flex items-center justify-center text-sm transition-all hover:scale-105 active:scale-95 bg-card border border-border focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
                 >
-                  <span className="text-base">&#x1F4C5;</span>
+                  <span className="text-base" aria-hidden="true">&#x1F4C5;</span>
                 </button>
                 <button
                   onClick={() => setLogSheetDate(today)}
-                  className="w-14 h-14 rounded-full shadow-lg flex items-center justify-center text-white text-xl transition-all hover:scale-105 active:scale-95"
+                  aria-label="Log today"
+                  className="w-14 h-14 rounded-full shadow-lg flex items-center justify-center text-white text-xl transition-all hover:scale-105 active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
                   style={{ backgroundColor: phaseData.color }}
-                  title="Log today"
                 >
-                  +
+                  <span aria-hidden="true">+</span>
                 </button>
               </div>
             </>
@@ -278,6 +280,10 @@ export default function App() {
             setShowSettings(false);
             setShowSources(true);
           }}
+          onPrivacyClick={() => {
+            setShowSettings(false);
+            setShowPrivacy(true);
+          }}
           userId={auth.user?.id}
           userEmail={auth.user?.email}
           role={auth.role}
@@ -291,6 +297,10 @@ export default function App() {
 
       {showSources && (
         <SourcesView onClose={() => setShowSources(false)} />
+      )}
+
+      {showPrivacy && (
+        <PrivacyPolicy onClose={() => setShowPrivacy(false)} />
       )}
     </div>
   );

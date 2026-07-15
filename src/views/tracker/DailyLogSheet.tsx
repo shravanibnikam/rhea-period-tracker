@@ -1,4 +1,4 @@
-import { useCallback } from "react";
+import { useCallback, useEffect } from "react";
 import { X } from "lucide-react";
 import type { DailyLog, FlowLevel, PhaseData } from "@/types";
 import { ALL_SYMPTOMS, FLOW_LEVELS, MOOD_OPTIONS, ENERGY_OPTIONS } from "@/lib/constants";
@@ -21,6 +21,12 @@ export function DailyLogSheet({
   phaseData,
   date,
 }: DailyLogSheetProps) {
+  useEffect(() => {
+    const handleKey = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
+    window.addEventListener("keydown", handleKey);
+    return () => window.removeEventListener("keydown", handleKey);
+  }, [onClose]);
+
   const setField = useCallback(
     <K extends keyof DailyLog>(key: K, value: DailyLog[K]) => {
       setLog((prev) => ({ ...prev, [key]: value }));
@@ -41,11 +47,12 @@ export function DailyLogSheet({
   );
 
   return (
-    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center">
+    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center" role="dialog" aria-modal="true" aria-label="Log your day">
       {/* Backdrop */}
       <div
         className="absolute inset-0 bg-black/40 backdrop-blur-sm"
         onClick={onClose}
+        aria-hidden="true"
       />
 
       {/* Sheet */}
