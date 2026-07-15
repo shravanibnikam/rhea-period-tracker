@@ -12,6 +12,7 @@ interface SettingsViewProps {
   cycleLengthOverride: number | null;
   onCycleLengthOverrideChange: (value: number | null) => void;
   onSourcesClick: () => void;
+  onPrivacyClick: () => void;
   // Auth props (optional — absent when running local-only)
   userId?: string | null;
   userEmail?: string | null;
@@ -26,6 +27,7 @@ export function SettingsView({
   cycleLengthOverride,
   onCycleLengthOverrideChange,
   onSourcesClick,
+  onPrivacyClick,
   userId,
   userEmail,
   role,
@@ -389,6 +391,12 @@ export function SettingsView({
               className="w-full text-center text-xs text-primary hover:underline"
             >
               Sources &amp; references
+            </button>
+            <button
+              onClick={onPrivacyClick}
+              className="w-full text-center text-xs text-primary hover:underline"
+            >
+              Privacy policy
             </button>
             <p className="text-xs text-center text-muted-foreground">
               Rhea v0.1.0 &middot;{" "}
