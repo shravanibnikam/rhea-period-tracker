@@ -7,3 +7,6 @@ coverage/
 .vite/
 .claude/
 .vercel
+
+# Supabase CLI local link state
+supabase/.temp/
