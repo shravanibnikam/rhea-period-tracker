@@ -56,6 +56,8 @@ export default function App() {
     setLog: setActiveLog,
     save: saveActiveLog,
     saveMany: saveActiveLogs,
+    remove: removeActiveLog,
+    exists: activeLogExists,
   } = useLogger(
     activeLogDate,
     // Single write path (M1.3): every save flows through here. The saved logs
@@ -73,6 +75,15 @@ export default function App() {
       [auth.user, refresh, container]
     )
   );
+
+  // Delete the active log through the sync-engine tombstone path. Rejects on
+  // failure so DailyLogSheet keeps the modal open + shows the error; only on
+  // success do we refresh and close the sheet.
+  const handleDeleteActiveLog = useCallback(async () => {
+    await removeActiveLog();
+    refresh();
+    setLogSheetDate(null);
+  }, [removeActiveLog, refresh]);
 
   // ── Sync ──
   useEffect(() => {
@@ -331,6 +342,8 @@ export default function App() {
           onClose={() => setLogSheetDate(null)}
           phaseData={phaseData}
           date={activeLogDate}
+          onDelete={handleDeleteActiveLog}
+          canDelete={activeLogExists}
         />
       )}
 

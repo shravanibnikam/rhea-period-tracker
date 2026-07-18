@@ -72,6 +72,32 @@ export function CalendarTab({ cycles, avgLength, avgPeriodLength, today, logs, o
     return set;
   }, [logs]);
 
+  // Every date with a PERSISTED log row (regardless of content) — drives
+  // tappability of future dates so an existing future entry can be opened and
+  // deleted, while future EMPTY dates stay disabled. Broader than loggedDates
+  // (which is content-based, for the dot) so notes-only entries are reachable.
+  const entryDates = useMemo(() => new Set(logs.map((l) => l.date)), [logs]);
+
+  // Years offered by the year selector: a window around today PLUS every year
+  // present in logged data (so far-future entries like 2099 are selectable),
+  // PLUS the currently-viewed year.
+  const years = useMemo(() => {
+    const set = new Set<number>();
+    const ty = today.getFullYear();
+    for (let y = ty - 5; y <= ty + 1; y++) set.add(y);
+    for (const l of logs) {
+      const y = Number(l.date.slice(0, 4));
+      if (Number.isFinite(y)) set.add(y);
+    }
+    set.add(calMonth.getFullYear());
+    return [...set].sort((a, b) => a - b);
+  }, [logs, today, calMonth]);
+
+  const MONTH_NAMES = [
+    "January", "February", "March", "April", "May", "June",
+    "July", "August", "September", "October", "November", "December",
+  ];
+
   const calDays = useMemo(() => {
     const daysInMonth = new Date(
       calMonth.getFullYear(),
@@ -102,12 +128,13 @@ export function CalendarTab({ cycles, avgLength, avgPeriodLength, today, logs, o
         isToday: date.toDateString() === today.toDateString(),
         isFuture: date > today,
         hasLog: loggedDates.has(toDateKey(date)),
+        hasEntry: entryDates.has(toDateKey(date)),
         isFertile,
         isOvulation,
       });
     }
     return { days, firstDay };
-  }, [calMonth, avgLength, avgPeriodLength, today, cycles, loggedDates, fertileWindow]);
+  }, [calMonth, avgLength, avgPeriodLength, today, cycles, loggedDates, entryDates, fertileWindow]);
 
   return (
     <div className="bg-card rounded-2xl border border-border p-6">
@@ -119,15 +146,45 @@ export function CalendarTab({ cycles, avgLength, avgPeriodLength, today, logs, o
             )
           }
           className="p-2 rounded-full hover:bg-muted transition-colors"
+          aria-label="Previous month"
         >
           <ChevronLeft size={16} className="text-muted-foreground" />
         </button>
-        <h2 className="font-serif text-xl font-semibold text-foreground">
-          {calMonth.toLocaleDateString("en-US", {
-            month: "long",
-            year: "numeric",
-          })}
-        </h2>
+
+        <div className="flex items-center gap-2">
+          <select
+            aria-label="Month"
+            value={calMonth.getMonth()}
+            onChange={(e) =>
+              setCalMonth((m) => new Date(m.getFullYear(), Number(e.target.value), 1))
+            }
+            className="font-serif text-base sm:text-lg font-semibold text-foreground bg-transparent rounded-lg px-1.5 py-1 hover:bg-muted focus:outline-none focus:ring-2 focus:ring-primary/30 cursor-pointer"
+          >
+            {MONTH_NAMES.map((name, i) => (
+              <option key={name} value={i}>{name}</option>
+            ))}
+          </select>
+          <select
+            aria-label="Year"
+            value={calMonth.getFullYear()}
+            onChange={(e) =>
+              setCalMonth((m) => new Date(Number(e.target.value), m.getMonth(), 1))
+            }
+            className="font-serif text-base sm:text-lg font-semibold text-foreground bg-transparent rounded-lg px-1.5 py-1 hover:bg-muted focus:outline-none focus:ring-2 focus:ring-primary/30 cursor-pointer"
+          >
+            {years.map((y) => (
+              <option key={y} value={y}>{y}</option>
+            ))}
+          </select>
+          <button
+            onClick={() => setCalMonth(new Date(today.getFullYear(), today.getMonth(), 1))}
+            className="ml-1 text-xs font-medium text-primary rounded-full px-2.5 py-1 hover:bg-muted transition-colors"
+            aria-label="Jump to current month"
+          >
+            Today
+          </button>
+        </div>
+
         <button
           onClick={() =>
             setCalMonth(
@@ -135,6 +192,7 @@ export function CalendarTab({ cycles, avgLength, avgPeriodLength, today, logs, o
             )
           }
           className="p-2 rounded-full hover:bg-muted transition-colors"
+          aria-label="Next month"
         >
           <ChevronRight size={16} className="text-muted-foreground" />
         </button>
@@ -155,16 +213,19 @@ export function CalendarTab({ cycles, avgLength, avgPeriodLength, today, logs, o
         {Array.from({ length: calDays.firstDay }).map((_, i) => (
           <div key={`empty-${i}`} />
         ))}
-        {calDays.days.map(({ d, date, info, isToday, isFuture, hasLog, isFertile, isOvulation }) => {
+        {calDays.days.map(({ d, date, info, isToday, isFuture, hasLog, hasEntry, isFertile, isOvulation }) => {
           const p = info ? PHASES[info.phase] : null;
-          const canTap = !isFuture;
+          // Future dates are non-tappable UNLESS they already have a persisted
+          // entry (so an existing future log can be opened + deleted); future
+          // empty dates stay disabled — you can't create logs in the future.
+          const canTap = !isFuture || hasEntry;
           // Fertile window gets a gold bottom border; phase bg takes priority for fill
           const bg = p ? p.bg : isFertile ? "#FBF0DC" : "transparent";
           return (
             <button
               key={d}
               onClick={() => canTap && onDayClick(date)}
-              disabled={isFuture}
+              disabled={!canTap}
               className={`aspect-square flex flex-col items-center justify-center rounded-lg relative transition-all ${
                 canTap ? "hover:ring-2 hover:ring-primary/30 cursor-pointer" : "cursor-default"
               }`}
