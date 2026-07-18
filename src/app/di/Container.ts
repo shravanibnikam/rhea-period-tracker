@@ -23,6 +23,7 @@ import {
   SyncEngine,
   SupabaseTransport,
   NullTransport,
+  Outbox,
   seedInitialOutbox,
 } from "@/sync";
 
@@ -30,6 +31,14 @@ export class Container {
   private readonly manager = new StorageManager({ onOpen: copyForwardFromLegacy });
   private uid: string | null = null;
   private engine: SyncEngine | null = null;
+  /**
+   * Whether the CONFIGURED sync mode is owner-engine (durable outbox). Set by
+   * the app from auth + feature flag + role — NOT from `engine !== null`. Owner
+   * writes must enqueue even while `engine` is transiently null (lifecycle gap
+   * or pre-start), so the outbox attaches on this flag, not on the instance.
+   * In local/legacy mode it stays false so we never accrue undrainable intents.
+   */
+  private ownerSyncMode = false;
 
   // ── Account scoping (per-account DB name; M0.4 semantics) ─────────────────
   /**
@@ -52,8 +61,26 @@ export class Container {
     return this.manager.acquire(identityFor(this.uid));
   }
 
+  /**
+   * Select the configured sync mode. Call from the app whenever auth/flag/role
+   * changes. Owner-engine mode attaches a durable outbox to every write; local/
+   * legacy mode attaches none. Independent of engine start state (see field doc).
+   */
+  setOwnerSyncMode(enabled: boolean): void {
+    this.ownerSyncMode = enabled;
+  }
+
   async logs(): Promise<LogRepository> {
-    return new LogRepository(await this.driver(), { outbox: this.engine?.outbox });
+    const driver = await this.driver();
+    // Owner-engine mode → attach a durable, driver-backed outbox so the write
+    // and its sync intent commit in ONE transaction, even if `engine` is null
+    // (not yet started / lifecycle gap). Reuse the engine's outbox when present
+    // (same "outbox" store either way); otherwise a fresh Outbox over the same
+    // driver. Local/legacy mode → no outbox (never accrue undrainable intents).
+    const outbox = this.ownerSyncMode
+      ? (this.engine?.outbox ?? new Outbox(driver))
+      : undefined;
+    return new LogRepository(driver, { outbox });
   }
 
   async meta(): Promise<MetaRepository> {
@@ -148,6 +175,9 @@ export class Container {
    * the legacy read-only pull until the E2EE projection path (M2.9).
    */
   async startOwnerSync(uid: string, client: SupabaseClient | null): Promise<SyncEngine> {
+    // An owner engine implies owner-engine mode — keep the invariant even if the
+    // app didn't call setOwnerSyncMode first, so writes always enqueue durably.
+    this.ownerSyncMode = true;
     if (this.engine) return this.engine;
     const driver = await this.driver();
     const engine = new SyncEngine({

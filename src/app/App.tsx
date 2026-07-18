@@ -6,7 +6,7 @@ import { useAuth } from "@/app/hooks/useAuth";
 import { useLogger } from "@/app/hooks/useLogger";
 import { initialSync, pushLog, subscribeToLogs, unsubscribe } from "@/app/lib/sync";
 import { supabase } from "@/app/lib/supabase";
-import { flags } from "@/app/lib/flags";
+import { isOwnerEngineSync } from "@/app/lib/flags";
 import { useContainer } from "@/app/di";
 import { Header } from "@/app/components/layout/Header";
 import { TabNav, type TabName } from "@/app/components/layout/TabNav";
@@ -65,14 +65,17 @@ export default function App() {
     // dropped or mis-keyed saves near midnight (see writePath.guard.spec).
     useCallback(
       async (saved: DailyLog[]) => {
-        // With the sync engine active (M1.9), saveLog already enqueued +
-        // flushed atomically; only the legacy path needs an explicit push.
-        if (auth.user && !container.isSyncEngineActive()) {
+        // In owner-engine mode saveLog already enqueued the write to the durable
+        // outbox; the engine delivers it (possibly after it finishes starting).
+        // Only the legacy path needs an explicit push. Decide on the CONFIGURED
+        // mode, NOT on whether the engine instance exists yet — otherwise a save
+        // during the startup gap would BOTH enqueue and legacy-push (double send).
+        if (auth.user && !isOwnerEngineSync(true, auth.role)) {
           for (const l of saved) await pushLog(auth.user.id, l);
         }
         refresh();
       },
-      [auth.user, refresh, container]
+      [auth.user, auth.role, refresh, container]
     )
   );
 
@@ -87,12 +90,18 @@ export default function App() {
 
   // ── Sync ──
   useEffect(() => {
+    // Set the CONFIGURED sync mode first (covers unauthenticated/local too, so
+    // local-only writes never accrue undrainable outbox intents). This is what
+    // gates the durable outbox — independent of engine start state.
+    const ownerEngine = isOwnerEngineSync(!!auth.user, auth.role);
+    container.setOwnerSyncMode(ownerEngine);
+
     if (!auth.user) return;
 
     // Owner path (M1.9): the SyncEngine owns push/pull/realtime — outbox,
     // HLC merge, tombstones. Partners stay on the legacy read-only pull until
     // the E2EE projection path replaces it (M2.9).
-    if (flags.syncEngine && auth.role !== "partner") {
+    if (ownerEngine) {
       let cancelled = false;
       let unsubStatus: (() => void) | null = null;
       const uid = auth.user.id;
