@@ -1,12 +1,58 @@
 import { useState, useEffect } from "react";
 import { Link, Unlink, Copy, Check } from "lucide-react";
 import type { UserRole } from "@/app/hooks/useAuth";
-import { createInviteCode, redeemInviteCode, getPartnerLink, unpair } from "@/app/lib/pairing";
+import { createInviteCode, redeemInviteCode, getPartnerLink, unpair, isValidInviteCode } from "@/app/lib/pairing";
 
 interface PairingSectionProps {
   userId: string;
   role: UserRole;
   onRoleChanged: () => void;
+}
+
+/**
+ * Redeem input. The invite secret is a case-sensitive base64url string
+ * (see isValidInviteCode) — so this NEVER upper-cases, letter-spaces, or caps
+ * length; it also disables mobile auto-capitalize/-correct which would corrupt
+ * the code. Only surrounding whitespace is trimmed (at submit); internal
+ * characters and case are preserved verbatim.
+ */
+function RedeemForm({
+  code,
+  onChange,
+  onRedeem,
+  prompt,
+}: {
+  code: string;
+  onChange: (v: string) => void;
+  onRedeem: () => void;
+  prompt: string;
+}) {
+  return (
+    <div className="space-y-3">
+      <p className="text-xs text-muted-foreground">{prompt}</p>
+      <div className="flex gap-2">
+        <input
+          type="text"
+          value={code}
+          onChange={(e) => onChange(e.target.value)}
+          placeholder="Paste invite code"
+          autoCapitalize="none"
+          autoCorrect="off"
+          autoComplete="off"
+          spellCheck={false}
+          aria-label="Invite code"
+          className="flex-1 rounded-xl border border-border bg-muted/50 px-4 py-2.5 text-sm text-foreground font-mono placeholder:text-muted-foreground/50 focus:outline-none focus:ring-2 focus:ring-primary/30"
+        />
+        <button
+          onClick={onRedeem}
+          disabled={!code.trim()}
+          className="px-4 py-2.5 rounded-xl text-sm font-medium bg-primary text-primary-foreground hover:opacity-90 transition-opacity disabled:opacity-50"
+        >
+          Pair
+        </button>
+      </div>
+    </div>
+  );
 }
 
 export function PairingSection({ userId, role, onRoleChanged }: PairingSectionProps) {
@@ -46,8 +92,16 @@ export function PairingSection({ userId, role, onRoleChanged }: PairingSectionPr
   };
 
   const handleRedeem = async () => {
-    if (!redeemCode.trim()) return;
-    const err = await redeemInviteCode(redeemCode);
+    const code = redeemCode.trim();
+    if (!code) return;
+    // Validate against the real server format before hitting the network — but
+    // NEVER mutate the code (case and internal characters preserved). A
+    // wrong-looking code gets a clear message instead of a confusing rejection.
+    if (!isValidInviteCode(code)) {
+      showStatus("That doesn't look like a valid invite code — paste the full code your partner shared.");
+      return;
+    }
+    const err = await redeemInviteCode(code);
     if (err) {
       showStatus(err);
     } else {
@@ -157,27 +211,12 @@ export function PairingSection({ userId, role, onRoleChanged }: PairingSectionPr
       )}
 
       {role === "partner" && !partnerLinked && (
-        <div className="space-y-3">
-          <p className="text-xs text-muted-foreground">
-            Enter the invite code your partner shared with you.
-          </p>
-          <div className="flex gap-2">
-            <input
-              type="text"
-              value={redeemCode}
-              onChange={(e) => setRedeemCode(e.target.value.toUpperCase())}
-              placeholder="e.g. A1B2C3D4"
-              maxLength={8}
-              className="flex-1 rounded-xl border border-border bg-muted/50 px-4 py-2.5 text-sm text-foreground font-mono tracking-widest uppercase placeholder:text-muted-foreground/50 text-center focus:outline-none focus:ring-2 focus:ring-primary/30"
-            />
-            <button
-              onClick={handleRedeem}
-              className="px-4 py-2.5 rounded-xl text-sm font-medium bg-primary text-primary-foreground hover:opacity-90 transition-opacity"
-            >
-              Pair
-            </button>
-          </div>
-        </div>
+        <RedeemForm
+          code={redeemCode}
+          onChange={setRedeemCode}
+          onRedeem={handleRedeem}
+          prompt="Enter the invite code your partner shared with you."
+        />
       )}
 
       {role === "partner" && partnerLinked && (
@@ -195,27 +234,12 @@ export function PairingSection({ userId, role, onRoleChanged }: PairingSectionPr
       )}
 
       {role === null && (
-        <div className="space-y-3">
-          <p className="text-xs text-muted-foreground">
-            Enter an invite code from your partner to link accounts.
-          </p>
-          <div className="flex gap-2">
-            <input
-              type="text"
-              value={redeemCode}
-              onChange={(e) => setRedeemCode(e.target.value.toUpperCase())}
-              placeholder="e.g. A1B2C3D4"
-              maxLength={8}
-              className="flex-1 rounded-xl border border-border bg-muted/50 px-4 py-2.5 text-sm text-foreground font-mono tracking-widest uppercase placeholder:text-muted-foreground/50 text-center focus:outline-none focus:ring-2 focus:ring-primary/30"
-            />
-            <button
-              onClick={handleRedeem}
-              className="px-4 py-2.5 rounded-xl text-sm font-medium bg-primary text-primary-foreground hover:opacity-90 transition-opacity"
-            >
-              Pair
-            </button>
-          </div>
-        </div>
+        <RedeemForm
+          code={redeemCode}
+          onChange={setRedeemCode}
+          onRedeem={handleRedeem}
+          prompt="Enter an invite code from your partner to link accounts."
+        />
       )}
     </div>
   );

@@ -1,5 +1,20 @@
 import { supabase } from "@/app/lib/supabase";
 
+// ─── Invite code format ──────────────────────────────────────────────────────
+
+/**
+ * The secret minted by the create_invite() RPC:
+ *   replace(replace(encode(gen_random_bytes(15),'base64'),'+','-'),'/','_')
+ * → base64url of 15 bytes = exactly 20 chars from [A-Za-z0-9_-], no padding,
+ * CASE-SENSITIVE. Validate against THIS so the UI never uppercases, truncates,
+ * or otherwise corrupts a real code (RHEA pairing release blocker).
+ */
+export const INVITE_CODE_RE = /^[A-Za-z0-9_-]{20}$/;
+
+export function isValidInviteCode(code: string): boolean {
+  return INVITE_CODE_RE.test(code.trim());
+}
+
 // ─── Owner: create an invite code ────────────────────────────────────────────
 
 // The server (create_invite RPC) mints a high-entropy secret and stores only its
