@@ -45,7 +45,10 @@ export class LogRepository {
       : ["logs", "meta"];
     await this.driver.transaction({ mode: "readwrite", stores }, async (tx) => {
       for (const log of logs) {
-        const stamp = await nextStamp(tx, this.opts.now?.());
+        // Fold the row's own current HLC so an edit strictly dominates the
+        // version it replaces (even if authored by another device / lagging clock).
+        const prior = await tx.get<StoredLog>("logs", log.date);
+        const stamp = await nextStamp(tx, this.opts.now?.(), prior?.updatedAt);
         const domain: DailyLog = { medication: [], intimacy: null, ...log };
         const row: StoredLog = { ...domain, ...stamp, deleted: false };
         await tx.put("logs", row);
@@ -90,7 +93,11 @@ export class LogRepository {
       ? ["logs", "meta", "tombstones", "outbox"]
       : ["logs", "meta", "tombstones"];
     await this.driver.transaction({ mode: "readwrite", stores }, async (tx) => {
-      const stamp = await nextStamp(tx, this.opts.now?.());
+      // Fold the row's own current HLC so the tombstone strictly dominates the
+      // row it deletes — otherwise a lagging local clock produces a stale HLC
+      // the server LWW guard silently drops (RHEA delete-sync fix).
+      const prior = await tx.get<StoredLog>("logs", date);
+      const stamp = await nextStamp(tx, this.opts.now?.(), prior?.updatedAt);
       await tx.delete("logs", date);
       const tombstone: TombstoneRow = {
         key: logKey(date),

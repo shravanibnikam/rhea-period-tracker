@@ -5,7 +5,7 @@
  * The pure clock lives in domain/hlc; this is the thin stateful wrapper.
  */
 
-import { hlcNow, HLC_INITIAL_STATE, type HlcState } from "@/domain/hlc";
+import { hlcNow, hlcObserve, isValidHlc, HLC_INITIAL_STATE, type HlcState } from "@/domain/hlc";
 import { META_DEVICE_ID, META_HLC_STATE } from "./schema";
 import { generateDeviceId } from "./migrations/indexeddb";
 import type { StorageTx } from "./drivers/StorageDriver";
@@ -28,13 +28,24 @@ export async function ensureDeviceId(tx: StorageTx): Promise<string> {
 /**
  * Advance the persisted HLC and return a fresh edit stamp. Must be called
  * inside a readwrite transaction that includes the `meta` store.
+ *
+ * `dominate` = the HLC of the row this stamp supersedes (its current
+ * `updated_hlc`). Folding it in guarantees the new stamp is STRICTLY GREATER
+ * than the version being edited/deleted — even when another device authored
+ * that version or the local clock has lagged behind it (RHEA delete-sync fix:
+ * a tombstone/edit must win LWW against the row it replaces). Far-future values
+ * are still clamped by hlcObserve's anti-poison drift guard.
  */
 export async function nextStamp(
   tx: StorageTx,
-  physicalMs: number = Date.now()
+  physicalMs: number = Date.now(),
+  dominate?: string
 ): Promise<SyncStamp> {
   const deviceId = await ensureDeviceId(tx);
-  const state = (await tx.get<HlcState>("meta", META_HLC_STATE)) ?? HLC_INITIAL_STATE;
+  let state = (await tx.get<HlcState>("meta", META_HLC_STATE)) ?? HLC_INITIAL_STATE;
+  if (dominate && isValidHlc(dominate)) {
+    state = hlcObserve(state, dominate, physicalMs).state;
+  }
   const { state: next, hlc } = hlcNow(state, physicalMs, deviceId);
   await tx.put("meta", next, META_HLC_STATE);
   return { updatedAt: hlc, deviceId };

@@ -13,6 +13,7 @@ import { Outbox, SyncEngine } from "@/sync";
 import type { OutboxEntry } from "@/sync";
 import { logKey } from "@/data/envelope";
 import { emptyLog } from "@/domain/types";
+import { encodeHlc, compareHlc } from "@/domain/hlc";
 import { FakeTransport } from "../helpers/fakeTransport";
 
 const DATE = "2099-01-01";
@@ -84,5 +85,41 @@ describe("durable outbox — mutations survive engine lifecycle gaps", () => {
     expect(okRes.pushed).toBeGreaterThan(0);
     expect(await engine.outbox.depth()).toBe(0); // delivered on retry
     expect(transport.rows("owner-1", "owner")).toHaveLength(1);
+  });
+});
+
+describe("key-aware HLC stamping — an edit/delete always dominates the row it replaces", () => {
+  const localNow = 1_784_000_000_000;
+  // A row authored by ANOTHER device, 5s "ahead" (within HLC drift), while this
+  // device's local clock lags at localNow. Pre-fix, a stamp would be < rowHlc
+  // and the server LWW guard would silently drop it.
+  const rowHlc = encodeHlc(localNow + 5000, 0, "other-device");
+
+  it("delete produces a tombstone HLC strictly greater than the row's stored HLC", async () => {
+    const driver = new MemoryDriver();
+    const outbox = new Outbox(driver);
+    await driver.put("logs", { ...mkLog(), updatedAt: rowHlc, deviceId: "other-device", deleted: false });
+
+    const repo = new LogRepository(driver, { outbox, now: () => localNow });
+    await repo.delete(DATE);
+
+    const q = await driver.getAll<OutboxEntry>("outbox");
+    expect(q).toHaveLength(1);
+    expect(q[0].record.deleted).toBe(true);
+    expect(compareHlc(q[0].record.updatedAt, rowHlc)).toBeGreaterThan(0); // wins LWW
+  });
+
+  it("save produces an edit HLC strictly greater than the row's stored HLC", async () => {
+    const driver = new MemoryDriver();
+    const outbox = new Outbox(driver);
+    await driver.put("logs", { ...mkLog(), updatedAt: rowHlc, deviceId: "other-device", deleted: false });
+
+    const repo = new LogRepository(driver, { outbox, now: () => localNow });
+    await repo.save({ ...emptyLog(DATE), flow: "heavy" });
+
+    const q = await driver.getAll<OutboxEntry>("outbox");
+    expect(q).toHaveLength(1);
+    expect(q[0].record.deleted).toBe(false);
+    expect(compareHlc(q[0].record.updatedAt, rowHlc)).toBeGreaterThan(0); // wins LWW
   });
 });

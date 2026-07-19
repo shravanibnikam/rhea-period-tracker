@@ -9,7 +9,7 @@
  */
 
 import type { SupabaseClient, RealtimeChannel } from "@supabase/supabase-js";
-import { epochZeroHlc } from "@/domain/hlc";
+import { epochZeroHlc, compareHlc, isValidHlc } from "@/domain/hlc";
 import type { DailyLog } from "@/domain/types";
 import { openPlain, sealPlain, type SyncRecord } from "@/data/envelope";
 import type {
@@ -19,6 +19,7 @@ import type {
   PullRequest,
   PullResponse,
   RemoteRow,
+  RejectedRow,
   SubscribeRequest,
   Subscription,
   TransportHealth,
@@ -106,6 +107,45 @@ export function decodeServerCursor(cursor: string): { t: string; d: string } | n
   }
 }
 
+/**
+ * Decide accepted vs rejected from what the server actually persisted — the
+ * truthful-acknowledgement core (RHEA delete-sync fix). A key is ACCEPTED only
+ * when the upsert's RETURNING set contains it with the EXACT `updated_hlc` we
+ * pushed (proof our write won). A skipped key (BEFORE-UPDATE trigger returned
+ * null → absent from RETURNING) is:
+ *   - `stale-write` when the server holds an equal/newer HLC (we legitimately
+ *     lost LWW → safe to drop; the newer row arrives on the next pull), or
+ *   - `unknown` when the server has no newer row — our write SHOULD have applied,
+ *     so it is retained for retry instead of being silently dropped.
+ * This makes a silently-skipped upsert impossible to report as accepted.
+ */
+export function classifyPush(
+  pushed: Array<{ key: string; updatedAt: string }>,
+  returnedHlcByKey: Map<string, string>,
+  serverHlcByKey: Map<string, string>
+): { accepted: string[]; rejected: RejectedRow[] } {
+  const accepted: string[] = [];
+  const rejected: RejectedRow[] = [];
+  for (const p of pushed) {
+    if (returnedHlcByKey.get(p.key) === p.updatedAt) {
+      accepted.push(p.key); // our exact write is the persisted row
+      continue;
+    }
+    const server = serverHlcByKey.get(p.key);
+    if (
+      server !== undefined &&
+      isValidHlc(server) &&
+      isValidHlc(p.updatedAt) &&
+      compareHlc(server, p.updatedAt) >= 0
+    ) {
+      rejected.push({ key: p.key, reason: "stale-write" }); // lost LWW → drop
+    } else {
+      rejected.push({ key: p.key, reason: "unknown" }); // should have applied → retry
+    }
+  }
+  return { accepted, rejected };
+}
+
 // ── The transport ────────────────────────────────────────────────────────────
 
 export class SupabaseTransport implements Transport {
@@ -116,9 +156,13 @@ export class SupabaseTransport implements Transport {
       return { accepted: [], rejected: [], serverTime: new Date().toISOString() };
     }
     const wireRows = rows.map((r) => recordToRow(r, ctx.peerId));
-    const { error } = await this.client
+    // RETURNING the persisted rows tells us EXACTLY which keys the server wrote.
+    // A row the LWW trigger skipped (returns null) is absent here — so we can no
+    // longer mistake a silent skip for an accepted write (RHEA delete-sync fix).
+    const { data, error } = await this.client
       .from("daily_logs")
-      .upsert(wireRows, { onConflict: "owner_id,date" });
+      .upsert(wireRows, { onConflict: "owner_id,date" })
+      .select("date,updated_hlc");
 
     if (error) {
       // RLS denial is terminal per-batch; anything else bubbles for backoff.
@@ -131,13 +175,35 @@ export class SupabaseTransport implements Transport {
       }
       throw new Error(`push failed: ${error.message}`);
     }
-    // Stale writes are silently skipped by the server trigger (LWW backstop),
-    // which is the correct outcome — treat the batch as accepted.
-    return {
-      accepted: rows.map((r) => r.key),
-      rejected: [],
-      serverTime: new Date().toISOString(),
-    };
+
+    const returned = new Map<string, string>();
+    for (const row of (data ?? []) as Array<{ date: string; updated_hlc: string | null }>) {
+      returned.set(`log:${row.date}`, row.updated_hlc ?? "");
+    }
+
+    // For keys the server did NOT return (skipped), read the server's current
+    // HLC so we can tell "we lost LWW" (drop) from "should have applied" (retry).
+    const notReturned = rows.filter((r) => returned.get(r.key) !== r.updatedAt);
+    const serverHlc = new Map<string, string>();
+    if (notReturned.length > 0) {
+      const dates = notReturned.map((r) => r.key.replace(/^log:/, ""));
+      const { data: cur, error: selErr } = await this.client
+        .from("daily_logs")
+        .select("date,updated_hlc")
+        .eq("owner_id", ctx.peerId)
+        .in("date", dates);
+      if (selErr) throw new Error(`push verify failed: ${selErr.message}`);
+      for (const row of (cur ?? []) as Array<{ date: string; updated_hlc: string | null }>) {
+        serverHlc.set(`log:${row.date}`, row.updated_hlc ?? "");
+      }
+    }
+
+    const { accepted, rejected } = classifyPush(
+      rows.map((r) => ({ key: r.key, updatedAt: r.updatedAt })),
+      returned,
+      serverHlc
+    );
+    return { accepted, rejected, serverTime: new Date().toISOString() };
   }
 
   async pull(req: PullRequest): Promise<PullResponse> {
