@@ -1,5 +1,7 @@
 # Rhea v2 — Engineering Task Backlog
 
+> 🧊 **Planning artifact — implementation status frozen at the 2026-07-15 planning state.** Task statuses below reflect that snapshot; the v2 branch has since merged to `main` and deployed (pairing fixed, delete-sync fixes shipped). For current state see the root `README.md` and [IMPLEMENTATION_STATUS.md](IMPLEMENTATION_STATUS.md). Migration numbers `0004`+ here predate the shipped `0004` pairing fix — the E2EE sequence has shifted to `0005`+.
+
 > **What this is.** Every milestone in
 > [V2_IMPLEMENTATION_PLAN.md](V2_IMPLEMENTATION_PLAN.md) broken down into
 > **GitHub-Issue-shaped engineering tasks**. Each task is scoped to be a single

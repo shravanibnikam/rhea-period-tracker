@@ -1,5 +1,7 @@
 # Rhea v2 — Technical Risk Register
 
+> 🧊 **Planning artifact — implementation status frozen at the 2026-07-15 planning state.** The v2 branch has since merged to `main` and deployed; for current state see the root `README.md` and [IMPLEMENTATION_STATUS.md](IMPLEMENTATION_STATUS.md). Note: several pre-deploy risks referenced here (e.g. pgTAP RLS verification) remain **open** — see the migrations README. Migration numbers `0004`+ predate the shipped `0004` pairing fix — the E2EE sequence has shifted to `0005`+.
+
 > **Purpose.** A living inventory of the significant technical risks in the Rhea
 > v2 design, each with an impact/likelihood rating, the components it touches, a
 > mitigation (reduce probability/impact *before* it happens), a contingency (what

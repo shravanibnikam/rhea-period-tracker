@@ -1,5 +1,13 @@
 # Next Session Brief — resume at M2.2
 
+> 🕰️ **Historical / superseded (2026-07-15 planning snapshot).** The v2 branch has
+> since merged to `main` and deployed; pairing was fixed and delete-sync fixes shipped.
+> This file's *implementation status is frozen at 2026-07-15* — for current state see
+> [IMPLEMENTATION_STATUS.md](IMPLEMENTATION_STATUS.md) and the root `README.md`. The
+> Phase-2 milestone/design guidance below is still useful, but the migration numbers
+> `0004`–`0010` cited here **predate the shipped `0004` pairing fix** — the E2EE
+> sequence has shifted to `0005`+.
+
 **Written 2026-07-15 (session S3), paused after completing M2.1. The project is being
 handed off to a new engineer — read [HANDOFF.md](HANDOFF.md) FIRST; this file is the
 task-level resume brief it points to.**
@@ -51,11 +59,11 @@ Implementation notes agreed in the docs (read these first):
 
 ## Remaining implementation order (unchanged)
 M2.2 → M2.3 (kdf+recovery, Argon2id profile frozen ops=4/mem=256MiB) → M2.4
-(migration 0004 ciphertext cutover, dual-read/write + backfill, `e2eeOwner`
-flag) → M2.5 (0005 QR+SAS pairing) → M2.6 (enrollment) → M2.7 (PrivacyEngine)
-→ M2.8 (0006 projections) → M2.9 (partner cutover, retires legacy plaintext
-pull) → M2.10 (0007 notes) → M2.11 (0008 quiet windows) → M2.12 (0009 local
-audit) → M2.13 (0010 drop plaintext ACL) → Phase 3 (SDK-less subset) →
+(migration **0005** ciphertext cutover, dual-read/write + backfill, `e2eeOwner`
+flag) → M2.5 (**0006** QR+SAS pairing) → M2.6 (enrollment) → M2.7 (PrivacyEngine)
+→ M2.8 (**0007** projections) → M2.9 (partner cutover, retires legacy plaintext
+pull) → M2.10 (**0008** notes) → M2.11 (**0009** quiet windows) → M2.12 (**0010** local
+audit) → M2.13 (**0011** drop plaintext ACL) → Phase 3 (SDK-less subset) →
 Phase 4 seeds → docs/FINAL_IMPLEMENTATION_REPORT.md.
 
 ## Outstanding blockers / caveats

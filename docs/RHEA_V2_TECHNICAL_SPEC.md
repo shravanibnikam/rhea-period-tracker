@@ -1,5 +1,7 @@
 # Rhea v2 — Technical Specification & Implementation Plan
 
+> 🧊 **Design authority for the v2 TARGET architecture (E2EE, projections, zero-knowledge server).** The design intent stands, but this describes the **target, not the current deployed state** — most of Phase 2 is not built (cloud health data is still plaintext; the partner path is still legacy plaintext). Implementation-status claims are frozen at 2026-07-15; migration numbers `0004`+ predate the shipped `0004` pairing fix (E2EE sequence shifted to `0005`+). Current state: root `README.md` + [IMPLEMENTATION_STATUS.md](IMPLEMENTATION_STATUS.md). (References to `Rhea-DEPLOY.md` / `Rhea-technical-spec.md` now live in `docs/archive/`.)
+
 > **Audience:** the engineer(s) implementing Rhea v2. This document is written to
 > be **buildable without further questions**: it names every module, interface
 > method, table, column, error case, state transition, and the order to build

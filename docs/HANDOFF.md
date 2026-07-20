@@ -1,5 +1,14 @@
 # Rhea v2 — Engineering Handoff
 
+> 🕰️ **Historical / superseded (2026-07-15 handoff snapshot).** Since this was
+> written, the v2 branch merged to `main` and deployed, migrations `0001`–`0004`
+> were applied to production, partner pairing was fixed and verified end-to-end,
+> and the delete-sync fixes shipped (live E2E still pending). **This document's
+> implementation status is frozen at 2026-07-15.** For current state read the root
+> `README.md` and [IMPLEMENTATION_STATUS.md](IMPLEMENTATION_STATUS.md); the Phase-2
+> architecture/vision below remains the design intent. Migration numbers `0004`+
+> cited here predate the shipped `0004` pairing fix (E2EE sequence shifted to `0005`+).
+
 **Date:** 2026-07-15 · **Handoff point:** Phase 2, end of milestone **M2.1** (M2.2 not started)
 **Audience:** the next engineer (working with Codex or any coding agent) continuing the v2 implementation.
 

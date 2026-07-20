@@ -1,5 +1,7 @@
 # Rhea v2 Architecture Proposal
 
+> 🧊 **Planning artifact — implementation status frozen at the 2026-07-15 planning state.** The v2 branch has since merged to `main` and deployed; for current state see the root `README.md` and [IMPLEMENTATION_STATUS.md](IMPLEMENTATION_STATUS.md). Migration numbers `0004`+ here predate the shipped `0004` pairing fix — the E2EE sequence has shifted to `0005`+.
+
 > **Addendum (2026-07-15, app v0.2.0).** This proposal's phase numbering is
 > superseded by the M0–M4 milestones in `RHEA_V2_TECHNICAL_SPEC.md`. The
 > sync-engine/transport/conflict layer proposed here as future work shipped in

@@ -1,6 +1,16 @@
 # Repository Overview
 
-Orientation document for engineers joining the Rhea codebase. Last updated 2026-07-15 (app version 0.2.0, end of Phase 1 / start of Phase 2).
+Orientation document for engineers joining the Rhea codebase. Last updated **2026-07-20** (app version 0.2.0).
+
+> **Current deployed state (2026-07-20).** The v2 branch has been merged to `main`
+> and is **live** at https://rhea-period-tracker.vercel.app (Vercel auto-deploys
+> `main`). Supabase migrations **`0001`–`0004` are all applied to production**.
+> Phase 1 (local-first + owner sync) is shipped; **partner pairing is fixed and
+> verified end-to-end**; the delete-sync fixes are deployed and unit-tested but a
+> final **live delete E2E is still pending**. Phase 2 (E2EE) has only the M2.1
+> crypto primitives — cloud health data is **still plaintext** and the partner
+> path is **still legacy plaintext**. See [IMPLEMENTATION_STATUS.md](IMPLEMENTATION_STATUS.md)
+> for the current-state section.
 
 Where authority lives:
 
@@ -80,15 +90,16 @@ src/app/               # React shell (entry: src/app/main.tsx)
 
 ## Supabase
 
-`supabase/migrations/` contains three ordered migrations — **authored but never executed** (no local Postgres yet; applying 0003 is a deployment gate for the sync engine):
+`supabase/migrations/` contains four ordered migrations — **all applied to production** (`supabase migration list --linked` confirms `0001`–`0004`):
 
 - `0001_baseline.sql` — consolidated legacy schema (tables, RLS, `redeem_invite`).
 - `0002_secure_invite_redemption.sql` — drops the world-readable invite policy; server-minted ~120-bit invite secrets stored as unsalted sha256-hex `code_hash`, single-use, 30-minute TTL, via `create_invite()`/`redeem_invite()` SECURITY DEFINER RPCs.
 - `0003_owner_sync_metadata.sql` — adds `updated_hlc` (text; distinct from the legacy `updated_at` timestamptz), `device_id`, `deleted`, trigger-set `server_updated_at`, `medication`/`intimacy` jsonb, a keyset index `(owner_id, server_updated_at, date)`, and a stale-write trigger (`daily_logs_reject_stale_write()`) that **silently skips** (RETURN NULL) writes whose `updated_hlc` is `<=` the stored value.
+- `0004_fix_invite_pgcrypto_schema.sql` — pairing hotfix: `create_invite()`/`redeem_invite()` errored because they ran with `search_path = public` while `pgcrypto` lives in the `extensions` schema; schema-qualifies the pgcrypto calls. Pairing is now verified end-to-end.
 
-pgTAP suites exist at `supabase/tests/rls_invite.sql` and `supabase/tests/rls_owner_sync.sql` but are **not wired into CI** yet. The old hand-run `migration*.sql` scripts are history; see `supabase/migrations/README.md`.
+pgTAP suites exist at `supabase/tests/rls_invite.sql` and `supabase/tests/rls_owner_sync.sql` but are **not executed / not wired into CI** yet. The old hand-run `migration*.sql` scripts are history; see `supabase/migrations/README.md`.
 
-Planned Phase-2 migrations (numbering reserved): 0004 owner ciphertext columns (M2.4), 0005 device_keys + pairing_sessions (M2.5), 0006 partner_projections (M2.8), 0007 E2EE shared notes (M2.10), 0008 quiet windows (M2.11), 0009 retire server audit_log (M2.12), 0010 drop partner plaintext ACL + plaintext columns (M2.13).
+Planned Phase-2 migrations (numbering **shifted** after the shipped `0004` pairing fix): `0005` owner ciphertext columns (M2.4), `0006` device_keys + pairing_sessions (M2.5), `0007` partner_projections (M2.8), `0008` E2EE shared notes (M2.10), `0009` quiet windows (M2.11), `0010` retire server audit_log (M2.12), `0011` drop partner plaintext ACL + plaintext columns (M2.13). *(Older planning docs still cite the pre-shift `0004`–`0010` reservation.)*
 
 ## Feature flags
 
@@ -103,7 +114,7 @@ Planned Phase-2 migrations (numbering reserved): 0004 owner ciphertext columns (
 
 Scripts ([package.json](../package.json)): `dev`, `build` (`tsc --noEmit && vite build`), `typecheck`, `lint` (`eslint . --max-warnings=0`), `test` (Vitest; plus `test:watch`, `test:coverage`).
 
-Tests: **205 passing tests across 24 files** under `tests/`:
+Tests: **~270 passing tests** under `tests/` (2 `transports.spec.ts` cases fail only locally when a populated `.env` makes Supabase look configured; they pass in CI):
 
 - `tests/unit/kernel/` — assert, errors, logger, result.
 - `tests/unit/domain/` — HLC, merge (incl. H2 self-authored-row regression), cycle characterization + snapshot, phases oracle, purity guard.
@@ -120,7 +131,7 @@ CI ([.github/workflows/ci.yml](../.github/workflows/ci.yml)) runs four jobs on e
 
 - **Payloads are plaintext until M2.4.** `src/data/envelope.ts` is a passthrough; owner rows sync to Supabase unencrypted. Phase 2 replaces this with E2EE ciphertext.
 - **Partner path is still legacy.** Partners read the owner's plaintext `daily_logs` rows via the legacy `src/app/lib/sync.ts` path and RLS grant until partner projections land (M2.8/M2.9); the plaintext ACL and columns are dropped in M2.13.
-- Migrations 0001–0003 and the pgTAP suites are authored but unexecuted/unwired (see Supabase section).
+- Migrations 0001–0004 are **applied to production**; the pgTAP suites are still unexecuted/unwired (see Supabase section).
 - Sharing toggles and quiet windows remain presentation-level controls until the Phase-2 projection model makes them data-boundary controls.
 
 ## Learning path

@@ -1,5 +1,7 @@
 # Implementation Journal — Rhea v2 migration
 
+> 🕰️ **Historical snapshot (frozen at 2026-07-15).** Superseded by later work merged to `main` and deployed; for current state see the root `README.md` and [IMPLEMENTATION_STATUS.md](IMPLEMENTATION_STATUS.md).
+
 A running historical record of how the architecture evolved during the v2
 implementation. Newest entries at the bottom. Times are relative to the
 implementation session (S0 = session start = Phase 0 work; calendar date

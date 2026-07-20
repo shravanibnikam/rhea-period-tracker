@@ -1,5 +1,7 @@
 # Rhea v2 — Implementation Report (Phase 0)
 
+> 🕰️ **Historical snapshot (frozen at 2026-07-15).** Superseded by later work merged to `main` and deployed; for current state see the root `README.md` and [IMPLEMENTATION_STATUS.md](IMPLEMENTATION_STATUS.md).
+
 > Status of the transformation toward the Rhea v2 architecture. This session
 > completed **Phase 0 (Stabilize & de-risk)** end-to-end and verified it against a
 > real toolchain. Phases 1–4 are deferred at the plan's own decision gate (see

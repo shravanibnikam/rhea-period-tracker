@@ -1,5 +1,7 @@
 # Rhea v2 — Incremental Implementation Plan
 
+> 🧊 **Planning artifact — implementation status frozen at the 2026-07-15 planning state.** The v2 branch has since merged to `main` and deployed; for current state see the root `README.md` and [IMPLEMENTATION_STATUS.md](IMPLEMENTATION_STATUS.md). Migration numbers `0004`+ here predate the shipped `0004` pairing fix — the E2EE sequence has shifted to `0005`+.
+
 > **Purpose.** Turn the design in
 > [RHEA_V2_TECHNICAL_SPEC.md](RHEA_V2_TECHNICAL_SPEC.md) into a sequence of
 > **small, independently-mergeable pull requests**. Every milestone below is one

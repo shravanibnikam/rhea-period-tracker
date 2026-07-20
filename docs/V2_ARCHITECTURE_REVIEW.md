@@ -1,5 +1,7 @@
 # Rhea v2 Architecture Review
 
+> 🧊 **Planning artifact — implementation status frozen at the 2026-07-15 planning state.** The v2 branch has since merged to `main` and deployed; for current state see the root `README.md` and [IMPLEMENTATION_STATUS.md](IMPLEMENTATION_STATUS.md). Migration numbers `0004`+ here predate the shipped `0004` pairing fix — the E2EE sequence has shifted to `0005`+. (Two docs it references, `Rhea-DEPLOY.md` and `Rhea-technical-spec.md`, have moved to `docs/archive/`.)
+
 > **Addendum (2026-07-15, app v0.2.0).** This review's engineering-hygiene
 > findings — no tests, no CI, no lint, build without `tsc` — are resolved as of
 > Phase 0: Vitest (205 passing tests in 24 files), an ESLint layering gate
@@ -184,10 +186,10 @@ restates Rhea as **privacy-first, local-first, zero-knowledge**:
 [Docs/Rhea-spec.md](../Docs/Rhea-spec.md) §6** (which specifies the encrypted
 curated-slice relay in *more* detail than the proposal itself, spec:98-107),
 but **flatly incompatible with
-[Docs/Rhea-technical-spec.md](../Docs/Rhea-technical-spec.md)** (a server-side
+[Docs/Rhea-technical-spec.md](archive/Rhea-technical-spec.md)** (a server-side
 Python ML service that reads logs and writes a `predictions` table,
 tech-spec:157-159) and with
-[Docs/Rhea-DEPLOY.md](../Docs/Rhea-DEPLOY.md)'s deployed sub-second realtime
+[Docs/Rhea-DEPLOY.md](archive/Rhea-DEPLOY.md)'s deployed sub-second realtime
 model. The proposal never names those documents, never names Supabase, and
 never mentions the plaintext data already deployed — three gaps that shape the
 entire compatibility picture.
@@ -384,7 +386,7 @@ No salvageable code exists in these; they encode the exact model v2 rejects.
    never has plaintext." Replace with a local append-only log.
 
 6. **Governing status of
-   [Docs/Rhea-technical-spec.md](../Docs/Rhea-technical-spec.md) §1-4, §6.4,
+   [Docs/Rhea-technical-spec.md](archive/Rhea-technical-spec.md) §1-4, §6.4,
    §10.** The server-as-source-of-truth Postgres design, the server-computed
    `partner_view`, and the backend Python ML service are architecturally dead
    under "server never reads health data." A v2 spec must explicitly deprecate
@@ -443,7 +445,7 @@ specifies no recovery key, escrow, or re-pair flow.
 never connects it to *key* loss.
 
 ### R3 — E2EE and server-side ML are mutually exclusive, and both ship (HIGH)
-[Rhea-technical-spec.md:157-159](../Docs/Rhea-technical-spec.md) has a backend
+[Rhea-technical-spec.md:157-159](archive/Rhea-technical-spec.md) has a backend
 that reads logs and writes predictions; §8 openly flags the conflict. The
 proposal picks E2EE but never retires the ML design. Implementing per §8
 leaves plaintext (or in-memory-decrypted) logs on the server, quietly voiding
