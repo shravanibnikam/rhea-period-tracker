@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Moon, Heart } from "lucide-react";
-import { redeemInviteCode } from "@/app/lib/pairing";
+import { redeemInviteCode, isValidInviteCode } from "@/app/lib/pairing";
 
 interface RoleSelectProps {
   onChooseOwner: () => void;
@@ -14,11 +14,18 @@ export function RoleSelect({ onChooseOwner, onPaired }: RoleSelectProps) {
   const [submitting, setSubmitting] = useState(false);
 
   const handleRedeem = async () => {
-    if (!code.trim()) return;
+    const trimmed = code.trim();
+    if (!trimmed) return;
+    // The secret is a case-sensitive base64url string — validate against the
+    // real format, but never mutate it (case/internal chars preserved).
+    if (!isValidInviteCode(trimmed)) {
+      setError("That doesn't look like a valid invite code — paste the full code your partner shared.");
+      return;
+    }
     setError(null);
     setSubmitting(true);
 
-    const err = await redeemInviteCode(code);
+    const err = await redeemInviteCode(trimmed);
     setSubmitting(false);
 
     if (err) {
@@ -48,11 +55,15 @@ export function RoleSelect({ onChooseOwner, onPaired }: RoleSelectProps) {
             <input
               type="text"
               value={code}
-              onChange={(e) => setCode(e.target.value.toUpperCase())}
-              placeholder="e.g. A1B2C3D4"
-              maxLength={8}
+              onChange={(e) => setCode(e.target.value)}
+              placeholder="Paste invite code"
               autoFocus
-              className="w-full rounded-xl border border-border bg-muted/50 px-4 py-4 text-lg text-foreground font-mono tracking-[0.3em] uppercase text-center placeholder:text-muted-foreground/40 placeholder:tracking-[0.3em] focus:outline-none focus:ring-2 focus:ring-primary/30"
+              autoCapitalize="none"
+              autoCorrect="off"
+              autoComplete="off"
+              spellCheck={false}
+              aria-label="Invite code"
+              className="w-full rounded-xl border border-border bg-muted/50 px-4 py-4 text-base text-foreground font-mono placeholder:text-muted-foreground/40 focus:outline-none focus:ring-2 focus:ring-primary/30"
             />
 
             {error && (
