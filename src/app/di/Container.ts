@@ -9,7 +9,6 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import type { DailyLog } from "@/domain/types";
 import { StorageManager, identityFor } from "@/data/storageManager";
 import { LogRepository, MetaRepository } from "@/data/repositories";
-import { copyForwardFromLegacy } from "@/data/legacyImport";
 import type { StorageDriver } from "@/data/drivers/StorageDriver";
 import { ensureDeviceId } from "@/data/syncStamp";
 import { buildExport, type ExportDataV2 } from "@/data/exporter";
@@ -28,7 +27,12 @@ import {
 } from "@/sync";
 
 export class Container {
-  private readonly manager = new StorageManager({ onOpen: copyForwardFromLegacy });
+  // Account-scoped storage. NO automatic legacy copy-forward: the old unscoped
+  // `rhea` database is never auto-imported into an account, because it is not
+  // bound to any account identity and would hand one user's health data to
+  // whichever account opened first (account-isolation fix). A brand-new account
+  // always starts empty; the legacy DB is left intact on disk for manual export.
+  private readonly manager = new StorageManager();
   private uid: string | null = null;
   private engine: SyncEngine | null = null;
   /**
