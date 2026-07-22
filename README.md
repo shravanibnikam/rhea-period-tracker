@@ -2,8 +2,6 @@
 
 A private, **local-first** period & cycle tracker built for two people — one person tracks, and a partner can stay gently informed on terms the tracker sets and can revoke.
 
-**Live app:** https://rhea-period-tracker.vercel.app
-
 > ⚠️ **Status: alpha / closed-beta.** Suitable for personal use and trusted testers — **not yet a public health-data product.** In particular, **cloud-synced health data is currently stored in plaintext on the server** (end-to-end encryption is designed but **not yet deployed**). See [Privacy & security](#privacy--security).
 
 ---
