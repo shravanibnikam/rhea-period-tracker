@@ -49,26 +49,29 @@ describe("account-scoped local database (Container)", () => {
     expect(dates(await container.getAllLogs())).toEqual(["2026-01-01"]);
   });
 
-  it("copies legacy `rhea` data forward into the first account only", async () => {
+  it("does NOT auto-import legacy `rhea` data into any account", async () => {
+    // Account-isolation fix: the unscoped legacy DB is never bound to an
+    // account, so it must never be copied into one automatically — otherwise it
+    // leaks the previous user's health data to whoever signs in first.
     await seedLegacy(["2025-12-25"]);
 
     container.setAccount("newuser");
-    expect(dates(await container.getAllLogs())).toEqual(["2025-12-25"]);
+    expect(await container.getAllLogs()).toEqual([]);
 
-    // A second account must NOT receive the legacy data (consumed exactly once).
     container.setAccount("other");
     expect(await container.getAllLogs()).toEqual([]);
   });
 
-  it("copy-forward is idempotent (no duplication on re-open)", async () => {
+  it("leaves the legacy `rhea` database intact on disk (non-destructive)", async () => {
     await seedLegacy(["2025-12-25"]);
+    container.setAccount("newuser");
+    await container.getAllLogs(); // opening an account must not touch legacy data
 
-    container.setAccount("u");
-    expect((await container.getAllLogs()).length).toBe(1);
-
-    container.setAccount("elsewhere");
-    container.setAccount("u");
-    expect((await container.getAllLogs()).length).toBe(1);
+    const dbs = (await indexedDB.databases?.()) ?? [];
+    expect(dbs.some((d) => d.name === "rhea")).toBe(true);
+    const legacy = await openDB("rhea", 1);
+    expect((await legacy.getAll("logs")).length).toBe(1);
+    legacy.close();
   });
 
   it("wipeLocalData empties the active store", async () => {
