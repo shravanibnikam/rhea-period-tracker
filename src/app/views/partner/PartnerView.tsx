@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { Heart, Moon } from "lucide-react";
-import type { PhaseData, PhaseName, CycleState } from "@/domain/types";
+import type { PhaseData, PhaseName, CycleState, DailyLog } from "@/domain/types";
 import {
   PHASES,
   PHASE_ORDER,
@@ -12,6 +12,8 @@ import {
 import { fmt } from "@/app/lib/format";
 import { diffDays } from "@/domain/dates";
 import { EnergyBar } from "@/app/components/shared/EnergyBar";
+import { CalendarTab } from "@/app/views/tracker/CalendarTab";
+import { PartnerSymptoms } from "@/app/views/partner/PartnerSymptoms";
 import {
   getShareSettings,
   getQuietWindows,
@@ -30,6 +32,8 @@ interface PartnerViewProps {
   phase: PhaseName;
   state: CycleState;
   today: Date;
+  /** The owner's logs, already in the local store via the partner pull path. */
+  logs: DailyLog[];
   ownerId?: string | null;
   currentUserId?: string | null;
 }
@@ -39,6 +43,7 @@ export function PartnerView({
   phase,
   state,
   today,
+  logs,
   ownerId,
   currentUserId,
 }: PartnerViewProps) {
@@ -104,9 +109,12 @@ export function PartnerView({
     mood: !isGated || (!isQuiet && settings!.mood_signal),
     tips: !isGated || (!isQuiet && settings!.care_nudges),
     notes: !isGated || (!isQuiet && settings!.shared_notes),
+    calendar: !isGated || (!isQuiet && settings!.calendar_view),
+    symptoms: !isGated || (!isQuiet && settings!.symptom_details),
   };
 
-  const nothingShared = isGated && !show.phase && !show.headsup && !show.mood && !show.tips && !show.notes;
+  const nothingShared =
+    isGated && Object.values(show).every((visible) => !visible);
 
   if (loading) {
     return (
@@ -248,6 +256,29 @@ export function PartnerView({
               </div>
             )}
           </div>
+        </div>
+      )}
+
+      {/* Symptoms — gated by symptom_details */}
+      {show.symptoms && (
+        <PartnerSymptoms logs={logs} today={today} phaseData={phaseData} />
+      )}
+
+      {/* Cycle calendar — gated by calendar_view */}
+      {show.calendar && (
+        <div>
+          <h2 className="font-serif text-xl font-semibold mb-3 px-1 text-foreground">
+            Her Cycle Calendar
+          </h2>
+          <CalendarTab
+            cycles={state.cycles}
+            avgLength={state.avgCycleLength}
+            avgPeriodLength={state.avgPeriodLength}
+            today={today}
+            logs={logs}
+            fertileWindow={state.fertileWindow}
+            readOnly
+          />
         </div>
       )}
 
