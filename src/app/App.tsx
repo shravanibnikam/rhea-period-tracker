@@ -242,6 +242,7 @@ export default function App() {
             phase={phase}
             state={state}
             today={today}
+            logs={logs}
             ownerId={auth.linkedOwnerId}
             currentUserId={auth.user?.id}
           />
@@ -252,6 +253,7 @@ export default function App() {
             phase={phase}
             state={state}
             today={today}
+            logs={logs}
             ownerId={auth.user?.id}
             currentUserId={auth.user?.id}
           />

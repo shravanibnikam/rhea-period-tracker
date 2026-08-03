@@ -5,7 +5,9 @@ import { toDateKey } from "@/domain/dates";
 export type ShareKey =
   | "cycle_headsup"
   | "todays_phase"
+  | "calendar_view"
   | "mood_signal"
+  | "symptom_details"
   | "care_nudges"
   | "shared_notes";
 
@@ -21,9 +23,19 @@ export const SHARE_KEYS: { key: ShareKey; label: string; description: string }[]
     description: "A soft label like \"luteal — may be lower energy\"",
   },
   {
+    key: "calendar_view",
+    label: "Cycle calendar",
+    description: "Partner sees the month view — phases, period days, fertile window",
+  },
+  {
     key: "mood_signal",
     label: "Mood signal",
     description: "An optional flag: \"rough day\" or \"good day\"",
+  },
+  {
+    key: "symptom_details",
+    label: "Symptoms",
+    description: "What you've logged feeling today and over the past week",
   },
   {
     key: "care_nudges",
@@ -42,7 +54,9 @@ export type ShareSettings = Record<ShareKey, boolean>;
 const DEFAULT_SETTINGS: ShareSettings = {
   cycle_headsup: false,
   todays_phase: false,
+  calendar_view: false,
   mood_signal: false,
+  symptom_details: false,
   care_nudges: false,
   shared_notes: false,
 };

@@ -18,8 +18,15 @@ interface CalendarTabProps {
   avgPeriodLength: number;
   today: Date;
   logs: DailyLog[];
-  onDayClick: (date: Date) => void;
+  /** Omitted in read-only mode — a partner has no log sheet to open. */
+  onDayClick?: (date: Date) => void;
   fertileWindow?: FertileWindow | null;
+  /**
+   * Partner mode: the same month view, but no day is tappable. The partner
+   * client is read-only end to end (see `setSyncReadOnly`), so surfacing a tap
+   * target that could never save anything would just be a dead affordance.
+   */
+  readOnly?: boolean;
 }
 
 function getDatePhase(
@@ -55,7 +62,7 @@ function getDatePhase(
   return null;
 }
 
-export function CalendarTab({ cycles, avgLength, avgPeriodLength, today, logs, onDayClick, fertileWindow }: CalendarTabProps) {
+export function CalendarTab({ cycles, avgLength, avgPeriodLength, today, logs, onDayClick, fertileWindow, readOnly = false }: CalendarTabProps) {
   const anchors = anchorsFrom(avgLength, avgPeriodLength);
   const [calMonth, setCalMonth] = useState(
     () => new Date(today.getFullYear(), today.getMonth(), 1)
@@ -218,13 +225,13 @@ export function CalendarTab({ cycles, avgLength, avgPeriodLength, today, logs, o
           // Future dates are non-tappable UNLESS they already have a persisted
           // entry (so an existing future log can be opened + deleted); future
           // empty dates stay disabled — you can't create logs in the future.
-          const canTap = !isFuture || hasEntry;
+          const canTap = !readOnly && (!isFuture || hasEntry);
           // Fertile window gets a gold bottom border; phase bg takes priority for fill
           const bg = p ? p.bg : isFertile ? "#FBF0DC" : "transparent";
           return (
             <button
               key={d}
-              onClick={() => canTap && onDayClick(date)}
+              onClick={() => canTap && onDayClick?.(date)}
               disabled={!canTap}
               className={`aspect-square flex flex-col items-center justify-center rounded-lg relative transition-all ${
                 canTap ? "hover:ring-2 hover:ring-primary/30 cursor-pointer" : "cursor-default"
