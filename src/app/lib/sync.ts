@@ -75,6 +75,17 @@ export async function pushLog(ownerId: string, log: DailyLog): Promise<void> {
   }
 }
 
+// ─── Apply a remote delete locally ───────────────────────────────────────────
+
+/**
+ * Drop a locally-cached log for a date the server says is deleted. Guarded on
+ * existence so a repeated pull doesn't accrue a tombstone per absent date —
+ * LogRepository.delete() always writes one.
+ */
+async function applyRemoteDelete(date: string): Promise<void> {
+  if (await container.getLog(date)) await container.deleteLog(date);
+}
+
 // ─── Pull all logs from Supabase into IndexedDB ─────────────────────────────
 
 export async function pullAllLogs(ownerId: string): Promise<number> {
@@ -94,6 +105,13 @@ export async function pullAllLogs(ownerId: string): Promise<number> {
   if (!data) return 0;
 
   for (const row of data) {
+    // Tombstones (migration 0003) are rows, not absences. Without this the
+    // partner keeps a log the owner deleted — invisible while the partner saw
+    // no per-day data, but a wrong dot the moment they see the calendar.
+    if (row.deleted) {
+      await applyRemoteDelete(row.date);
+      continue;
+    }
     const log: DailyLog = {
       date: row.date,
       flow: row.flow ?? "none",
@@ -130,15 +148,26 @@ export function subscribeToLogs(
         // Apply the change to local IndexedDB
         if (payload.eventType === "INSERT" || payload.eventType === "UPDATE") {
           const row = payload.new as Record<string, unknown>;
-          const log: DailyLog = {
-            date: row.date as string,
-            flow: (row.flow as DailyLog["flow"]) ?? "none",
-            symptoms: (row.symptoms as string[]) ?? [],
-            mood: (row.mood as string) ?? null,
-            energy: (row.energy as string) ?? null,
-            notes: (row.notes as string) ?? "",
-          };
-          await container.saveLog(log);
+          // A delete arrives as an UPDATE setting `deleted` — the row itself
+          // stays so the tombstone can propagate (see pullAllLogs).
+          if (row.deleted) {
+            await applyRemoteDelete(row.date as string);
+          } else {
+            const log: DailyLog = {
+              date: row.date as string,
+              flow: (row.flow as DailyLog["flow"]) ?? "none",
+              symptoms: (row.symptoms as string[]) ?? [],
+              mood: (row.mood as string) ?? null,
+              energy: (row.energy as string) ?? null,
+              notes: (row.notes as string) ?? "",
+            };
+            await container.saveLog(log);
+          }
+        } else if (payload.eventType === "DELETE") {
+          // Hard delete (row removed outright rather than tombstoned). The old
+          // record carries only the primary key unless REPLICA IDENTITY FULL.
+          const date = (payload.old as Record<string, unknown> | null)?.date;
+          if (typeof date === "string") await applyRemoteDelete(date);
         }
         // Trigger a refresh in the UI
         onUpdate();
