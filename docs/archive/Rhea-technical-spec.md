@@ -209,7 +209,7 @@ A pragmatic path that collapses auth + database + sync + permissions into one we
 | Backend / DB / Auth / Sync | **Supabase** (Postgres + Auth + Row-Level Security + Realtime) | one stack for accounts, the real database, the owner/partner permission model, and sync |
 | ML service | Python (FastAPI) with `statsmodels`/`scikit-learn` + a probabilistic lib (`numpyro`) / the published HSMM code | serves the tiered prediction engine; writes to `predictions` |
 | Import service | Python parsers (CSV/JSON/Apple-Health XML) | bootstraps the model from prior apps |
-| Hosting | Frontend on Vercel/Netlify; Supabase managed; ML on Fly.io/Railway | low-ops, scales from two users up |
+| Hosting | Frontend on a static host (historical); Supabase managed; ML on Fly.io/Railway | low-ops, scales from two users up |
 
 Alternatives if you'd rather self-host everything: Postgres + a Node/FastAPI API + a sync engine (ElectricSQL/PowerSync) + your own auth. More control, more work.
 

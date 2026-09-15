@@ -2,12 +2,15 @@
 
 ## Current work — 2026-09-15
 
-Active branch: `chore/phase-2-hosting`. Phase 1 is merged as `bf76c4b`. The owner's newer engineering brief
-sets the order: credibility → Pages/keep-alive → on-device ML → scoped owner
-E2EE → presentation. See [EXECUTION_PLAN.md](EXECUTION_PLAN.md); July's milestone
-numbers below describe an older roadmap. Mobile apps are cancelled.
+Phase 1 is released as [v0.2.0](https://github.com/shravanibnikam/rhea-period-tracker/releases/tag/v0.2.0)
+at `bf76c4b`. Phase 2 is merged as `995a87d` and deployed to
+[GitHub Pages](https://shravanibnikam.github.io/rhea-period-tracker/).
+The owner confirmed successful JSON import; the former hosting project was
+deleted and its Auth redirect removed.
+The active order is credibility → Pages/keep-alive → on-device ML → scoped owner
+E2EE → presentation. July's milestone numbers below are historical.
 
-### Implemented and verified locally
+### Phase 1: implemented and verified
 
 - Baseline: 305 Vitest tests; lint/build pass. Both transport failures reproduced
   with dummy Supabase configuration before the fix.
@@ -36,30 +39,49 @@ numbers below describe an older roadmap. Mobile apps are cancelled.
 
 [PR #4](https://github.com/shravanibnikam/rhea-period-tracker/pull/4) is merged.
 [CI run 34946040531](https://github.com/shravanibnikam/rhea-period-tracker/actions/runs/34946040531)
-passed on merge commit `bf76c4b`. Release tagging still requires production UI
-delete confirmation with a dedicated synthetic test account.
+passed on merge commit `bf76c4b`. Production UI delete verification passed on
+2026-09-15 before tagging v0.2.0.
 
-### Phase 2: implemented, cutover pending
+### Phase 2: cutover completed and verified
 
-- Root builds retain the current hosting path; `build:pages` uses the GitHub
-  project prefix, base-aware logos, relative manifest and a 404 application shell.
-- Build-generated service worker precaches application assets only. Offline
-  fresh-tab logging works; updates wait until existing app tabs close.
-- Actions deployment and daily public keep-alive workflows added. Public build
-  variables and Pages Actions source are configured in GitHub; Pages is not yet
-  deployed. Vercel remains the current host.
-- Migration `0006_keepalive.sql` adds a single public liveness row. Applied only
-  to the local stack; production requires human security review and management
-  access. No health table permissions change.
-- Local checks: **310 Vitest tests**, **37 pgTAP assertions**, **2 sync/local-only
-  browser tests**, **2 production Pages browser tests**, lint/typecheck/build.
-  Coverage: **57.70%** lines/statements, **81.90%** branches, **74.52%** functions.
-- Production access and dedicated test accounts are being established. The
-  supplied Mac Vercel credential paths are absent in this Linux workspace.
-  Supabase CLI login succeeded; management reports project `rhea` as `INACTIVE`,
-  consistent with the earlier public-endpoint DNS failure. Resume is pending.
-- [HOSTING.md](HOSTING.md) records the remaining auth, data-transfer, verification
-  and retirement gates. Local tests do not establish production success.
+- [PR #5](https://github.com/shravanibnikam/rhea-period-tracker/pull/5) merged as
+  `995a87d`. All checks passed on implementation `24afd78` in
+  [CI run 34948096656](https://github.com/shravanibnikam/rhea-period-tracker/actions/runs/34948096656).
+  [Merge CI 34948586991](https://github.com/shravanibnikam/rhea-period-tracker/actions/runs/34948586991)
+  also passed on deployed commit `995a87d`.
+- [Pages deployment 34948587017](https://github.com/shravanibnikam/rhea-period-tracker/actions/runs/34948587017)
+  succeeded on `995a87d`. Root builds remain supported for portability.
+- Supabase project `jhhuimcsmvdihfeihhtu` was INACTIVE, resumed through management
+  API, and confirmed ACTIVE_HEALTHY. Migration history 0001–0005 was checked;
+  the owner explicitly reviewed/approved 0006, which was then applied atomically
+  with its history entry. Health-table policies were not changed.
+- Site URL and allowed redirect now point only to the exact Pages base URL.
+  A generated real signup verification link completed the Pages callback and opened the signed-in app. **Email delivery was not tested.**
+- Dedicated synthetic owner/partner accounts verified UI save/delete, newer
+  tombstone, two-session reload, unlinked-account read/write isolation, invite
+  creation/redemption, linked plaintext reads and unlink revocation on both
+  the former host and Pages. Only synthetic account rows were queried.
+- Live Pages deep-link 404 assets, correct worker scope and offline fresh-tab
+  loading passed. Local production-browser checks additionally cover retained
+  logs offline. The worker caches built assets, not health/API responses.
+- [Production keep-alive dispatch 34948660733](https://github.com/shravanibnikam/rhea-period-tracker/actions/runs/34948660733)
+  passed. The daily 09:23 UTC schedule is enabled; its first scheduled run has
+  not yet been observed. Scheduled Actions are best-effort.
+- Local checks: **310 Vitest tests**, **37 pgTAP assertions**, **4 browser tests**,
+  lint/typecheck/root and Pages builds. Clean committed checkout verified under
+  Node 22. Coverage: **57.70%** lines/statements, **81.90%** branches, **74.52%** functions.
+- Owner confirmed JSON import and checked dates/entries. The former hosting
+  project was deleted and the management API confirmed it no longer exists.
+  Its Auth redirect was removed and the GitHub homepage now points to Pages.
+  See [HOSTING.md](HOSTING.md) for deployment and recovery.
+
+### Phase 3: dataset license gate
+
+Local sibling repository `rhea-cycle-model` records the provenance audit in
+`docs/DATASET_REVIEW.md`. None of the checked datasets has been accepted under
+this project's verified permissive-license requirement. No training data was
+downloaded, no model trained, and no accuracy result claimed. Resolve the gate
+before training; owner E2EE follows the ML phase per the brief.
 
 Privacy is unchanged: cloud daily logs (including daily-log notes) are plaintext,
 partner access is legacy RLS, and sharing toggles are presentation controls.
@@ -78,7 +100,8 @@ The v2 work has since been **merged to `main` and deployed** — the sections be
 (from the 2026-07-15 handoff) describe the pre-merge snapshot and are retained for
 history. Current reality:
 
-- **Live** at https://rhea-period-tracker.vercel.app; Vercel auto-deploys `main`.
+- **Historical hosting:** a root-hosted service auto-deployed `main`; it was
+  retired in the September 15 cutover described above.
 - **Supabase migrations `0001`–`0004` are all applied to production** (`0004` = the
   invite pgcrypto fix; see `supabase/migrations/README.md`).
 - **Partner pairing: fixed and verified end-to-end** — three corrupting invite

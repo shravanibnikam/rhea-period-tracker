@@ -2,6 +2,18 @@
 
 ## Unreleased
 
+### Added
+
+- GitHub Pages deployment, project-path assets, relative manifest and a working
+  application 404 shell; root-hosted builds remain supported.
+- Build-generated offline asset cache, with deep-link and offline browser tests.
+- Daily Supabase keep-alive workflow and migration 0006, reviewed and applied to
+  production. Manual production workflow passed; first scheduled run pending.
+- Production Pages verification: save/delete, two-session reload, unlinked-account
+  isolation, pairing/unlink, offline shell and generated signup callback.
+
+## [0.2.0] — 2026-09-15
+
 ### Fixed
 
 - Transport registry tests now use explicit configuration, independent of `.env`.
@@ -13,18 +25,14 @@
 
 ### Added
 
-- GitHub Pages build/deployment, project-path assets and an application 404 shell.
-- Build-generated offline asset cache and browser checks for deep links and
-  fresh-tab offline persistence. Root-hosted builds remain supported for cutover.
-- Daily anonymous liveness read and migration 0006, with six permission checks.
-  The migration is local-only pending production review/application.
-
 - CI job applying all migrations and running pgTAP plus Chromium browser tests.
 - Browser coverage for local-only/offline logging and owner save/delete through
   Supabase, including tombstone ordering and two-device reload checks.
 - MIT license and active execution plan. Mobile apps removed from the README
   roadmap; the July v2 specification remains historical design context.
 
-Implementation CI is green on [PR #4](https://github.com/shravanibnikam/rhea-period-tracker/pull/4).
-Phase 1 is merged. Release remains pending dedicated production delete verification;
-local test success is not a production verification claim.
+CI passed on Phase 1 merge commit `bf76c4b`. Production UI delete and two-session
+reload passed using synthetic accounts before tagging. Cloud health data remains
+plaintext; linked partners retain legacy RLS access.
+
+[0.2.0]: https://github.com/shravanibnikam/rhea-period-tracker/releases/tag/v0.2.0

@@ -2,7 +2,7 @@
 
 Goal: a real database, your own login, your partner's login, and **live** updates — your partner's open app changes the moment you log something, and all your devices stay in sync. All on free tiers, reachable by opening one URL on any phone or laptop.
 
-**Stack:** Supabase (Postgres + Auth + Realtime) for the backend, Vercel (or Netlify) for the site. Total setup ≈ 30–45 min.
+**Stack:** Supabase (Postgres + Auth + Realtime) for the backend, a static hosting service for the site (historical; see current hosting guide). Total setup ≈ 30–45 min.
 
 How the pieces fit:
 
@@ -129,7 +129,7 @@ In your `rhea-website` project:
 npm i @supabase/supabase-js
 ```
 
-Create `.env` (and add the same values in Vercel later):
+Create `.env` (deployment now uses public repository variables; see the current hosting guide):
 
 ```
 VITE_SUPABASE_URL=https://xxxx.supabase.co
@@ -204,13 +204,9 @@ await supabase.rpc('redeem_invite', { invite_code: code });
 
 ## Part C — Deploy the site
 
-1. Push the project to a **GitHub** repo.
-2. Go to **vercel.com → New Project → import the repo.** Framework preset: **Vite** (build `npm run build`, output `dist`).
-3. Add the two env vars (`VITE_SUPABASE_URL`, `VITE_SUPABASE_PUBLISHABLE_KEY`) in the Vercel project settings.
-4. **Deploy.** You get a URL like `rhea.vercel.app`.
-5. Open it on each phone/laptop → browser menu → **Add to Home Screen** to install it as an app. (Your existing manifest + icons already make it installable.)
-
-*(Netlify is equivalent: drag-drop or connect the repo, set the same env vars, publish directory `dist`.)*
+The former hosting procedure was superseded by GitHub Pages on 2026-09-15.
+See [current hosting instructions](../HOSTING.md) for the project-site build,
+public repository variables, Auth redirects and offline verification.
 
 ---
 

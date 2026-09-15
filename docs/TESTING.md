@@ -63,9 +63,10 @@ installed shell in a new offline tab with retained logs. They use blank Supabase
 configuration and no accounts. Root builds remain available via `npm run build`.
 See [HOSTING.md](HOSTING.md) for production cutover gates.
 
-## Production delete verification (pending)
+## Production delete verification
 
-Use a dedicated synthetic test account after deploying the phase change. Sign in,
+Passed on the former host and Pages on 2026-09-15; see IMPLEMENTATION_STATUS.md.
+To repeat, use a dedicated synthetic test account after deploying the phase change. Sign in,
 save a log, confirm the server row under the owner's session, delete via the UI,
 confirm `deleted=true` with a newer `updated_hlc`, then reload a second session
 and confirm the log stays absent. Record deployment commit, date, and result in
