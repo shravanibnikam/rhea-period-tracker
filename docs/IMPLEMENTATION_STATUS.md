@@ -1,5 +1,61 @@
 # Rhea v2 — Implementation Status
 
+## Current work — 2026-09-15
+
+Active branch: `chore/phase-1-credibility`. The owner's newer engineering brief
+sets the order: credibility → Pages/keep-alive → on-device ML → scoped owner
+E2EE → presentation. See [EXECUTION_PLAN.md](EXECUTION_PLAN.md); July's milestone
+numbers below describe an older roadmap. Mobile apps are cancelled.
+
+### Implemented and verified locally
+
+- Baseline: 305 Vitest tests; lint/build pass. Both transport failures reproduced
+  with dummy Supabase configuration before the fix.
+- Transport descriptors now take an explicit configuration fixture; importing
+  them does not initialize a Supabase client.
+- All migrations 0001–0005 apply locally. The orientation missed the existing
+  0005 partner share-default migration; keep-alive must take the next number.
+- Three pgTAP suites pass: 31 assertions. Required Auth users are seeded inside
+  test transactions; invite behavior is executable rather than a comment sketch.
+- CI adds pgTAP and Chromium tests on local Supabase, plus the full Vitest suite
+  with populated dummy configuration.
+- Browser tests pass for local-only persistence/offline deletion, and a real
+  owner save → Supabase row → UI delete → newer tombstone → two-device reload.
+- Browser testing exposed a startup race: an obsolete auth/role effect stopped
+  the replacement owner engine, leaving writes queued. Cleanup now invalidates
+  pending storage initialization and obsolete callbacks cannot stop successors.
+  A deferred-start regression test covers this.
+- MIT license, unreleased changelog and reproducible testing instructions added.
+- Final local checks: **309/309 Vitest tests** with and without dummy Supabase
+  configuration, **31 pgTAP assertions**, **2 Chromium tests**, lint/typecheck/
+  build pass. Coverage: lines/statements **56.61%** (baseline 56.27%), branches
+  **81.80%** (81.66%), functions **74.25%** (73.44%). Runtime: Node 24.21.0
+  locally; CI uses Node 22.
+
+### GitHub verification
+
+[Draft PR #4](https://github.com/shravanibnikam/rhea-period-tracker/pull/4),
+implementation commit `405e1cd`: [CI run 34944259746](https://github.com/shravanibnikam/rhea-period-tracker/actions/runs/34944259746)
+passed all five jobs, including local Supabase migrations/pgTAP and both browser
+tests on Node 22. Subsequent documentation updates do not change that tested code.
+
+### Remaining Phase 1 gates
+
+- Production UI delete confirmation with a dedicated synthetic test account;
+  local Supabase success is not production evidence.
+- Merge/tag after those checks. No release is claimed yet.
+
+Privacy is unchanged: cloud daily logs (including daily-log notes) are plaintext,
+partner access is legacy RLS, and sharing toggles are presentation controls.
+Only the separate shared-notes channel is disabled. Existing onboarding/auth
+copy still overstates confidentiality and needs correction during presentation.
+
+The dependency install also reported 13 audit findings (5 moderate, 6 high,
+2 critical); dependency remediation has not been assessed in this phase.
+The build retains its existing Recharts chunk-size warning.
+
+---
+
 ## ▶ Current state (2026-07-20) — READ THIS FIRST
 
 The v2 work has since been **merged to `main` and deployed** — the sections below

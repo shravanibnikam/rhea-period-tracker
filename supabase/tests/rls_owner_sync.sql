@@ -1,9 +1,9 @@
 -- pgTAP suite for 0003_owner_sync_metadata (M1.9 / RHEA-054).
 -- Run with: supabase test db   (requires a local Supabase / Postgres).
--- NOT yet executed in the implementation environment (no Postgres) — this is
--- a deployment gate, see supabase/migrations/README.md.
 
 begin;
+create extension if not exists pgtap with schema extensions;
+set local search_path = public, extensions;
 select plan(10);
 
 -- ── Schema assertions ─────────────────────────────────────────────────────
@@ -21,8 +21,9 @@ select has_function('public', 'daily_logs_reject_stale_write',
                     'stale-write guard function exists');
 
 -- ── Behavioral: server_updated_at is server-authored ──────────────────────
--- (executed as a service role; RLS owner isolation is asserted in rls_invite.sql
---  and unchanged by 0003 — the migration adds columns only.)
+-- Privileged setup; account isolation is covered by rls_isolation.sql.
+insert into auth.users (id, email)
+values ('00000000-0000-0000-0000-000000000001', 'sync@example.test');
 insert into public.daily_logs (owner_id, date, flow, updated_hlc, device_id)
 values ('00000000-0000-0000-0000-000000000001', '2026-07-01', 'medium',
         '000000000010:0000:devA', 'devA');

@@ -1,4 +1,5 @@
 import { Cloud, Server, Bluetooth, Wifi, Share2, AlertCircle } from "lucide-react";
+import { isSupabaseConfigured } from "@/app/lib/supabase";
 import {
   listTransports,
   hasConfiguredTransport,
@@ -34,8 +35,9 @@ const STATUS_STYLES: Record<TransportStatus, string> = {
  * even before the additional transports are implemented.
  */
 export function SyncTransportSection() {
-  const transports = listTransports();
-  const anyConfigured = hasConfiguredTransport();
+  const config = { supabaseConfigured: isSupabaseConfigured() };
+  const transports = listTransports(config);
+  const anyConfigured = hasConfiguredTransport(config);
 
   return (
     <div>
