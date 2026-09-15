@@ -22,23 +22,23 @@ export default defineConfig({
   reporter: "list",
   use: {
     browserName: "chromium",
-    baseURL: "http://127.0.0.1:4173",
+    baseURL: "http://127.0.0.1:4173/rhea-period-tracker/",
     timezoneId: "UTC",
     serviceWorkers: "block",
     // Traces can retain authentication tokens; don't record them.
     trace: "off",
   },
   webServer: [{
-    command: "npm run dev -- --host 127.0.0.1 --port 4173 --strictPort",
-    url: "http://127.0.0.1:4173",
+    command: "npm run dev -- --mode pages --host 127.0.0.1 --port 4173 --strictPort",
+    url: "http://127.0.0.1:4173/rhea-period-tracker/",
     reuseExistingServer: false,
     env: {
       VITE_SUPABASE_URL: status.API_URL,
       VITE_SUPABASE_PUBLISHABLE_KEY: status.ANON_KEY,
     },
   }, {
-    command: "npm run dev -- --host 127.0.0.1 --port 4174 --strictPort",
-    url: "http://127.0.0.1:4174",
+    command: "npm run dev -- --mode pages --host 127.0.0.1 --port 4174 --strictPort",
+    url: "http://127.0.0.1:4174/rhea-period-tracker/",
     reuseExistingServer: false,
     env: { VITE_SUPABASE_URL: "", VITE_SUPABASE_PUBLISHABLE_KEY: "" },
   }],

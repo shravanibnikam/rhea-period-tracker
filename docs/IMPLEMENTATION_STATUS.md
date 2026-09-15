@@ -2,7 +2,7 @@
 
 ## Current work — 2026-09-15
 
-Active branch: `chore/phase-1-credibility`. The owner's newer engineering brief
+Active branch: `chore/phase-2-hosting`. Phase 1 is merged as `bf76c4b`. The owner's newer engineering brief
 sets the order: credibility → Pages/keep-alive → on-device ML → scoped owner
 E2EE → presentation. See [EXECUTION_PLAN.md](EXECUTION_PLAN.md); July's milestone
 numbers below describe an older roadmap. Mobile apps are cancelled.
@@ -34,23 +34,39 @@ numbers below describe an older roadmap. Mobile apps are cancelled.
 
 ### GitHub verification
 
-[Draft PR #4](https://github.com/shravanibnikam/rhea-period-tracker/pull/4),
-implementation commit `405e1cd`: [CI run 34944259746](https://github.com/shravanibnikam/rhea-period-tracker/actions/runs/34944259746)
-passed all five jobs, including local Supabase migrations/pgTAP and both browser
-tests on Node 22. Subsequent documentation updates do not change that tested code.
+[PR #4](https://github.com/shravanibnikam/rhea-period-tracker/pull/4) is merged.
+[CI run 34946040531](https://github.com/shravanibnikam/rhea-period-tracker/actions/runs/34946040531)
+passed on merge commit `bf76c4b`. Release tagging still requires production UI
+delete confirmation with a dedicated synthetic test account.
 
-### Remaining Phase 1 gates
+### Phase 2: implemented, cutover pending
 
-- Production UI delete confirmation with a dedicated synthetic test account;
-  local Supabase success is not production evidence.
-- Merge/tag after those checks. No release is claimed yet.
+- Root builds retain the current hosting path; `build:pages` uses the GitHub
+  project prefix, base-aware logos, relative manifest and a 404 application shell.
+- Build-generated service worker precaches application assets only. Offline
+  fresh-tab logging works; updates wait until existing app tabs close.
+- Actions deployment and daily public keep-alive workflows added. Public build
+  variables and Pages Actions source are configured in GitHub; Pages is not yet
+  deployed. Vercel remains the current host.
+- Migration `0006_keepalive.sql` adds a single public liveness row. Applied only
+  to the local stack; production requires human security review and management
+  access. No health table permissions change.
+- Local checks: **310 Vitest tests**, **37 pgTAP assertions**, **2 sync/local-only
+  browser tests**, **2 production Pages browser tests**, lint/typecheck/build.
+  Coverage: **57.70%** lines/statements, **81.90%** branches, **74.52%** functions.
+- Production access and dedicated test accounts are being established. The
+  supplied Mac Vercel credential paths are absent in this Linux workspace.
+  Supabase CLI login succeeded; management reports project `rhea` as `INACTIVE`,
+  consistent with the earlier public-endpoint DNS failure. Resume is pending.
+- [HOSTING.md](HOSTING.md) records the remaining auth, data-transfer, verification
+  and retirement gates. Local tests do not establish production success.
 
 Privacy is unchanged: cloud daily logs (including daily-log notes) are plaintext,
 partner access is legacy RLS, and sharing toggles are presentation controls.
 Only the separate shared-notes channel is disabled. Existing onboarding/auth
 copy still overstates confidentiality and needs correction during presentation.
 
-The dependency install also reported 13 audit findings (5 moderate, 6 high,
+The latest dependency install reported 11 audit findings (4 moderate, 5 high,
 2 critical); dependency remediation has not been assessed in this phase.
 The build retains its existing Recharts chunk-size warning.
 

@@ -32,8 +32,10 @@ if (root) {
 // bundle, so native shells skip registration (spec §3).
 const isNativeShell =
   typeof (window as { Capacitor?: unknown }).Capacitor !== "undefined";
-if ("serviceWorker" in navigator && !isNativeShell) {
+if (import.meta.env.PROD && "serviceWorker" in navigator && !isNativeShell) {
   window.addEventListener("load", () => {
-    navigator.serviceWorker.register("/sw.js").catch(() => {});
+    navigator.serviceWorker.register(`${import.meta.env.BASE_URL}sw.js`, {
+      scope: import.meta.env.BASE_URL,
+    }).catch(() => {});
   });
 }

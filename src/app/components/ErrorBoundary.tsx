@@ -28,7 +28,7 @@ export class ErrorBoundary extends Component<Props, State> {
       return (
         <div className="min-h-screen bg-background font-sans flex items-center justify-center px-4">
           <div className="text-center max-w-sm">
-            <img src="/rhea-mark.svg" alt="Rhea" className="w-12 h-12 mx-auto mb-4" />
+            <img src={`${import.meta.env.BASE_URL}rhea-mark.svg`} alt="Rhea" className="w-12 h-12 mx-auto mb-4" />
             <h1 className="font-serif text-2xl font-bold text-foreground mb-2">
               Something went wrong
             </h1>

@@ -51,6 +51,18 @@ to avoid persisting auth tokens. No production credentials are required.
 The suites follow [Supabase's database testing guidance](https://supabase.com/docs/guides/local-development/testing/overview)
 and [Playwright's web-server configuration](https://playwright.dev/docs/test-webserver).
 
+## Pages production-build checks
+
+```sh
+npm run test:pages
+```
+
+These two Chromium tests build with the project prefix and emulate Pages' actual
+404 fallback on port 4175. They check fresh deep-link assets and opening the
+installed shell in a new offline tab with retained logs. They use blank Supabase
+configuration and no accounts. Root builds remain available via `npm run build`.
+See [HOSTING.md](HOSTING.md) for production cutover gates.
+
 ## Production delete verification (pending)
 
 Use a dedicated synthetic test account after deploying the phase change. Sign in,

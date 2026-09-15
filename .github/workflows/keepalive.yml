@@ -1,0 +1,31 @@
+name: Supabase keep-alive
+
+on:
+  schedule:
+    - cron: '23 9 * * *'
+  workflow_dispatch:
+
+# GitHub disables scheduled workflows after 60 days of repository inactivity.
+# This daily read is best-effort activity, not an uptime guarantee from Supabase.
+permissions:
+  contents: read
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Read the public liveness row
+        env:
+          SUPABASE_URL: ${{ vars.VITE_SUPABASE_URL }}
+          SUPABASE_PUBLISHABLE_KEY: ${{ vars.VITE_SUPABASE_PUBLISHABLE_KEY }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          : "${SUPABASE_URL:?Set the VITE_SUPABASE_URL repository variable}"
+          : "${SUPABASE_PUBLISHABLE_KEY:?Set the VITE_SUPABASE_PUBLISHABLE_KEY repository variable}"
+          response=$(curl --fail-with-body --silent --show-error \
+            --retry 3 --connect-timeout 10 --max-time 30 \
+            --header "apikey: ${SUPABASE_PUBLISHABLE_KEY}" \
+            "${SUPABASE_URL%/}/rest/v1/keepalive?select=id")
+          jq -e '. == [{"id": true}]' <<< "$response" > /dev/null
