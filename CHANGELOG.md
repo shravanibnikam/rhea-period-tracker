@@ -19,5 +19,6 @@
 - MIT license and active execution plan. Mobile apps removed from the README
   roadmap; the July v2 specification remains historical design context.
 
-Release pending GitHub CI and dedicated production delete verification; local
-test success is not a production verification claim.
+Implementation CI is green on [PR #4](https://github.com/shravanibnikam/rhea-period-tracker/pull/4).
+Release remains pending dedicated production delete verification and merge;
+local test success is not a production verification claim.

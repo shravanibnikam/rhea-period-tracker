@@ -42,7 +42,8 @@ training; synthetic data must never masquerade as real evaluation.
 - [x] Browser tests for local-only logging and owner save/delete/second-device pull.
 - [x] Sync startup race found by browser test fixed, with regression coverage.
 - [x] MIT license and unreleased changelog added.
-- [ ] GitHub CI green on the phase PR.
+- [x] GitHub CI green on [PR #4](https://github.com/shravanibnikam/rhea-period-tracker/pull/4):
+  [implementation run](https://github.com/shravanibnikam/rhea-period-tracker/actions/runs/34944259746) for `405e1cd`.
 - [ ] Production UI delete verification with a dedicated test account.
 - [ ] Merge and tag the release after the above gates pass.
 

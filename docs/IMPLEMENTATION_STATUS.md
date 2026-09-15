@@ -32,9 +32,15 @@ numbers below describe an older roadmap. Mobile apps are cancelled.
   **81.80%** (81.66%), functions **74.25%** (73.44%). Runtime: Node 24.21.0
   locally; CI uses Node 22.
 
+### GitHub verification
+
+[Draft PR #4](https://github.com/shravanibnikam/rhea-period-tracker/pull/4),
+implementation commit `405e1cd`: [CI run 34944259746](https://github.com/shravanibnikam/rhea-period-tracker/actions/runs/34944259746)
+passed all five jobs, including local Supabase migrations/pgTAP and both browser
+tests on Node 22. Subsequent documentation updates do not change that tested code.
+
 ### Remaining Phase 1 gates
 
-- GitHub CI confirmation on the phase PR.
 - Production UI delete confirmation with a dedicated synthetic test account;
   local Supabase success is not production evidence.
 - Merge/tag after those checks. No release is claimed yet.
