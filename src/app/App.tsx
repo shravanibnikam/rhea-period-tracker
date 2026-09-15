@@ -108,7 +108,9 @@ export default function App() {
       void (async () => {
         const started = await container.startOwnerSync(uid, supabase);
         if (cancelled) {
-          await container.stopOwnerSync();
+          // Cleanup already stopped/invalidated this startup. Stopping the
+          // container here could stop a newer effect's engine after role/auth
+          // resolution changed while startOwnerSync was awaiting its pull.
           return;
         }
         unsubStatus = started.onStatus(() => refresh());

@@ -8,12 +8,14 @@
  * enqueue and legacy-push.
  */
 import "fake-indexeddb/auto";
-import { describe, it, expect, afterEach } from "vitest";
+import { describe, it, expect, afterEach, vi } from "vitest";
 import { Container } from "@/app/di/Container";
 import { isOwnerEngineSync } from "@/app/lib/flags";
 import { emptyLog } from "@/domain/types";
 import { logKey } from "@/data/envelope";
 import type { OutboxEntry } from "@/sync";
+import { SyncEngine } from "@/sync";
+import type { StorageDriver } from "@/data/drivers/StorageDriver";
 
 const DATE = "2099-01-01";
 const mkLog = () => ({ ...emptyLog(DATE), flow: "medium" as const });
@@ -26,7 +28,11 @@ function freshContainer(uid: string): Container {
   return c;
 }
 afterEach(async () => {
-  for (const c of open) await c.closeDB();
+  for (const c of open) {
+    await c.stopOwnerSync();
+    await c.closeDB();
+  }
+  vi.restoreAllMocks();
   open = [];
 });
 
@@ -49,6 +55,32 @@ describe("isOwnerEngineSync — flag/role decision (not engine-instance)", () =>
 });
 
 describe("Container durable-outbox mode gating", () => {
+  it("reuses an active engine and creates a fresh one after stop", async () => {
+    const c = freshContainer("restart-sync");
+    const first = await c.startOwnerSync("restart-sync", null);
+    expect(await c.startOwnerSync("restart-sync", null)).toBe(first);
+    await c.stopOwnerSync();
+    expect(c.syncEngine()).toBeNull();
+    expect(await c.startOwnerSync("restart-sync", null)).not.toBe(first);
+  });
+
+  it("a stopped startup cannot replace the next engine after storage resolves", async () => {
+    const c = freshContainer("cancelled-startup");
+    const driver = await c.driver();
+    let release!: (driver: StorageDriver) => void;
+    const delayed = new Promise<StorageDriver>(resolve => { release = resolve; });
+    vi.spyOn(c, "driver").mockImplementationOnce(() => delayed);
+    const start = vi.spyOn(SyncEngine.prototype, "start");
+
+    const obsolete = c.startOwnerSync("cancelled-startup", null);
+    await c.stopOwnerSync();
+    const current = await c.startOwnerSync("cancelled-startup", null);
+    release(driver);
+    expect(await obsolete).not.toBe(current);
+    expect(c.syncEngine()).toBe(current);
+    expect(start).toHaveBeenCalledTimes(1);
+  });
+
   it("owner mode + null engine: delete removes the local row, writes a tombstone, and queues a deleted:true intent atomically", async () => {
     const c = freshContainer("owner-a");
     c.setOwnerSyncMode(true);

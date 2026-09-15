@@ -47,9 +47,10 @@ supabase test db          # runs supabase/tests/*.sql (pgTAP)
   end-to-end after `0004`. `0005` seeds the `calendar_view` / `symptom_details`
   share keys; because `setShareSetting` upserts, the toggles also function
   without it — the migration makes the default-off rows explicit.
-- ⚠️ **pgTAP suites still need execution + CI integration.** The RLS tests in
-  `supabase/tests/` (`rls_invite.sql`, `rls_owner_sync.sql`) have **not** been run
-  (`supabase test db`) and are **not wired into CI**. Per RISK_REGISTER
-  **R-PRIV-5 / R-PAIR-3**, run them against a local stack and add them to CI
-  before treating RLS as verified. (Pairing RLS is now indirectly exercised by
-  the live two-account pass, but the suites themselves remain unconfirmed.)
+- **pgTAP:** all three suites (`rls_invite.sql`, `rls_isolation.sql`,
+  `rls_owner_sync.sql`) passed locally on 2026-09-15: 31 assertions against
+  Supabase CLI 2.117.0 / Postgres 15 after applying migrations 0001–0005.
+  CI now starts the local stack, resets it, runs the SQL suites and runs browser
+  save/delete tests. This checks current plaintext RLS semantics, including
+  linked-partner access; it does not claim encrypted partner isolation.
+  See [testing instructions](../../docs/TESTING.md).

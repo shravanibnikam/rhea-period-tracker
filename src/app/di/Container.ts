@@ -35,6 +35,7 @@ export class Container {
   private readonly manager = new StorageManager();
   private uid: string | null = null;
   private engine: SyncEngine | null = null;
+  private syncGeneration = 0;
   /**
    * Whether the CONFIGURED sync mode is owner-engine (durable outbox). Set by
    * the app from auth + feature flag + role — NOT from `engine !== null`. Owner
@@ -183,6 +184,7 @@ export class Container {
     // app didn't call setOwnerSyncMode first, so writes always enqueue durably.
     this.ownerSyncMode = true;
     if (this.engine) return this.engine;
+    const generation = this.syncGeneration;
     const driver = await this.driver();
     const engine = new SyncEngine({
       deviceId: await this.getDeviceId(),
@@ -192,12 +194,16 @@ export class Container {
       driver,
     });
     await seedInitialOutbox(driver, engine.outbox); // one-time post-upgrade merge-up
+    // An effect cleanup may stop sync while storage/seed awaits are in flight.
+    // A cancelled startup must never replace or start alongside its successor.
+    if (generation !== this.syncGeneration) return engine;
     this.engine = engine; // repository writes now enqueue atomically
     await engine.start();
     return engine;
   }
 
   async stopOwnerSync(): Promise<void> {
+    this.syncGeneration++;
     const engine = this.engine;
     this.engine = null;
     await engine?.stop();

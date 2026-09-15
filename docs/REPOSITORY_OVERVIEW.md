@@ -1,5 +1,10 @@
 # Repository Overview
 
+> **2026-09-15:** See [active execution plan](EXECUTION_PLAN.md) and the top of
+> [implementation status](IMPLEMENTATION_STATUS.md) for current work. Migration
+> 0005 exists, transport configuration is isolated, and pgTAP/browser tests are
+> now implemented and verified locally. The July overview below is historical.
+
 Orientation document for engineers joining the Rhea codebase. Last updated **2026-07-20** (app version 0.2.0).
 
 > **Current deployed state (2026-07-20).** The v2 branch has been merged to `main`

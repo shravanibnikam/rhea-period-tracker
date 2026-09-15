@@ -1,13 +1,10 @@
-import { isSupabaseConfigured } from "@/app/lib/supabase";
-
 /**
  * Transport registry — UI descriptors only.
  *
- * Rhea v2 syncs encrypted payloads over swappable transports (see
- * docs/RHEA_V2_TECHNICAL_SPEC.md). The real `SyncTransport` interface lands
- * with the encrypted sync engine in Phase 2/3; until then this module only
- * *describes* the known transports so the UI can show what exists, what is
- * configured, and what is planned. It performs no I/O and simulates nothing.
+ * Describes the transports for settings; replication uses src/sync/transports.
+ * Configuration comes from the caller so importing this registry never creates
+ * a Supabase client or reads the ambient environment. Cloud payloads are still
+ * plaintext until owner encryption ships.
  */
 
 export type TransportId =
@@ -29,13 +26,17 @@ export interface TransportInfo {
   status: TransportStatus;
 }
 
-export function listTransports(): TransportInfo[] {
+export interface TransportConfig {
+  supabaseConfigured: boolean;
+}
+
+export function listTransports(config: TransportConfig): TransportInfo[] {
   return [
     {
       id: "relay-official",
       name: "Official Relay",
       description: "Hosted relay — syncs with your partner through the cloud",
-      status: isSupabaseConfigured() ? "available" : "not-configured",
+      status: config.supabaseConfigured ? "available" : "not-configured",
     },
     {
       id: "relay-selfhosted",
@@ -65,6 +66,6 @@ export function listTransports(): TransportInfo[] {
 }
 
 /** True when at least one transport is configured and usable. */
-export function hasConfiguredTransport(): boolean {
-  return listTransports().some((t) => t.status === "available");
+export function hasConfiguredTransport(config: TransportConfig): boolean {
+  return listTransports(config).some((t) => t.status === "available");
 }

@@ -2,7 +2,7 @@ name: CI
 
 # Gate for every PR and push to main (M0.1 / RHEA-004).
 # Jobs are kept separate so failures are attributable at a glance.
-# Room is reserved for pgTAP RLS (M0.3) and native builds (M3.1) as those land.
+# Database tests use a disposable local stack; no production credentials.
 
 on:
   push:
@@ -34,6 +34,38 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm run test:coverage
+      - name: Test with Supabase configured
+        run: npm test
+        env:
+          VITE_SUPABASE_URL: http://127.0.0.1:54321
+          VITE_SUPABASE_PUBLISHABLE_KEY: rhea-test-only
+
+  rls:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: supabase/setup-cli@v1
+        with:
+          version: 2.117.0
+      - name: Start local Supabase
+        # Suppress the CLI's local credential summary.
+        run: supabase start -x studio,postgres-meta,storage-api,imgproxy,edge-runtime,logflare,vector,supavisor > /dev/null
+      - name: Apply every migration from scratch
+        run: supabase db reset --local
+      - name: Run pgTAP security and sync suites
+        run: supabase test db
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npx playwright install --with-deps chromium
+      - name: Verify UI delete propagation against local Supabase
+        run: npm run test:e2e
+      - name: Stop local Supabase
+        if: always()
+        run: supabase stop --no-backup
 
   lint:
     runs-on: ubuntu-latest

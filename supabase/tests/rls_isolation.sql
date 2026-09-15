@@ -1,7 +1,5 @@
 -- pgTAP suite for daily_logs account isolation + partner link/unlink.
 -- Run with: `supabase test db` (requires a local Supabase / Postgres + pgtap).
--- NOT executed in the implementation environment (no Postgres) — deployment
--- gate, see supabase/migrations/README.md.
 --
 -- Proves the cloud-side half of the account-isolation guarantee:
 --   1. an unpaired account B cannot read owner A's daily_logs,
@@ -10,6 +8,8 @@
 --   4. partner read disappears the moment the link is removed (unpair).
 
 begin;
+create extension if not exists pgtap with schema extensions;
+set local search_path = public, extensions;
 select plan(6);
 
 -- Two unrelated accounts.
@@ -18,6 +18,9 @@ select plan(6);
 
 -- Seed A's private log as a privileged role (bypasses RLS for setup only).
 set local role postgres;
+insert into auth.users (id, email) values
+  (:'A', 'owner@example.test'),
+  (:'B', 'partner@example.test');
 insert into public.daily_logs (owner_id, date, flow, notes, updated_hlc, device_id)
 values (:'A', '2026-01-05', 'heavy', 'private note', '000000000010:0000:devA', 'devA');
 
