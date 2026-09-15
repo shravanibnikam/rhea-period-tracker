@@ -3,6 +3,7 @@ import { test, expect } from "@playwright/test";
 test("fresh deep link loads the 404 shell with project-scoped assets", async ({ browser }) => {
   const context = await browser.newContext({ serviceWorkers: "block" });
   const page = await context.newPage();
+  page.on("pageerror", error => console.error("Pages runtime error:", error.message));
   const failures: string[] = [];
   page.on("response", response => {
     if (response.request().resourceType() !== "document" && response.status() >= 400) failures.push(response.url());
@@ -29,6 +30,7 @@ test("fresh deep link loads the 404 shell with project-scoped assets", async ({ 
 });
 
 test("installed project shell opens on a new tab offline and retains logs", async ({ page, context }) => {
+  page.on("pageerror", error => console.error("Pages runtime error:", error.message));
   await page.goto("./");
   await page.evaluate(async () => { await navigator.serviceWorker.ready; });
   await page.getByRole("button", { name: /Log today/ }).click();
