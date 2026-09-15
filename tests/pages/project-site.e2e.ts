@@ -4,6 +4,8 @@ test("fresh deep link loads the 404 shell with project-scoped assets", async ({ 
   const context = await browser.newContext({ serviceWorkers: "block" });
   const page = await context.newPage();
   page.on("pageerror", error => console.error("Pages runtime error:", error.message));
+  page.on("console", message => { if (message.type() === "error") console.error("Pages console:", message.text()); });
+  page.on("requestfailed", request => console.error("Pages failed request:", request.url(), request.failure()?.errorText));
   const failures: string[] = [];
   page.on("response", response => {
     if (response.request().resourceType() !== "document" && response.status() >= 400) failures.push(response.url());
@@ -11,6 +13,7 @@ test("fresh deep link loads the 404 shell with project-scoped assets", async ({ 
   try {
     const response = await page.goto("http://127.0.0.1:4175/rhea-period-tracker/calendar");
     expect(response?.status()).toBe(404); // GitHub Pages serves the shell with 404 status.
+    console.log("Pages assets:", await page.locator("script[src]").evaluateAll(scripts => scripts.map(script => script.getAttribute("src"))));
     await expect(page.getByRole("heading", { name: "Get started", exact: true })).toBeVisible();
     const logo = page.getByAltText("Rhea", { exact: true });
     await expect.poll(() => logo.evaluate(image => (image as HTMLImageElement).naturalWidth)).toBeGreaterThan(0);
