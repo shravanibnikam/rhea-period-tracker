@@ -43,6 +43,8 @@ npm run dev      # http://localhost:5173
 | Command | What it does |
 |---|---|
 | `npm run dev` | Vite dev server (entry `src/app/main.tsx`) |
+| `npm run build:pages` | Production project-site build including `404.html` |
+| `npm run test:pages` | Deep-link and offline production browser checks |
 | `npm run build` | `tsc --noEmit` + `vite build` |
 | `npm run typecheck` | TypeScript, no emit |
 | `npm run lint` | ESLint (`--max-warnings=0`, layering enforced) |
@@ -74,7 +76,7 @@ Orientation for contributors: [`docs/REPOSITORY_OVERVIEW.md`](docs/REPOSITORY_OV
 
 ## Supabase & migrations
 
-The backend is a Supabase project (`daily_logs`, `partner_links`, `invites`, `profiles`, plus sharing tables, all RLS-scoped). Versioned migrations live in [`supabase/migrations/`](supabase/migrations/) and are all **applied to production** (`0001`–`0005`, per the migration ledger):
+The backend is a Supabase project (`daily_logs`, `partner_links`, `invites`, `profiles`, plus sharing tables, all RLS-scoped). Versioned migrations live in [`supabase/migrations/`](supabase/migrations/) with **`0001`–`0005` applied to production**, per the migration ledger. `0006` is local-only pending review:
 
 | # | Migration | Summary |
 |---|---|---|
@@ -83,17 +85,19 @@ The backend is a Supabase project (`daily_logs`, `partner_links`, `invites`, `pr
 | `0003` | owner sync metadata | HLC/`deleted`/`server_updated_at` columns + LWW guard trigger |
 | `0004` | invite pgcrypto fix | Schema-qualifies pgcrypto so `create_invite`/`redeem_invite` work |
 | `0005` | partner share defaults | Seeds calendar and symptom share keys, default off |
+| `0006` | keep-alive (local only) | Anonymous read of one liveness row |
 
-Apply to a linked project with `supabase db push`. Details and the applied/verification status: [`supabase/migrations/README.md`](supabase/migrations/README.md). All three pgTAP suites now pass locally (31 assertions) and run in CI; see [testing](docs/TESTING.md).
+Apply to a linked project with `supabase db push`. Details and the applied/verification status: [`supabase/migrations/README.md`](supabase/migrations/README.md). All four pgTAP suites pass locally (37 assertions) and run in CI; see [testing](docs/TESTING.md).
 
 ---
 
 ## Testing & deployment
 
-- **Tests:** Vitest unit and IndexedDB integration coverage, 31 pgTAP assertions, and two browser tests. Transport fixtures are independent of ambient `.env` configuration. See [testing instructions](docs/TESTING.md).
+- **Tests:** Vitest unit and IndexedDB integration coverage, 37 pgTAP assertions, and four browser tests. Transport fixtures are independent of ambient `.env` configuration. See [testing instructions](docs/TESTING.md).
 - **CI:** [`.github/workflows/ci.yml`](.github/workflows/ci.yml) runs typecheck, coverage, configured-environment tests, lint, build, and local Supabase security/browser tests on pushes to main and pull requests.
 - **Delete verification:** real UI save/delete and two-device reload pass against local Supabase. Production verification remains pending.
-- **Deploy:** Vercel auto-deploys `main`; the production alias is `rhea-period-tracker.vercel.app`. Requires `VITE_SUPABASE_URL` / `VITE_SUPABASE_PUBLISHABLE_KEY` set in the Vercel project.
+- **Hosting migration:** Pages workflows are prepared; cutover remains pending production verification. See [hosting and data-transfer instructions](docs/HOSTING.md).
+- **Current deploy:** Vercel auto-deploys `main`; the production alias is `rhea-period-tracker.vercel.app`. Requires `VITE_SUPABASE_URL` / `VITE_SUPABASE_PUBLISHABLE_KEY` set in the Vercel project.
 
 ---
 

@@ -32,7 +32,7 @@ export function Header({
       </a>
       <div className="max-w-4xl mx-auto px-4 sm:px-6 h-14 flex items-center justify-between">
         <div className="flex items-center gap-2">
-          <img src="/rhea-mark.svg" alt="" className="w-6 h-6" aria-hidden="true" />
+          <img src={`${import.meta.env.BASE_URL}rhea-mark.svg`} alt="" className="w-6 h-6" aria-hidden="true" />
           <span className="font-serif text-base font-semibold text-foreground tracking-tight">
             Rhea
           </span>

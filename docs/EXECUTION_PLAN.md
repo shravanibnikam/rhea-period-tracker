@@ -45,7 +45,22 @@ training; synthetic data must never masquerade as real evaluation.
 - [x] GitHub CI green on [PR #4](https://github.com/shravanibnikam/rhea-period-tracker/pull/4):
   [implementation run](https://github.com/shravanibnikam/rhea-period-tracker/actions/runs/34944259746) for `405e1cd`.
 - [ ] Production UI delete verification with a dedicated test account.
-- [ ] Merge and tag the release after the above gates pass.
+- [x] Phase 1 merged as `bf76c4b`; CI passed on the merge commit.
+- [ ] Tag the release after production verification passes.
+
+## Phase 2 cutover gates
+
+- [x] Pages build, base-aware assets, real 404 shell and generated offline worker.
+- [x] Local Pages browser checks: deep link and offline fresh-tab persistence.
+- [x] Keep-alive workflow and migration 0006; 37 SQL assertions pass locally.
+- [x] Public build variables and Pages Actions source configured in GitHub.
+- [ ] Human review of migration 0006, then production apply.
+- [ ] Deploy Pages and verify sign-in/confirmation redirects with test accounts.
+- [ ] Verify production delete and account isolation with synthetic accounts.
+- [ ] Export/import local-only data before retiring the old origin.
+- [ ] Verify scheduled keep-alive, update public links and retire Vercel.
+
+See [HOSTING.md](HOSTING.md) for the cutover and rollback procedure.
 
 Use one branch and one PR per phase, conventional commits, and update
 IMPLEMENTATION_STATUS.md with evidence. Never commit credentials or real user

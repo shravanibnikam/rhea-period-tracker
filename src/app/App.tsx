@@ -192,7 +192,7 @@ export default function App() {
     return (
       <div className="min-h-screen bg-background font-sans flex items-center justify-center">
         <div className="text-center">
-          <img src="/rhea-mark.svg" alt="Rhea" className="w-12 h-12 mx-auto mb-3" />
+          <img src={`${import.meta.env.BASE_URL}rhea-mark.svg`} alt="Rhea" className="w-12 h-12 mx-auto mb-3" />
           <p className="font-serif text-2xl font-semibold text-foreground mb-2">Rhea</p>
           <p className="text-sm text-muted-foreground">Loading...</p>
         </div>

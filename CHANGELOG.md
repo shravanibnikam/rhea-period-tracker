@@ -13,6 +13,12 @@
 
 ### Added
 
+- GitHub Pages build/deployment, project-path assets and an application 404 shell.
+- Build-generated offline asset cache and browser checks for deep links and
+  fresh-tab offline persistence. Root-hosted builds remain supported for cutover.
+- Daily anonymous liveness read and migration 0006, with six permission checks.
+  The migration is local-only pending production review/application.
+
 - CI job applying all migrations and running pgTAP plus Chromium browser tests.
 - Browser coverage for local-only/offline logging and owner save/delete through
   Supabase, including tombstone ordering and two-device reload checks.
@@ -20,5 +26,5 @@
   roadmap; the July v2 specification remains historical design context.
 
 Implementation CI is green on [PR #4](https://github.com/shravanibnikam/rhea-period-tracker/pull/4).
-Release remains pending dedicated production delete verification and merge;
+Phase 1 is merged. Release remains pending dedicated production delete verification;
 local test success is not a production verification claim.

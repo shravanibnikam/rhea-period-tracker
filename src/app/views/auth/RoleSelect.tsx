@@ -100,7 +100,7 @@ export function RoleSelect({ onChooseOwner, onPaired }: RoleSelectProps) {
     <div className="min-h-screen bg-background font-sans flex items-center justify-center px-4">
       <div className="w-full max-w-sm">
         <div className="text-center mb-8">
-          <img src="/rhea-mark.svg" alt="Rhea" className="w-14 h-14 mx-auto mb-4" />
+          <img src={`${import.meta.env.BASE_URL}rhea-mark.svg`} alt="Rhea" className="w-14 h-14 mx-auto mb-4" />
           <h1 className="font-serif text-2xl font-bold text-foreground mb-2">
             Welcome to Rhea
           </h1>

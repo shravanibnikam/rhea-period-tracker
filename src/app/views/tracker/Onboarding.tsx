@@ -12,7 +12,7 @@ export function Onboarding({ onStartLogging, onImport, onQuickAdd }: OnboardingP
       {/* Welcome hero */}
       <div className="rounded-3xl p-8 sm:p-10 border text-center bg-card border-border">
         <img
-          src="/rhea-mark.svg"
+          src={`${import.meta.env.BASE_URL}rhea-mark.svg`}
           alt="Rhea"
           className="w-16 h-16 mx-auto mb-4"
         />

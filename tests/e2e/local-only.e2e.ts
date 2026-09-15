@@ -1,7 +1,7 @@
 import { test, expect } from "@playwright/test";
 
 test("local-only logging survives reload and works offline without an account", async ({ page, context }) => {
-  await page.goto("http://127.0.0.1:4174");
+  await page.goto("http://127.0.0.1:4174/rhea-period-tracker/");
   await expect(page.getByRole("button", { name: "Sign in", exact: true })).toHaveCount(0);
   await page.getByRole("button", { name: /Log today/ }).click();
   await page.getByRole("button", { name: "Medium", exact: true }).first().click();
