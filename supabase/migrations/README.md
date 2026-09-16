@@ -2,10 +2,11 @@
 
 Versioned, additive-first migrations applied in lexical order by the Supabase CLI.
 
-**Applied state: `0001`–`0005` are ALL applied to the production project**
-(`jhhuimcsmvdihfeihhtu`), confirmed via `supabase migration list --linked`.
+**Applied state: `0001`–`0006` are ALL applied to the production project**
+(`jhhuimcsmvdihfeihhtu`), with history verified through the Management API on 2026-09-15.
 
-`0006` is applied locally only; production application is pending review.
+`0006` was explicitly reviewed/approved by the owner and applied to production
+on 2026-09-15, in the same transaction as its migration-history entry.
 
 ## Ledger
 
@@ -17,7 +18,7 @@ Versioned, additive-first migrations applied in lexical order by the Supabase CL
 | `0004_fix_invite_pgcrypto_schema.sql` | pairing hotfix | ✅ prod | **Invite pgcrypto fix (pairing release blocker).** `create_invite()`/`redeem_invite()` ran with `search_path = public` but Supabase installs `pgcrypto` in the `extensions` schema, so both RPCs errored `function gen_random_bytes does not exist` — no invite could be minted or redeemed. Schema-qualifies the pgcrypto calls (`extensions.gen_random_bytes`/`extensions.digest`); behaviour otherwise identical to `0002`. Pairing is now verified end-to-end (create → redeem → `partner_links`). |
 | `0005_partner_calendar_symptom_shares.sql` | partner visibility | ✅ prod | **Additive, function-only.** Extends `ensure_share_settings()` to seed two new keys — `calendar_view` (partner sees the month view) and `symptom_details` (partner sees logged symptoms) — both defaulting to `false`. No table or RLS change: `share_settings.share_key` is free-form text and already carries owner-rw / partner-read policies. Existing owners backfill on their next `getShareSettings()` call; `on conflict do nothing` preserves toggles already set. |
 
-| `0006_keepalive.sql` | hosting | Local only | One boolean liveness row; RLS permits anonymous SELECT only, with no account or health data. |
+| `0006_keepalive.sql` | hosting | ✅ prod | One boolean liveness row; RLS permits anonymous SELECT only, with no account or health data. |
 
 > **Migration-numbering note:** the earlier planning docs reserved `0004`+ for
 > Phase-2 E2EE migrations. The shipped `0004` is the pairing pgcrypto fix and
@@ -47,7 +48,7 @@ supabase test db          # runs supabase/tests/*.sql (pgTAP)
 
 ## Verification status
 
-- **Migrations `0001`–`0005`: applied to production** and exercised — owner sync
+- **Migrations `0001`–`0006`: applied to production** and exercised — owner sync
   runs on `0003`; pairing (create/redeem → `partner_links`) is verified
   end-to-end after `0004`. `0005` seeds the `calendar_view` / `symptom_details`
   share keys; because `setShareSetting` upserts, the toggles also function
@@ -59,3 +60,7 @@ supabase test db          # runs supabase/tests/*.sql (pgTAP)
   save/delete tests. This checks current plaintext RLS semantics, including
   linked-partner access; it does not claim encrypted partner isolation.
   See [testing instructions](../../docs/TESTING.md).
+
+- **0006 production liveness:** the GitHub keep-alive workflow passed on manual
+  dispatch after application. The first scheduled execution also passed on
+  2026-09-15 (run 34981235349), verified on 2026-09-16.

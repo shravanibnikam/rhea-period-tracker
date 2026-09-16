@@ -10,7 +10,7 @@ history. Existing contracts and ESLint boundaries still apply.
    CI against a fresh local Supabase; verify UI delete propagation; MIT license,
    changelog, and a tagged release after the phase's acceptance gates pass.
 2. **Hosting:** GitHub Pages project site, base-aware assets and SPA fallback;
-   daily Supabase keep-alive; validate auth redirects before retiring Vercel.
+   daily Supabase keep-alive; validate auth redirects before retiring the former host.
    Migration `0005` already seeds partner share keys, so keep-alive must use
    `0006` or the next available number. Never rewrite applied migrations.
 3. **On-device ML:** separate `rhea-cycle-model` Python repository; verify public
@@ -44,9 +44,9 @@ training; synthetic data must never masquerade as real evaluation.
 - [x] MIT license and unreleased changelog added.
 - [x] GitHub CI green on [PR #4](https://github.com/shravanibnikam/rhea-period-tracker/pull/4):
   [implementation run](https://github.com/shravanibnikam/rhea-period-tracker/actions/runs/34944259746) for `405e1cd`.
-- [ ] Production UI delete verification with a dedicated test account.
+- [x] Production UI delete verification with dedicated synthetic accounts (2026-09-15).
 - [x] Phase 1 merged as `bf76c4b`; CI passed on the merge commit.
-- [ ] Tag the release after production verification passes.
+- [x] [Release v0.2.0](https://github.com/shravanibnikam/rhea-period-tracker/releases/tag/v0.2.0) tagged at Phase 1 commit `bf76c4b`.
 
 ## Phase 2 cutover gates
 
@@ -54,11 +54,13 @@ training; synthetic data must never masquerade as real evaluation.
 - [x] Local Pages browser checks: deep link and offline fresh-tab persistence.
 - [x] Keep-alive workflow and migration 0006; 37 SQL assertions pass locally.
 - [x] Public build variables and Pages Actions source configured in GitHub.
-- [ ] Human review of migration 0006, then production apply.
-- [ ] Deploy Pages and verify sign-in/confirmation redirects with test accounts.
-- [ ] Verify production delete and account isolation with synthetic accounts.
-- [ ] Export/import local-only data before retiring the old origin.
-- [ ] Verify scheduled keep-alive, update public links and retire Vercel.
+- [x] Owner reviewed/approved migration 0006; applied to production with history entry.
+- [x] Pages deployed at `995a87d`; sign-in and generated signup-confirmation callback verified. Email delivery itself remains untested.
+- [x] Production delete, two-session reload, isolation and pairing/unlink passed on the former host and Pages.
+- [x] Owner confirmed JSON import and checked dates/entries before retirement.
+- [x] Production keep-alive manual dispatch passed; daily schedule enabled.
+- [x] First scheduled keep-alive run passed on 2026-09-15 ([34981235349](https://github.com/shravanibnikam/rhea-period-tracker/actions/runs/34981235349)); GitHub ran it later than the configured time.
+- [x] Deleted the former hosting project after confirmed transfer; removed its Auth redirect and updated the homepage.
 
 See [HOSTING.md](HOSTING.md) for the cutover and rollback procedure.
 
@@ -66,3 +68,11 @@ Use one branch and one PR per phase, conventional commits, and update
 IMPLEMENTATION_STATUS.md with evidence. Never commit credentials or real user
 data. Local browser tests use public signup on a disposable stack; they do not
 prove production configuration or deployment behavior.
+
+## Phase 3 dataset gate
+
+Local `../rhea-cycle-model/docs/DATASET_REVIEW.md` records the original sources
+checked. No dataset is accepted yet: Marquette lacks an explicit permissive
+license on its landing page; Utah is noncommercial; mcPHASES is restricted;
+Natural Cycles requires permission. No data downloaded or model trained. The
+brief requires resolving this gate before training or moving to owner E2EE.

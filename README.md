@@ -6,6 +6,8 @@ A **local-first** period & cycle tracker built for two people — one person tra
 
 ---
 
+**Live app:** [Rhea on GitHub Pages](https://shravanibnikam.github.io/rhea-period-tracker/)
+
 ## What you can actually do today
 
 - **Track locally, offline-first** — one `DailyLog` per day in your browser (IndexedDB). Periods, cycles, phases, predictions, and the fertile window are all derived on-device.
@@ -55,7 +57,7 @@ npm run dev      # http://localhost:5173
 
 ## Architecture & tech stack
 
-**Stack:** React 18 · TypeScript (strict) · Vite 6 · Tailwind v4 · Supabase (Postgres + Auth + Realtime) · IndexedDB (`idb`) · Recharts · libsodium (crypto primitives, staged for Phase 2) · deployed on Vercel · Node 22 (CI).
+**Stack:** React 18 · TypeScript (strict) · Vite 6 · Tailwind v4 · Supabase (Postgres + Auth + Realtime) · IndexedDB (`idb`) · Recharts · libsodium (crypto primitives, staged for Phase 2) · deployed on GitHub Pages · Node 22 (CI).
 
 Source is organized in strictly-layered directories; imports only point downward and this is enforced by ESLint:
 
@@ -76,7 +78,7 @@ Orientation for contributors: [`docs/REPOSITORY_OVERVIEW.md`](docs/REPOSITORY_OV
 
 ## Supabase & migrations
 
-The backend is a Supabase project (`daily_logs`, `partner_links`, `invites`, `profiles`, plus sharing tables, all RLS-scoped). Versioned migrations live in [`supabase/migrations/`](supabase/migrations/) with **`0001`–`0005` applied to production**, per the migration ledger. `0006` is local-only pending review:
+The backend is a Supabase project (`daily_logs`, `partner_links`, `invites`, `profiles`, plus sharing tables, all RLS-scoped). Versioned migrations live in [`supabase/migrations/`](supabase/migrations/) with **`0001`–`0006` applied to production**, per the migration ledger:
 
 | # | Migration | Summary |
 |---|---|---|
@@ -85,7 +87,7 @@ The backend is a Supabase project (`daily_logs`, `partner_links`, `invites`, `pr
 | `0003` | owner sync metadata | HLC/`deleted`/`server_updated_at` columns + LWW guard trigger |
 | `0004` | invite pgcrypto fix | Schema-qualifies pgcrypto so `create_invite`/`redeem_invite` work |
 | `0005` | partner share defaults | Seeds calendar and symptom share keys, default off |
-| `0006` | keep-alive (local only) | Anonymous read of one liveness row |
+| `0006` | keep-alive | Anonymous read of one liveness row |
 
 Apply to a linked project with `supabase db push`. Details and the applied/verification status: [`supabase/migrations/README.md`](supabase/migrations/README.md). All four pgTAP suites pass locally (37 assertions) and run in CI; see [testing](docs/TESTING.md).
 
@@ -95,9 +97,9 @@ Apply to a linked project with `supabase db push`. Details and the applied/verif
 
 - **Tests:** Vitest unit and IndexedDB integration coverage, 37 pgTAP assertions, and four browser tests. Transport fixtures are independent of ambient `.env` configuration. See [testing instructions](docs/TESTING.md).
 - **CI:** [`.github/workflows/ci.yml`](.github/workflows/ci.yml) runs typecheck, coverage, configured-environment tests, lint, build, and local Supabase security/browser tests on pushes to main and pull requests.
-- **Delete verification:** real UI save/delete and two-device reload pass against local Supabase. Production verification remains pending.
-- **Hosting migration:** Pages workflows are prepared; cutover remains pending production verification. See [hosting and data-transfer instructions](docs/HOSTING.md).
-- **Current deploy:** Vercel auto-deploys `main`; the production alias is `rhea-period-tracker.vercel.app`. Requires `VITE_SUPABASE_URL` / `VITE_SUPABASE_PUBLISHABLE_KEY` set in the Vercel project.
+- **Production verification:** UI save/delete, newer tombstone, two-session reload, unlinked-account isolation and pairing/unlink passed on Pages with synthetic accounts.
+- **Deploy:** GitHub Actions builds and deploys Pages from `main` using public repository variables `VITE_SUPABASE_URL` and `VITE_SUPABASE_PUBLISHABLE_KEY`. Daily Supabase keep-alive is enabled.
+- **Data transfer:** JSON transfer is confirmed and the former hosting project has been retired. See [hosting and data-transfer instructions](docs/HOSTING.md).
 
 ---
 

@@ -2,14 +2,14 @@
 
 > **2026-09-15:** See [active execution plan](EXECUTION_PLAN.md) and the top of
 > [implementation status](IMPLEMENTATION_STATUS.md) for current work. Migration
-> 0005 exists, transport configuration is isolated, and pgTAP/browser tests are
-> now implemented and verified locally. The July overview below is historical.
+> 0006 is applied in production. Pages is deployed, production delete/pairing
+> checks passed, and v0.2.0 is tagged. The July overview below is historical.
 
 Orientation document for engineers joining the Rhea codebase. Last updated **2026-07-20** (app version 0.2.0).
 
 > **Current deployed state (2026-07-20).** The v2 branch has been merged to `main`
-> and is **live** at https://rhea-period-tracker.vercel.app (Vercel auto-deploys
-> `main`). Supabase migrations **`0001`–`0004` are all applied to production**.
+> and was deployed on the former root-hosted service (retired September 15).
+> Supabase migrations **`0001`–`0004` are all applied to production**.
 > Phase 1 (local-first + owner sync) is shipped; **partner pairing is fixed and
 > verified end-to-end**; the delete-sync fixes are deployed and unit-tested but a
 > final **live delete E2E is still pending**. Phase 2 (E2EE) has only the M2.1

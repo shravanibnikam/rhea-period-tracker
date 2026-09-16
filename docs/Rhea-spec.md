@@ -275,7 +275,7 @@ The project now has two pieces that meet in the middle:
 Reconciliation plan: replace the design's sample `CYCLE_DATA` with the IndexedDB-backed store; feed real logs through the tested `cycle.js` snapshot to drive the hero, calendar, history chart, and predictions.
 
 - **PWA:** add manifest + service worker to the Vite build so it stays installable and offline; self-host fonts.
-- **Hosting:** any static host (Netlify / GitHub Pages / Vercel). Hosting the *code* doesn't compromise local-first — data stays in each device's IndexedDB.
+- **Hosting:** any static host (such as GitHub Pages). Hosting the *code* doesn't compromise local-first — data stays in each device's IndexedDB.
 - **Phase 3 addition:** a single zero-knowledge relay endpoint (Cloudflare Worker + KV or equivalent) storing only encrypted blobs keyed by pairing ID.
 
 ---

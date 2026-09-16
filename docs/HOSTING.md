@@ -1,88 +1,73 @@
-# Hosting cutover: Vercel to GitHub Pages
+# GitHub Pages hosting
 
-Status on 2026-09-15: implementation and local checks complete; production
-cutover pending. The current host is `https://rhea-period-tracker.vercel.app`.
-The intended Pages URL is `https://shravanibnikam.github.io/rhea-period-tracker/`.
+[Rhea is live](https://shravanibnikam.github.io/rhea-period-tracker/) on GitHub
+Pages. The hosting cutover completed on 2026-09-15 at application commit `995a87d`.
+The owner confirmed JSON import and checked dates/entries before the former
+hosting project was deleted. Its obsolete Auth redirect was removed.
 
 ## Build and offline behavior
 
-`npm run build` retains root hosting. `npm run build:pages` uses Vite's `pages`
-mode and `/rhea-period-tracker/`, then copies the shell to `404.html`. Missing
-project paths load the app through that shell with an actual HTTP 404 response.
-The app currently selects views in memory; this fallback does not introduce a
-URL router or promise that `/calendar` selects the calendar view.
+`npm run build:pages` uses Vite's `pages` mode and `/rhea-period-tracker/`, then
+copies the shell to `404.html`. Missing project paths load the app through that
+shell with an actual HTTP 404 response. Views are selected in memory; this
+fallback does not introduce a URL router or make `/calendar` select that view.
+`npm run build` still supports root hosting for local previews and portability.
 
 Logos and worker registration use `BASE_URL`; the manifest uses relative URLs.
-The build-generated Workbox worker precaches built assets, including the HTML
-shell. It does not cache Supabase responses or health records. IndexedDB retains
-local logs. A newly installed worker waits for existing app tabs to close before
-activation, avoiding an automatic reload during an edit. Development does not
-register a worker. An initial online load is required for offline use.
+The generated Workbox worker precaches built assets, including the HTML shell.
+It does not cache Supabase responses or health records. IndexedDB retains logs.
+A newly installed worker waits for existing app tabs to close before activation.
+Development does not register a worker. Initial online loading is required for
+offline use.
 
-Run `npm run test:pages` after installing Playwright Chromium. The test server
-emulates a GitHub project site without Vite's SPA rewrite. The two tests verify
-fresh deep-link assets and offline persistence in a newly opened tab.
+Run `npm run test:pages` after installing Playwright Chromium. The server emulates
+a project site without Vite's SPA rewrite. Tests cover fresh deep-link assets and
+retained logs in a newly opened offline tab.
 
-## Infrastructure prepared
+## Deployment and backend configuration
 
-- GitHub Pages source is configured as GitHub Actions.
-- Repository variables `VITE_SUPABASE_URL` and
-  `VITE_SUPABASE_PUBLISHABLE_KEY` are configured. These are public browser
-  configuration; never place a service-role key or management token in them.
-- `deploy.yml` builds on main/dispatch and deploys with scoped Pages permissions.
-- `keepalive.yml` reads the single public liveness row daily at 09:23 UTC and
-  fails on HTTP errors or unexpected data. Migration 0006 must exist first.
-  Scheduled Actions may be delayed or disabled after 60 days of repository
-  inactivity; the read is best-effort activity, not an uptime guarantee.
+- GitHub Pages source: GitHub Actions; `deploy.yml` builds/deploys from main.
+- Repository variables: `VITE_SUPABASE_URL` and
+  `VITE_SUPABASE_PUBLISHABLE_KEY`. These are public browser configuration; never
+  substitute a service-role key or management token.
+- Supabase project: `jhhuimcsmvdihfeihhtu`. It was resumed from INACTIVE and
+  confirmed ACTIVE_HEALTHY. Migrations 0001–0006 are applied to production.
+- Auth Site URL and allowed redirect: the exact Pages base URL above.
+- `keepalive.yml` reads the public liveness row daily at 09:23 UTC. The production
+  manual dispatch and first scheduled run both passed on 2026-09-15. The
+  scheduled run was delayed until 14:22 UTC.
+  Scheduled Actions can be delayed or disabled after 60 days of repository
+  inactivity; this is best-effort activity, not an uptime guarantee.
+- Migration 0006 received explicit owner review before application. Future
+  migration PRs require human review under
+  [technical spec §5.4](RHEA_V2_TECHNICAL_SPEC.md#54-coverage-bar--ci-gate).
 
-## Production cutover gates
+## Production verification
 
-1. Authenticate management tools locally. Confirm the Supabase project reference
-   is `jhhuimcsmvdihfeihhtu`, check project status, and resolve the observed DNS
-   failure before attempting account or data verification. No dedicated test
-   accounts are currently available. The supplied Mac Vercel credential path is
-   not present in this Linux workspace.
-2. Obtain human security review for migration 0006 as required by
-   [technical spec §5.4](RHEA_V2_TECHNICAL_SPEC.md#54-coverage-bar--ci-gate).
-   It adds only `keepalive(id boolean)`, one true row, RLS, anonymous SELECT and
-   no anonymous/authenticated writes. It does not change health-table policies.
-   Review the migration history/dry run before applying to the linked project.
-3. Deploy Pages from the reviewed main commit. Keep Vercel available through
-   verification. Check assets and worker scope at the exact production prefix.
-4. In Supabase Auth URL Configuration, set Site URL to the Pages URL above and
-   allow the exact Pages base URL plus any required callback paths. Preserve
-   the existing Vercel redirect temporarily. Current signup uses Supabase's
-   configured Site URL; test a real confirmation email and sign-in on Pages.
-5. Use fresh synthetic owner and partner accounts. Avoid repeated signup/email
-   attempts. Verify pairing/unlinking and unrelated-account isolation. Verify
-   owner UI save → row visible with the owner's authenticated session → delete
-   → `deleted=true` with a newer HLC → absent after second-session reload.
-   The public key plus owner session is sufficient to inspect that owner's row
-   through RLS; a service-role key is not required for this check.
-6. Run the keep-alive workflow manually and record its result, then confirm a
-   scheduled run. Record deployment commit, date and production results in
-   IMPLEMENTATION_STATUS.md without credentials or health records.
-7. Complete the data transfer below before retiring the old host. Update the
-   repository homepage and current user-facing links after Pages is verified.
-   Remove the obsolete Auth redirect and Vercel deployment only after this gate.
+Dedicated synthetic accounts passed UI save/delete, a newer server tombstone,
+two-session reload, unlinked-account read/write isolation, invite creation and
+redemption, and unlink revocation. Linked plaintext reads remain legacy behavior.
+Live deep-link assets, worker scope and offline fresh-tab loading also passed.
+A generated real signup verification link completed the Pages callback and
+opened the signed-in app. **Email delivery itself was not tested.** Evidence
+and workflow links are recorded in IMPLEMENTATION_STATUS.md.
 
-## Moving existing local data
+## Moving data between origins
 
-Browser storage is isolated by origin. Signing into Pages does not transfer
-Vercel's IndexedDB, unsent outbox or local-only data. Before leaving the old
-origin, use **Settings → Export backup**. On Pages, choose the intended account
-or local-only mode, then **Settings → Import Rhea backup** and verify log dates
-and content. Keep the backup privately until the transfer is confirmed. Synced
-records should also be checked on the new origin before closing the old one.
+Browser storage is isolated by origin. Signing into another host does not move
+IndexedDB, unsent outbox or local-only records. Export with **Settings → Export
+backup** before leaving an origin. Choose the intended account/local-only mode
+at the destination, use **Settings → Import Rhea backup**, and check log dates
+and content. Keep the backup privately until transfer is confirmed.
 
-Existing installed Vercel PWAs remain tied to their old origin. Install the new
-Pages app after verifying the transfer; removing a shortcut does not migrate it.
+Installed PWAs remain tied to their original origin. Install the Pages app after
+verifying the transfer; removing a shortcut does not migrate browser storage.
 
-## Rollback
+## Recovery after cutover
 
-Before Vercel retirement, keep the old deployment and Auth redirect usable.
-If Pages fails, return users to that deployment and restore the previous Site
-URL if necessary. Data newly written locally on Pages also needs export/import
-when moving back. Do not delete either origin's browser data during rollback.
-The additive liveness table can remain; disable its workflow if troubleshooting
-requires it. Do not reset production or rewrite applied migrations.
+The former hosting project has been deleted, so it is no longer a rollback
+endpoint. For an application regression, redeploy a known-good Pages commit or
+revert the change on main after checking CI. Preserve local browser data and
+private exports during recovery. A future move to another origin requires the
+same export/import procedure and updated Auth redirects. Never reset production
+or rewrite applied migrations to repair a frontend deployment.
