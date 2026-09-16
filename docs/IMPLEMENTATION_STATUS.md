@@ -65,8 +65,9 @@ passed on merge commit `bf76c4b`. Production UI delete verification passed on
   loading passed. Local production-browser checks additionally cover retained
   logs offline. The worker caches built assets, not health/API responses.
 - [Production keep-alive dispatch 34948660733](https://github.com/shravanibnikam/rhea-period-tracker/actions/runs/34948660733)
-  passed. The daily 09:23 UTC schedule is enabled; its first scheduled run has
-  not yet been observed. Scheduled Actions are best-effort.
+  passed. The first [scheduled run 34981235349](https://github.com/shravanibnikam/rhea-period-tracker/actions/runs/34981235349)
+  also passed on 2026-09-15. It was created at 14:22 UTC despite the 09:23 UTC
+  schedule, confirming that scheduled Actions are best-effort.
 - Local checks: **310 Vitest tests**, **37 pgTAP assertions**, **4 browser tests**,
   lint/typecheck/root and Pages builds. Clean committed checkout verified under
   Node 22. Coverage: **57.70%** lines/statements, **81.90%** branches, **74.52%** functions.

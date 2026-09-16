@@ -34,7 +34,8 @@ retained logs in a newly opened offline tab.
   confirmed ACTIVE_HEALTHY. Migrations 0001–0006 are applied to production.
 - Auth Site URL and allowed redirect: the exact Pages base URL above.
 - `keepalive.yml` reads the public liveness row daily at 09:23 UTC. The production
-  manual dispatch passed. Its first scheduled run has not yet been observed.
+  manual dispatch and first scheduled run both passed on 2026-09-15. The
+  scheduled run was delayed until 14:22 UTC.
   Scheduled Actions can be delayed or disabled after 60 days of repository
   inactivity; this is best-effort activity, not an uptime guarantee.
 - Migration 0006 received explicit owner review before application. Future

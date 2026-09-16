@@ -59,7 +59,7 @@ training; synthetic data must never masquerade as real evaluation.
 - [x] Production delete, two-session reload, isolation and pairing/unlink passed on the former host and Pages.
 - [x] Owner confirmed JSON import and checked dates/entries before retirement.
 - [x] Production keep-alive manual dispatch passed; daily schedule enabled.
-- [ ] Observe first scheduled run (manual dispatch is not scheduled-run evidence).
+- [x] First scheduled keep-alive run passed on 2026-09-15 ([34981235349](https://github.com/shravanibnikam/rhea-period-tracker/actions/runs/34981235349)); GitHub ran it later than the configured time.
 - [x] Deleted the former hosting project after confirmed transfer; removed its Auth redirect and updated the homepage.
 
 See [HOSTING.md](HOSTING.md) for the cutover and rollback procedure.

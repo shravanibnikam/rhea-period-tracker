@@ -62,5 +62,5 @@ supabase test db          # runs supabase/tests/*.sql (pgTAP)
   See [testing instructions](../../docs/TESTING.md).
 
 - **0006 production liveness:** the GitHub keep-alive workflow passed on manual
-  dispatch after application. The daily schedule is enabled; first scheduled
-  execution is not yet observed.
+  dispatch after application. The first scheduled execution also passed on
+  2026-09-15 (run 34981235349), verified on 2026-09-16.

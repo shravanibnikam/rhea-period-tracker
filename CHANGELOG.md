@@ -8,7 +8,7 @@
   application 404 shell; root-hosted builds remain supported.
 - Build-generated offline asset cache, with deep-link and offline browser tests.
 - Daily Supabase keep-alive workflow and migration 0006, reviewed and applied to
-  production. Manual production workflow passed; first scheduled run pending.
+  production. Manual and first scheduled production runs passed.
 - Production Pages verification: save/delete, two-session reload, unlinked-account
   isolation, pairing/unlink, offline shell and generated signup callback.
 
