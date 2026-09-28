@@ -96,24 +96,29 @@ function renderAuth() {
   return renderHook(() => useAuth(), { wrapper });
 }
 
-function emitAuth(uid: string | null): Promise<void> {
+/**
+ * Fire an auth event. Every event carries a NEW session/user object, as
+ * supabase-js does — including the SIGNED_IN it re-emits from storage (no
+ * network) on each hidden→visible tab transition, and TOKEN_REFRESHED.
+ */
+function emitAuth(uid: string | null, event = uid ? "SIGNED_IN" : "SIGNED_OUT"): Promise<void> {
   const cb = h.state.authCb;
   if (!cb) throw new Error("useAuth did not subscribe to auth state");
-  return cb(uid ? "SIGNED_IN" : "SIGNED_OUT", uid ? { user: { id: uid } } : null);
+  return cb(event, uid ? { user: { id: uid } } : null);
 }
 
-/** Sign in and wait for detectRole to finish. */
-async function signIn(uid: string) {
+/** Sign in (or re-emit for the same account) and wait for detectRole to finish. */
+async function signIn(uid: string, event = "SIGNED_IN") {
   await act(async () => {
-    await emitAuth(uid);
+    await emitAuth(uid, event);
   });
 }
 
 /** Sign in WITHOUT waiting — the role lookup stays in flight. */
-function beginSignIn(uid: string): Promise<void> {
+function beginSignIn(uid: string, event = "SIGNED_IN"): Promise<void> {
   let pending: Promise<void> = Promise.resolve();
   act(() => {
-    pending = emitAuth(uid);
+    pending = emitAuth(uid, event);
   });
   return pending;
 }
@@ -216,6 +221,99 @@ describe("detectRole fails closed", () => {
     expect(result.current.role).toBe("partner");
     expect(result.current.linkedOwnerId).toBe("owner-9");
     expect(isSyncReadOnly()).toBe(true);
+  });
+});
+
+describe("re-checks of an already-resolved account (same uid)", () => {
+  // supabase-js re-emits SIGNED_IN from storage on every tab refocus and emits
+  // TOKEN_REFRESHED hourly; each runs detectRole again. Offline or on a flaky
+  // connection that lookup fails. A failed RE-CHECK must not revoke a role that
+  // was positively resolved for this same account: revoking it stops the owner
+  // engine (every later save is stored but never queued) and drops a partner
+  // into the owner UI and out of the sign-out wipe.
+  for (const event of ["SIGNED_IN", "TOKEN_REFRESHED"]) {
+    it(`a failed ${event} re-check keeps a resolved owner (engine mode, not read-only)`, async () => {
+      const { result } = renderAuth();
+      await signIn("owner-1");
+      expect(result.current.role).toBe("owner");
+
+      h.state.links.partner_id = "error";
+      await signIn("owner-1", event);
+
+      expect(capability(result.current.role)).toEqual({
+        role: "owner",
+        ownerEngine: true,
+        readOnly: false,
+      });
+    });
+  }
+
+  it("a thrown re-check keeps a resolved owner too", async () => {
+    const { result } = renderAuth();
+    await signIn("owner-1");
+
+    h.state.links.partner_id = "throw";
+    await signIn("owner-1", "TOKEN_REFRESHED");
+
+    expect(capability(result.current.role)).toEqual({
+      role: "owner",
+      ownerEngine: true,
+      readOnly: false,
+    });
+  });
+
+  it("a same-uid re-check in flight does not drop a resolved owner's write capability", async () => {
+    const { result } = renderAuth();
+    await signIn("owner-1");
+
+    h.state.links.partner_id = "hang";
+    void beginSignIn("owner-1");
+
+    expect(capability(result.current.role)).toEqual({
+      role: "owner",
+      ownerEngine: true,
+      readOnly: false,
+    });
+  });
+
+  it("a failed re-check keeps a resolved partner read-only, and sign-out still wipes", async () => {
+    h.state.links.partner_id = [{ owner_id: "owner-1" }];
+    const { result } = renderAuth();
+    await signIn("partner-1");
+    expect(result.current.role).toBe("partner");
+
+    h.state.links.partner_id = "error";
+    await signIn("partner-1");
+
+    expect(capability(result.current.role)).toEqual({
+      role: "partner",
+      ownerEngine: false,
+      readOnly: true,
+    });
+    expect(result.current.linkedOwnerId).toBe("owner-1");
+
+    await act(async () => {
+      await result.current.signOut();
+    });
+    expect(fake.wipeLocalData).toHaveBeenCalledTimes(1);
+  });
+
+  it("a POSITIVE contrary answer on re-check still downgrades owner → partner", async () => {
+    const { result } = renderAuth();
+    await signIn("u1");
+    expect(result.current.role).toBe("owner");
+
+    h.state.links.partner_id = [{ owner_id: "owner-9" }];
+    await act(async () => {
+      await result.current.refreshRole();
+    });
+
+    expect(capability(result.current.role)).toEqual({
+      role: "partner",
+      ownerEngine: false,
+      readOnly: true,
+    });
+    expect(result.current.linkedOwnerId).toBe("owner-9");
   });
 });
 

@@ -73,15 +73,16 @@ export function useAuth(): UseAuthReturn {
   const [loading, setLoading] = useState(true);
   const configured = isSupabaseConfigured();
 
-  // Role state belongs to exactly one account and one lookup: a newer lookup,
-  // an account switch or a sign-out supersedes any lookup still in flight.
-  const roleUid = useRef<string | null>(null);
+  // `resolvedUid`: the account whose role state is a POSITIVE lookup answer.
+  // `lookupSeq`: only the newest lookup may write state — a newer lookup, an
+  // account switch or a sign-out supersedes any lookup still in flight.
+  const resolvedUid = useRef<string | null>(null);
   const lookupSeq = useRef(0);
 
-  /** No role, no link, no write capability (signed out, or role unknown). */
+  /** No role, no link, no write capability (signed out, or a new account). */
   const clearRole = useCallback(() => {
     lookupSeq.current++;
-    roleUid.current = null;
+    resolvedUid.current = null;
     setRole(null);
     setLinkedOwnerId(null);
     setHasPartnerLinked(false);
@@ -90,11 +91,11 @@ export function useAuth(): UseAuthReturn {
 
   const detectRole = useCallback(
     async (userId: string) => {
-      // Fail closed from the first moment: no write capability while the role
-      // is unknown, and another account's role never stands in for this one.
-      if (roleUid.current !== userId) clearRole();
-      setSyncReadOnly(true);
-      roleUid.current = userId;
+      // Fail closed for an account without a positive answer yet: another
+      // account's role never stands in, and there is no write capability until
+      // this one's role is known. A re-check of the SAME resolved account keeps
+      // its role (and its write capability) while the lookup is in flight.
+      if (resolvedUid.current !== userId) clearRole();
       const seq = ++lookupSeq.current;
 
       let resolved: ResolvedRole | null = null;
@@ -105,23 +106,24 @@ export function useAuth(): UseAuthReturn {
       }
       if (seq !== lookupSeq.current) return; // superseded: this answer is stale
 
-      if (!resolved) {
-        // Fail CLOSED: an unknown role grants nothing — no owner engine, no
-        // outbox, no legacy push. The app stays usable locally.
-        clearRole();
-        return;
-      }
+      // A failed lookup changes nothing. It grants nothing to an account that
+      // has no positive answer (it stays at role null), and it does not revoke
+      // a role positively resolved for this same account: supabase-js re-runs
+      // this on every tab refocus and token refresh, and an offline blip must
+      // not stop the owner engine or drop a partner out of partner mode. Only a
+      // positive contrary answer, another account, or a sign-out changes it.
+      if (!resolved) return;
 
+      resolvedUid.current = userId;
       setRole(resolved.role);
       setLinkedOwnerId(resolved.linkedOwnerId);
       setHasPartnerLinked(resolved.hasPartnerLinked);
-      if (resolved.role === "owner") {
-        setSyncReadOnly(false);
-      } else {
-        // A partner never pushes owner data (sync stays read-only). Mark this
-        // store as holding someone else's rows so the one-time seed can never
-        // upload them if the account later resolves as owner. Best effort: a
-        // failed write grants nothing.
+      // A partner never pushes owner data (sync stays read-only).
+      setSyncReadOnly(resolved.role !== "owner");
+      if (resolved.role === "partner") {
+        // Mark this store as holding someone else's rows so the one-time seed
+        // can never upload them if the account later resolves as owner. Best
+        // effort: a failed write grants nothing.
         void container.setMeta(META_LAST_KNOWN_ROLE, "partner").catch(() => {});
       }
     },

@@ -289,6 +289,23 @@ describe("resolved owner (controls: the gate opens once the role is known)", () 
     expect(initialSync).not.toHaveBeenCalled();
   });
 
+  it("a failed re-check of the same owner (tab refocus re-emits SIGNED_IN) never leaves owner-engine mode", async () => {
+    renderApp();
+    await signIn("owner-1");
+    await waitFor(() => expect(c.startOwnerSync).toHaveBeenCalledTimes(1));
+    c.setOwnerSyncMode.mockClear();
+
+    h.state.links.partner_id = "error";
+    await signIn("owner-1"); // supabase-js re-emits SIGNED_IN from storage on refocus
+    await settle();
+
+    expect(c.setOwnerSyncMode).not.toHaveBeenCalledWith(false);
+    // The engine is running at the end: the last start follows the last stop.
+    const lastStart = Math.max(...c.startOwnerSync.mock.invocationCallOrder);
+    const lastStop = Math.max(0, ...c.stopOwnerSync.mock.invocationCallOrder);
+    expect(lastStart).toBeGreaterThan(lastStop);
+  });
+
   it("legacy mode: an owner pulls its own id and pushes saves directly", async () => {
     flags.syncEngine = false;
     renderApp();
