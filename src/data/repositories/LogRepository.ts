@@ -55,34 +55,59 @@ export class LogRepository {
   /** Save a batch in ONE transaction; resolves to the persisted domain records. */
   async saveAll(...[logs, opts]: SaveLogsArgs): Promise<DailyLog[]> {
     const merge = opts?.mode === "merge-defined";
-    const stores: Array<"logs" | "meta" | "outbox"> = this.opts.outbox
-      ? ["logs", "meta", "outbox"]
-      : ["logs", "meta"];
-    return this.driver.transaction({ mode: "readwrite", stores }, async (tx) => {
+    return this.driver.transaction({ mode: "readwrite", stores: this.writeStores() }, async (tx) => {
       const saved: DailyLog[] = [];
       for (const log of logs) {
-        // Fold the row's own current HLC so an edit strictly dominates the
-        // version it replaces (even if authored by another device / lagging clock).
         const prior = await tx.get<StoredLog>("logs", log.date);
-        const stamp = await nextStamp(tx, this.opts.now?.(), prior?.updatedAt);
         // merge-defined keeps every stored field the patch leaves undefined;
         // replace-mode inputs are whole DailyLogs (SaveLogsArgs), as before.
         const domain: DailyLog = merge
           ? mergeDefined(prior, log)
           : { medication: [], intimacy: null, ...(log as DailyLog) };
-        const row: StoredLog = { ...domain, ...stamp, deleted: false };
-        await tx.put("logs", row);
-        if (this.opts.outbox) {
-          await this.opts.outbox.enqueueCoalescedTx(
-            tx,
-            this.toRecord(domain, stamp),
-            "owner"
-          );
-        }
+        await this.writeRow(tx, domain, prior);
         saved.push(domain);
       }
       return saved;
     });
+  }
+
+  /**
+   * Add or remove exactly one symptom on a day's STORED row, in ONE
+   * transaction: read, change that symptom only, write, enqueue (P0-N2). Every
+   * other field and symptom is kept, including ones another device added, so
+   * a view that has not caught up with a sync can never clobber the row.
+   * Resolves to the stored record, or undefined when the day has no log and
+   * there was nothing to remove. A symptom already in that state writes nothing.
+   */
+  async setSymptom(date: string, symptom: string, present: boolean): Promise<DailyLog | undefined> {
+    return this.driver.transaction({ mode: "readwrite", stores: this.writeStores() }, async (tx) => {
+      const prior = await tx.get<StoredLog>("logs", date);
+      const current = mergeDefined(prior, { date });
+      const symptoms = current.symptoms ?? [];
+      if (symptoms.includes(symptom) === present) return prior ? current : undefined;
+      const domain: DailyLog = {
+        ...current,
+        symptoms: present ? [...symptoms, symptom] : symptoms.filter((s) => s !== symptom),
+      };
+      await this.writeRow(tx, domain, prior);
+      return domain;
+    });
+  }
+
+  private writeStores(): Array<"logs" | "meta" | "outbox"> {
+    return this.opts.outbox ? ["logs", "meta", "outbox"] : ["logs", "meta"];
+  }
+
+  /** Stamp, store and (with an outbox) enqueue one row, inside the caller's transaction. */
+  private async writeRow(tx: StorageTx, domain: DailyLog, prior: StoredLog | undefined): Promise<void> {
+    // Fold the row's own current HLC so an edit strictly dominates the
+    // version it replaces (even if authored by another device / lagging clock).
+    const stamp = await nextStamp(tx, this.opts.now?.(), prior?.updatedAt);
+    const row: StoredLog = { ...domain, ...stamp, deleted: false };
+    await tx.put("logs", row);
+    if (this.opts.outbox) {
+      await this.opts.outbox.enqueueCoalescedTx(tx, this.toRecord(domain, stamp), "owner");
+    }
   }
 
   private toRecord(domain: DailyLog, stamp: SyncStamp): SyncRecord {
