@@ -107,7 +107,7 @@ Apply to a linked project with `supabase db push`. Details and the applied/verif
 
 Rhea's **goal** is that detailed health data never reaches a server in readable form. That end state is **not yet in place** — be honest with yourself and any testers:
 
-- 🔴 **Cloud health data is currently PLAINTEXT.** When sync is enabled, owner `daily_logs` (flow, symptoms, mood, energy, notes, medication, intimacy) are stored **unencrypted** in Supabase. The "zero-knowledge server" model is designed (see the technical spec) but **not deployed**.
+- 🔴 **Cloud health data is currently PLAINTEXT.** When sync is enabled, owner `daily_logs` (flow, symptoms, mood, energy, notes, medication, intimacy) are stored **unencrypted** in Supabase. The "zero-knowledge server" model is designed (see the technical spec) but **not deployed**. <!-- copy-guard: allow zero-knowledge -->
 - 🔴 **Partner sharing reads the owner's plaintext rows** via RLS (legacy path); share toggles/quiet windows are currently presentation-level, not a hard data boundary.
 - 🟢 Invite secrets are stored hashed (sha256), single-use, 30-minute TTL.
 - 🟢 Shared-notes sync is **disabled** (`flags.notesSync=false`) — shared-note messages stay on-device. Daily-log notes still sync in plaintext when owner sync is enabled.

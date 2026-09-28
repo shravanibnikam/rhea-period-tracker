@@ -25,15 +25,15 @@ export function PrivacyPolicy({ onClose }: PrivacyPolicyProps) {
 
         <div className="px-6 py-5 space-y-5 text-sm text-foreground leading-relaxed">
           <p className="text-xs text-muted-foreground">
-            Last updated: July 2026
+            Last updated: September 2026
           </p>
 
           <section>
             <h3 className="font-semibold mb-2">What Rhea is</h3>
             <p className="text-muted-foreground">
               Rhea is a period and cycle tracker designed around privacy. It
-              tracks your cycle on your own device and lets you share exactly as
-              much as you choose with a partner.
+              tracks your cycle on your own device and lets you choose what a
+              partner sees in Rhea&apos;s partner view.
             </p>
           </section>
 
@@ -46,11 +46,12 @@ export function PrivacyPolicy({ onClose }: PrivacyPolicyProps) {
                 app settings. Stored in your browser&apos;s IndexedDB.
               </li>
               <li>
-                <strong>On our server (Supabase):</strong> When you create an
-                account, your daily logs sync to a Postgres database so your
-                devices stay in sync and your partner can see what you choose to
-                share. Your email and a hashed password are stored for
-                authentication.
+                <strong>On our server (Supabase):</strong> When you sign in,
+                your daily logs (including notes) sync to a Postgres database so
+                your devices stay in sync and a linked partner can use the
+                partner view. Your sharing settings, quiet windows, and sharing
+                activity log are stored there too, along with your email and a
+                hashed password for authentication.
               </li>
             </ul>
           </section>
@@ -60,8 +61,10 @@ export function PrivacyPolicy({ onClose }: PrivacyPolicyProps) {
             <p className="text-muted-foreground">
               When you use an account, the server currently stores your daily
               logs in plaintext (they are not yet end-to-end encrypted).
-              Row-Level Security restricts access through the app so only you and
-              your linked partner (shared fields only) can read them, and data
+              Row-Level Security limits access so only you and your linked
+              partner can read them. A linked partner&apos;s access covers your
+              full daily logs, including notes: sharing toggles decide what the
+              partner view shows, but the server does not enforce them. Data
               travels over a secure (TLS) connection. Because the data is not yet
               end-to-end encrypted, the database operator could technically
               access it, and it could be disclosed if legally compelled.
@@ -73,10 +76,13 @@ export function PrivacyPolicy({ onClose }: PrivacyPolicyProps) {
           <section>
             <h3 className="font-semibold mb-2">What your partner sees</h3>
             <p className="text-muted-foreground">
-              Nothing by default. You control five independent sharing toggles.
-              Your partner only sees what you enable, and you can revoke access
-              at any time. Private notes are never shared regardless of settings.
-              Quiet windows let you pause all sharing for chosen days.
+              Nothing by default. You control seven independent sharing toggles,
+              and Rhea&apos;s partner view shows only what you enable. It never
+              shows your private notes. These controls are applied by the app,
+              not the server: while you are linked, your partner&apos;s account
+              can technically read your full daily logs, including notes. While
+              a quiet window is active, the partner view shows a pause message
+              instead of your details.
             </p>
           </section>
 
@@ -98,17 +104,20 @@ export function PrivacyPolicy({ onClose }: PrivacyPolicyProps) {
                 at any time from Settings
               </li>
               <li>
-                <strong>Delete:</strong> Erase all data from your device and the
-                server with one tap in Settings. Server backups may retain
-                deleted data briefly until they expire.
+                <strong>Delete:</strong> &ldquo;Erase all data&rdquo; in Settings
+                deletes everything Rhea stores on this device. It does not delete
+                data already synced to your account: that stays on the server
+                and comes back the next time you sign in or sync.
               </li>
               <li>
                 <strong>Portability:</strong> Your exported data is structured
                 and can be used elsewhere
               </li>
               <li>
-                <strong>Unpair:</strong> Revoking partner access is immediate
-                and stops all future sharing
+                <strong>Unpair:</strong> Unlinking your partner ends their access
+                to your data on the server. Anything their device already
+                downloaded may stay there. Unused invite codes are not cancelled
+                and still work until they expire, 30 minutes after creation.
               </li>
             </ul>
           </section>
@@ -117,17 +126,18 @@ export function PrivacyPolicy({ onClose }: PrivacyPolicyProps) {
             <h3 className="font-semibold mb-2">Legal requests</h3>
             <p className="text-muted-foreground">
               Reproductive health data is sensitive. If compelled by a legal
-              request, we can only provide what the server holds: daily logs
-              associated with your account. We will notify you of any request
-              unless legally prohibited from doing so. We do not voluntarily
-              share data with law enforcement.
+              request, we can only provide what the server holds for your
+              account (see &ldquo;What data is stored&rdquo;). We will notify
+              you of any request unless legally prohibited from doing so. We do
+              not voluntarily share data with law enforcement.
             </p>
           </section>
 
           <section>
             <h3 className="font-semibold mb-2">Without an account</h3>
             <p className="text-muted-foreground">
-              Rhea works fully without creating an account. In local-only mode,
+              The hosted version of Rhea requires an account. A copy of Rhea
+              run without a server configured works in local-only mode instead:
               no data ever leaves your device. There is no server, no sync, and
               nothing to subpoena.
             </p>

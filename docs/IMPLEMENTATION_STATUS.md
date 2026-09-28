@@ -202,7 +202,7 @@ eight stores, v1→v2 migration, repositories, export/import v2) · `sync/`
 | M2.10 | RHEA-101…103 | E2EE shared notes (**0008**), flips `flags.notesSync` |
 | M2.11 | RHEA-104…105 | Quiet windows + share gates under projection (**0009**) |
 | M2.12 | RHEA-106…107 | Local audit log; retire server `audit_log` (**0010**) |
-| M2.13 | RHEA-108…109 | Drop partner plaintext ACL + plaintext columns (**0011**) — zero-knowledge end state |
+| M2.13 | RHEA-108…109 | Drop partner plaintext ACL + plaintext columns (**0011**) — zero-knowledge end state <!-- copy-guard: allow zero-knowledge --> |
 
 ### Phase 3 — Mobile (RHEA-110…127) · Phase 4 — Advanced (RHEA-128…132)
 Unchanged; Phase 3 native builds unverifiable here (no Android/iOS SDKs).

@@ -129,7 +129,7 @@ export function SettingsView({
     await container.eraseAllData();
     onDataChanged();
     setShowEraseConfirm(false);
-    showStatus("All data erased");
+    showStatus("Data on this device erased");
   };
 
   const handleOverrideSubmit = () => {
@@ -327,7 +327,7 @@ export function SettingsView({
                       Erase all data
                     </p>
                     <p className="text-xs text-muted-foreground">
-                      Permanently delete all logs and settings
+                      Delete all logs and settings from this device
                     </p>
                   </div>
                 </button>
@@ -343,8 +343,10 @@ export function SettingsView({
                         Are you sure?
                       </p>
                       <p className="text-xs text-muted-foreground mt-1">
-                        This will permanently delete all your logs, settings,
-                        and cycle history. This cannot be undone.
+                        This deletes all your logs, settings, and cycle history
+                        on this device. Data already synced to your account is
+                        not deleted: it stays on the server and comes back the
+                        next time you sign in or sync.
                       </p>
                     </div>
                   </div>
@@ -401,7 +403,7 @@ export function SettingsView({
             <p className="text-xs text-center text-muted-foreground">
               Rhea v0.2.0 &middot;{" "}
               {userId
-                ? "Synced securely"
+                ? "Synced over TLS, not yet end-to-end encrypted"
                 : "Your data never leaves this device"}
             </p>
           </div>
