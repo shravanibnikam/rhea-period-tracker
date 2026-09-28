@@ -1,5 +1,6 @@
 # Rhea v2 Architecture Review
 
+<!-- copy-guard: historical -->
 > 🧊 **Planning artifact — implementation status frozen at the 2026-07-15 planning state.** The v2 branch has since merged to `main` and deployed; for current state see the root `README.md` and [IMPLEMENTATION_STATUS.md](IMPLEMENTATION_STATUS.md). Migration numbers `0004`+ here predate the shipped `0004` pairing fix — the E2EE sequence has shifted to `0005`+. (Two docs it references, `Rhea-DEPLOY.md` and `Rhea-technical-spec.md`, have moved to `docs/archive/`.)
 
 > **Addendum (2026-07-15, app v0.2.0).** This review's engineering-hygiene

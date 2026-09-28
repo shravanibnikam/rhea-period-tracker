@@ -41,7 +41,7 @@ export function formatAction(action: string): string {
     "quiet.added": "Quiet window added",
     "quiet.removed": "Quiet window removed",
     "data.exported": "Data exported",
-    "data.erased": "All data erased",
+    "data.erased": "Data on this device erased",
     "data.imported": "Data imported",
   };
   return labels[action] ?? action;

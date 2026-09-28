@@ -203,7 +203,8 @@ export function PairingSection({ userId, role, onRoleChanged }: PairingSectionPr
                 Unlink partner
               </p>
               <p className="text-xs text-muted-foreground">
-                Immediately revokes their access
+                Ends their access on the server. Anything already on their
+                device may remain.
               </p>
             </div>
           </button>

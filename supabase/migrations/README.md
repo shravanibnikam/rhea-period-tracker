@@ -28,8 +28,10 @@ on 2026-09-15, in the same transaction as its migration-history entry.
 > superseded by the scoped plan in `docs/EXECUTION_PLAN.md`.
 > **Applied migrations are never renamed or rewritten.**
 
-The legacy `supabase/migration*.sql` scripts are superseded by `0001_baseline.sql`
-and kept only for historical reference.
+The legacy hand-run `supabase/migration*.sql` scripts have been removed. Each was a
+byte-identical copy of one marked section of `0001_baseline.sql` (`===== migration.sql =====`,
+`===== migration-phase-c.sql =====`, `===== migration-phase-e.sql =====`), so nothing was lost;
+running them by hand would have re-created the invite policy that `0002` removed.
 
 ## Applying
 

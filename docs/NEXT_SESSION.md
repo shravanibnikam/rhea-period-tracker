@@ -1,5 +1,6 @@
 # Next Session Brief — resume at M2.2
 
+<!-- copy-guard: historical -->
 > 🕰️ **Historical / superseded (2026-07-15 planning snapshot).** The v2 branch has
 > since merged to `main` and deployed; pairing was fixed and delete-sync fixes shipped.
 > This file's *implementation status is frozen at 2026-07-15* — for current state see

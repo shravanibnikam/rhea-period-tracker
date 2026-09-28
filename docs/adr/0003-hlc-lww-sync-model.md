@@ -4,7 +4,7 @@
 
 ## Context
 Rhea is local-first: every device holds the full plaintext store and the server
-is (after Phase 2) a zero-knowledge mailbox. Multi-device owners and an
+is (after Phase 2) a zero-knowledge mailbox. <!-- copy-guard: allow zero-knowledge --> Multi-device owners and an
 eventually-consistent relay require deterministic conflict resolution without
 a trusted server clock.
 

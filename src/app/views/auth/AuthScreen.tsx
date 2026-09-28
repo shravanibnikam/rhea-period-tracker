@@ -161,9 +161,10 @@ export function AuthScreen({ onSignUp, onSignIn }: AuthScreenProps) {
 
         <div className="mt-8 pt-6 border-t border-border">
           <p className="text-xs text-center text-muted-foreground leading-relaxed">
-            Your data syncs over a secure connection.
+            Your logs sync over a secure (TLS) connection but are not yet
+            end-to-end encrypted.
             <br />
-            You control exactly what your partner can see.
+            You choose what your partner&apos;s view shows.
           </p>
         </div>
       </div>

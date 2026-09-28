@@ -1,7 +1,7 @@
 {
   "name": "Rhea — Cycle Tracker",
   "short_name": "Rhea",
-  "description": "A local-first cycle tracker with optional sync and partner sharing.",
+  "description": "A local-first cycle tracker with account sync and partner sharing.",
   "start_url": "./",
   "display": "standalone",
   "background_color": "#FDF8F5",
