@@ -16,29 +16,22 @@ import { emptyLog, type DailyLog } from "@/domain/types";
 
 afterEach(cleanup);
 
-function deferred<T>() {
-  let resolve!: (value: T) => void;
-  const promise = new Promise<T>((r) => {
-    resolve = r;
-  });
-  return { promise, resolve };
-}
-
 const LOCAL: DailyLog[] = [{ ...emptyLog("2026-01-01"), flow: "heavy" }];
 const ACCOUNT: DailyLog[] = [
   { ...emptyLog("2026-08-01"), flow: "medium" },
   { ...emptyLog("2026-08-02"), flow: "light" },
 ];
 
-function harness() {
-  const reads: Array<ReturnType<typeof deferred<DailyLog[]>>> = [];
+function harness(meta: Record<string, unknown> = {}) {
+  const reads: Array<{ resolve: (v: DailyLog[]) => void; reject: (e: Error) => void }> = [];
   const fake = {
-    getAllLogs: vi.fn(() => {
-      const d = deferred<DailyLog[]>();
-      reads.push(d);
-      return d.promise;
-    }),
-    getMeta: vi.fn((_key: string) => Promise.resolve(undefined)),
+    getAllLogs: vi.fn(
+      () =>
+        new Promise<DailyLog[]>((resolve, reject) => {
+          reads.push({ resolve, reject });
+        })
+    ),
+    getMeta: vi.fn((key: string) => Promise.resolve(meta[key])),
   };
   const value = fake as unknown as Container;
   const wrapper = ({ children }: { children: ReactNode }) =>
@@ -89,5 +82,33 @@ describe("useCycleData — latest request wins", () => {
       await Promise.resolve();
     });
     expect(result.current.logs).toEqual(ACCOUNT);
+  });
+});
+
+describe("useCycleData — a failed read never leaves another store's rows on screen", () => {
+  it("a read that REJECTS after rows were shown clears logs and excluded cycles (e.g. B's store fails after A's showed)", async () => {
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    const { reads, result } = harness({ excludedCycles: ["2026-08-01"] });
+    await waitFor(() => expect(reads).toHaveLength(1));
+    await act(async () => {
+      reads[0].resolve(ACCOUNT); // A's rows
+      await Promise.resolve();
+    });
+    expect(result.current.logs).toEqual(ACCOUNT);
+    expect([...result.current.excludedStarts]).toEqual(["2026-08-01"]);
+
+    let failing!: Promise<void>;
+    act(() => {
+      failing = result.current.refresh(); // B's read
+    });
+    await act(async () => {
+      reads[1].reject(new Error("IndexedDB failure"));
+      await failing;
+    });
+
+    expect(result.current.logs).toEqual([]);
+    expect(result.current.excludedStarts.size).toBe(0);
+    expect(result.current.state.cycles).toEqual([]);
+    expect(result.current.loading).toBe(false);
   });
 });

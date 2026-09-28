@@ -74,10 +74,12 @@ import App from "@/app/App";
 /** Real container; the engine uses NullTransport; reads can be held. */
 class TestContainer extends Container {
   holdReads: Promise<void> | null = null;
+  failReads = false;
   override startOwnerSync(uid: string): Promise<SyncEngine> {
     return super.startOwnerSync(uid, null);
   }
   override async getAllLogs(): Promise<DailyLog[]> {
+    if (this.failReads) throw new Error("IndexedDB failure");
     const read = super.getAllLogs(); // bound to the account active NOW
     if (this.holdReads) await this.holdReads;
     return read;
@@ -196,5 +198,24 @@ describe("account switch: the screen shows the NEW account's own store", () => {
     });
     await waitFor(() => expect(roleSelect()).toBeTruthy());
     expect(trackerOf()).toBeNull();
+  });
+
+  it("direct A→B switch (cross-tab SIGNED_IN, no sign-out) and B's read FAILS: B never sees A's rows (probe Q9b)", async () => {
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    const c = renderApp();
+    const a = fresh("A");
+    await seedStore(a, A_DATES);
+    await settle();
+    await emit("INITIAL_SESSION", a);
+    await waitFor(() => expect(trackerOf()).toBeTruthy());
+
+    c.failReads = true;
+    const b = fresh("B");
+    h.links[`partner_id=${b}`] = "error";
+    await emit("SIGNED_IN", b);
+    await settle(50);
+
+    expect(trackerOf()).toBeNull();
+    expect(roleSelect()).toBeTruthy(); // B's (unreadable) store shows as empty
   });
 });

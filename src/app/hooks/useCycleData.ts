@@ -47,8 +47,14 @@ export function useCycleData(): UseCycleDataReturn {
       });
     } catch (err) {
       console.error("Failed to load cycle data:", err);
-      // Still show the app with empty state rather than hanging on loading
-      apply(() => setState(deriveCycleState([], null)));
+      // Still show the app with empty state rather than hanging on loading —
+      // empty ALL of it: after an account switch the rows on screen belong to
+      // the previous store, and must not stay visible to the new account.
+      apply(() => {
+        setLogs([]);
+        setExcludedStarts(new Set());
+        setState(deriveCycleState([], null));
+      });
     }
   }, [container]);
 
