@@ -1,5 +1,6 @@
 # Rhea v2 — Engineering Handoff
 
+<!-- copy-guard: historical -->
 > 🕰️ **Historical / superseded (2026-07-15 handoff snapshot).** Since this was
 > written, the v2 branch merged to `main` and deployed, migrations `0001`–`0004`
 > were applied to production, partner pairing was fixed and verified end-to-end,

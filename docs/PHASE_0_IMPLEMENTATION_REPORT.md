@@ -1,5 +1,6 @@
 # Rhea v2 — Implementation Report (Phase 0)
 
+<!-- copy-guard: historical -->
 > 🕰️ **Historical snapshot (frozen at 2026-07-15).** Superseded by later work merged to `main` and deployed; for current state see the root `README.md` and [IMPLEMENTATION_STATUS.md](IMPLEMENTATION_STATUS.md).
 
 > Status of the transformation toward the Rhea v2 architecture. This session
