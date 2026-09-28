@@ -471,6 +471,31 @@ describe("resolved roles", () => {
     await waitFor(() => expect(fake.setMeta).toHaveBeenCalledWith("lastKnownRole", "partner"));
   });
 
+  it("the lastKnownRole marker is written BEFORE role partner is exposed", async () => {
+    let markDone!: () => void;
+    fake.setMeta.mockImplementation(
+      () =>
+        new Promise<void>((resolve) => {
+          markDone = resolve;
+        })
+    );
+    h.state.links.partner_id = [{ owner_id: "owner-1" }];
+    const { result } = renderAuth();
+    const pending = beginSignIn("u1");
+    await waitFor(() => expect(fake.setMeta).toHaveBeenCalledWith("lastKnownRole", "partner"));
+
+    // The marker is not durable yet: no partner role (and so no partner pull).
+    expect(result.current.role).toBeNull();
+    expect(isSyncReadOnly()).toBe(true);
+
+    await act(async () => {
+      markDone();
+      await pending;
+    });
+    expect(result.current.role).toBe("partner");
+    expect(result.current.linkedOwnerId).toBe("owner-1");
+  });
+
   it("a failed lastKnownRole write grants nothing: still a read-only partner", async () => {
     fake.setMeta.mockRejectedValue(new Error("quota exceeded"));
     h.state.links.partner_id = [{ owner_id: "owner-1" }];

@@ -341,6 +341,29 @@ describe("partner sessions never start the owner engine", () => {
     expect(c.setMeta).toHaveBeenCalledWith("lastKnownRole", "partner");
   });
 
+  it("the legacy partner pull waits for the lastKnownRole marker (it writes owner rows into this store)", async () => {
+    let markDone!: () => void;
+    c.setMeta.mockImplementation(
+      () =>
+        new Promise<void>((resolve) => {
+          markDone = resolve;
+        })
+    );
+    h.state.links.partner_id = [{ owner_id: "owner-1" }];
+    renderApp();
+    beginSignIn("partner-1");
+    await waitFor(() => expect(c.setMeta).toHaveBeenCalledWith("lastKnownRole", "partner"));
+    await settle();
+
+    expect(initialSync).not.toHaveBeenCalled();
+    expect(subscribeToLogs).not.toHaveBeenCalled();
+
+    await act(async () => {
+      markDone();
+    });
+    await waitFor(() => expect(initialSync).toHaveBeenCalledWith("owner-1"));
+  });
+
   it("a multi-linked partner sees a notice instead of the partner view (no ungated cache)", async () => {
     h.state.links.partner_id = [{ owner_id: "o1" }, { owner_id: "o2" }];
     renderApp();

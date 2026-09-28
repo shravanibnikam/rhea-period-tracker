@@ -147,6 +147,16 @@ export function useAuth(): UseAuthReturn {
         console.error("Failed to detect role:", err);
       }
       if (seq !== lookupSeq.current) return; // superseded: this answer is stale
+
+      if (resolved?.role === "partner") {
+        // Mark this store as holding someone else's rows BEFORE exposing role
+        // partner: the legacy partner pull (gated on the role) caches the
+        // owner's rows into it, and the one-time seed / legacy bulk push must
+        // never upload them if the account later resolves as owner. Best
+        // effort: a failed write grants nothing (the partner stays read-only).
+        await container.setMeta(META_LAST_KNOWN_ROLE, "partner").catch(() => {});
+        if (seq !== lookupSeq.current) return; // superseded while marking
+      }
       endSplash(); // the newest lookup has answered (or failed)
 
       // A failed lookup changes nothing. It grants nothing to an account that
@@ -163,12 +173,6 @@ export function useAuth(): UseAuthReturn {
       setHasPartnerLinked(resolved.hasPartnerLinked);
       // A partner never pushes owner data (sync stays read-only).
       setSyncReadOnly(resolved.role !== "owner");
-      if (resolved.role === "partner") {
-        // Mark this store as holding someone else's rows so the one-time seed
-        // can never upload them if the account later resolves as owner. Best
-        // effort: a failed write grants nothing.
-        void container.setMeta(META_LAST_KNOWN_ROLE, "partner").catch(() => {});
-      }
     },
     [clearRole, holdSplash, endSplash, container]
   );
