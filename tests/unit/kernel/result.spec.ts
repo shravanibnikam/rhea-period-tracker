@@ -29,7 +29,7 @@ describe("Result", () => {
   it("map transforms values and passes errors through", () => {
     expect(map(ok(2), (n) => n * 3)).toEqual(ok(6));
     const e: Result<number, string> = err("x");
-    expect(map(e, (n) => n * 3)).toEqual(err("x"));
+    expect(map(e, (n: number) => n * 3)).toEqual(err("x"));
   });
 
   it("mapErr transforms errors and passes values through", () => {
