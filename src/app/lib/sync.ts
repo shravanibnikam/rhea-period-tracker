@@ -88,12 +88,42 @@ async function applyRemoteDelete(date: string): Promise<void> {
 
 // ─── Pull all logs from Supabase into IndexedDB ─────────────────────────────
 
+// P0-05: an owner's notes, medication and intimacy must never be written to a
+// partner's device. The pull names only the columns the mapper reads, and the
+// mapper copies only those, so even a server that ignored the list could not
+// put them on disk. Client-side damage limitation, NOT an authorization
+// boundary: RLS ("partner read linked logs", 0001_baseline.sql) still lets a
+// linked partner's token read every column. The server-side fix is SEC-01.
+const SHARED_COLUMNS = "date,flow,symptoms,mood,energy,deleted";
+// An account pulling its OWN rows (the owner's legacy path, engine flag off)
+// keeps its notes: initialSync pushes right after pulling, and a blanked copy
+// would overwrite the server's.
+const OWN_COLUMNS = `${SHARED_COLUMNS},notes`;
+
+interface PulledRow {
+  date: string;
+  flow: DailyLog["flow"] | null;
+  symptoms: string[] | null;
+  mood: string | null;
+  energy: string | null;
+  deleted: boolean | null;
+  notes?: string | null;
+}
+
 export async function pullAllLogs(ownerId: string): Promise<number> {
   if (!supabase) return 0;
 
+  // Whose rows these are decides whether notes may come down. If the signed-in
+  // account is unknown, write nothing rather than guess (a wrong guess either
+  // leaks a partner the notes or blanks an owner's own).
+  const { data: auth } = await supabase.auth.getSession();
+  const selfId = auth.session?.user.id;
+  if (!selfId) return 0;
+  const own = selfId === ownerId;
+
   const { data, error } = await supabase
     .from("daily_logs")
-    .select("*")
+    .select<string, PulledRow>(own ? OWN_COLUMNS : SHARED_COLUMNS)
     .eq("owner_id", ownerId)
     .order("date");
 
@@ -112,13 +142,17 @@ export async function pullAllLogs(ownerId: string): Promise<number> {
       await applyRemoteDelete(row.date);
       continue;
     }
+    // Built from the explicit fields only. medication/intimacy are never
+    // copied; notes only for the account's own rows (DailyLog.notes is
+    // required, so a partner gets ""). saveLog replaces the whole record, so
+    // this also blanks any copy an older build cached.
     const log: DailyLog = {
       date: row.date,
       flow: row.flow ?? "none",
       symptoms: row.symptoms ?? [],
       mood: row.mood ?? null,
       energy: row.energy ?? null,
-      notes: row.notes ?? "",
+      notes: own ? (row.notes ?? "") : "",
     };
     await container.saveLog(log);
   }
@@ -134,6 +168,31 @@ export function subscribeToLogs(
 ): RealtimeChannel | null {
   if (!supabase) return null;
 
+  // Single-flight wake: while a pull is in flight, further wakes collapse into
+  // ONE follow-up pull after it, which sees every change made before it starts.
+  let inFlight: Promise<void> | null = null;
+  let wakeAgain = false;
+  const wake = (): Promise<void> => {
+    if (inFlight) {
+      wakeAgain = true;
+      return inFlight;
+    }
+    inFlight = (async () => {
+      try {
+        do {
+          wakeAgain = false;
+          await pullAllLogs(ownerId);
+          onUpdate();
+        } while (wakeAgain);
+      } catch (err) {
+        console.error("Realtime pull failed:", err);
+      } finally {
+        inFlight = null;
+      }
+    })();
+    return inFlight;
+  };
+
   const channel = supabase
     .channel("rhea-logs")
     .on(
@@ -145,32 +204,20 @@ export function subscribeToLogs(
         filter: `owner_id=eq.${ownerId}`,
       },
       async (payload) => {
-        // Apply the change to local IndexedDB
-        if (payload.eventType === "INSERT" || payload.eventType === "UPDATE") {
-          const row = payload.new as Record<string, unknown>;
-          // A delete arrives as an UPDATE setting `deleted` — the row itself
-          // stays so the tombstone can propagate (see pullAllLogs).
-          if (row.deleted) {
-            await applyRemoteDelete(row.date as string);
-          } else {
-            const log: DailyLog = {
-              date: row.date as string,
-              flow: (row.flow as DailyLog["flow"]) ?? "none",
-              symptoms: (row.symptoms as string[]) ?? [],
-              mood: (row.mood as string) ?? null,
-              energy: (row.energy as string) ?? null,
-              notes: (row.notes as string) ?? "",
-            };
-            await container.saveLog(log);
-          }
-        } else if (payload.eventType === "DELETE") {
+        if (payload.eventType === "DELETE") {
           // Hard delete (row removed outright rather than tombstoned). The old
-          // record carries only the primary key unless REPLICA IDENTITY FULL.
+          // record carries only the primary key unless REPLICA IDENTITY FULL;
+          // only the date key is read.
           const date = (payload.old as Record<string, unknown> | null)?.date;
           if (typeof date === "string") await applyRemoteDelete(date);
+          onUpdate();
+          return;
         }
-        // Trigger a refresh in the UI
-        onUpdate();
+        // INSERT/UPDATE are a wake-up only (P0-05). Realtime payloads carry
+        // EVERY column whatever the pull selects — the owner's notes included —
+        // so the payload is never read; pullAllLogs is the one path that writes
+        // rows (tombstones too: a delete arrives as an UPDATE setting `deleted`).
+        await wake();
       }
     )
     .subscribe();
