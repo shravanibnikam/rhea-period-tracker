@@ -100,6 +100,14 @@ vi.mock("@/app/lib/sharing", async (importOriginal) => {
   };
 });
 
+// A stub records which owner the partner view was asked to show. The real one
+// treats a null owner as "local demo mode" and shows the local cache ungated.
+vi.mock("@/app/views/partner/PartnerView", () => ({
+  PartnerView: ({ ownerId }: { ownerId?: string | null }) => (
+    <div data-testid="partner-view" data-owner-id={ownerId ?? "null"} />
+  ),
+}));
+
 import App from "@/app/App";
 import { initialSync, pushLog, subscribeToLogs } from "@/app/lib/sync";
 import { flags, isOwnerEngineSync } from "@/app/lib/flags";
@@ -322,6 +330,26 @@ describe("partner sessions never start the owner engine", () => {
     expect(c.startOwnerSync).not.toHaveBeenCalled();
     expect(c.setOwnerSyncMode).not.toHaveBeenCalledWith(true);
     expect(c.setMeta).toHaveBeenCalledWith("lastKnownRole", "partner");
+  });
+
+  it("a multi-linked partner sees a notice instead of the partner view (no ungated cache)", async () => {
+    h.state.links.partner_id = [{ owner_id: "o1" }, { owner_id: "o2" }];
+    renderApp();
+    await signIn("partner-1");
+    await settle();
+
+    expect(await screen.findByText(/linked to more than one person/i)).toBeTruthy();
+    expect(screen.queryByTestId("partner-view")).toBeNull();
+  });
+
+  it("a single-linked partner still gets the partner view for that owner (control)", async () => {
+    h.state.links.partner_id = [{ owner_id: "owner-1" }];
+    renderApp();
+    await signIn("partner-1");
+
+    const view = await screen.findByTestId("partner-view");
+    expect(view.getAttribute("data-owner-id")).toBe("owner-1");
+    expect(screen.queryByText(/linked to more than one person/i)).toBeNull();
   });
 
   it("a multi-linked partner (ambiguous owner) runs no owner engine and never pulls under its own id", async () => {

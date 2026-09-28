@@ -247,7 +247,20 @@ export default function App() {
       />
 
       <main id="main-content" role="main" className="max-w-4xl mx-auto px-4 sm:px-6 py-8 pb-24">
-        {isPartner ? (
+        {isPartner && auth.linkedOwnerId === null ? (
+          /* ── Partner linked to several owners: no owner is chosen, and
+                PartnerView treats a null owner as local demo mode (the cache,
+                ungated by share settings) — so show a notice instead. ── */
+          <div
+            role="status"
+            className="rounded-3xl p-8 sm:p-10 border text-center bg-card border-border"
+          >
+            <p className="text-sm text-foreground">
+              This account is linked to more than one person, so the partner
+              view is unavailable. Ask them to unlink the extra link.
+            </p>
+          </div>
+        ) : isPartner ? (
           /* ── Partner: only sees partner view ── */
           <PartnerView
             phaseData={phaseData}
