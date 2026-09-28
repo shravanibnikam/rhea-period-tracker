@@ -331,6 +331,91 @@ describe("re-checks of an already-resolved account (same uid)", () => {
   });
 });
 
+describe("overlapping lookups (startup fires INITIAL_SESSION and SIGNED_IN; account switch; sign-out)", () => {
+  it("an older lookup that succeeds still resolves the role when a newer one fails", async () => {
+    let releaseFirst!: (rows: LinkRows) => void;
+    h.state.links.partner_id = new Promise<LinkRows>((resolve) => {
+      releaseFirst = resolve;
+    });
+    const { result } = renderAuth();
+    const first = beginSignIn("u1", "INITIAL_SESSION");
+    h.state.links.partner_id = "error";
+    await signIn("u1"); // the newer lookup fails first
+
+    expect(capability(result.current.role)).toEqual(CLOSED);
+
+    await act(async () => {
+      releaseFirst([]); // the older lookup answers "owner"
+      await first;
+    });
+    expect(capability(result.current.role)).toEqual({
+      role: "owner",
+      ownerEngine: true,
+      readOnly: false,
+    });
+    expect(result.current.loading).toBe(false);
+  });
+
+  it("an older answer never overrides a newer answer that already applied", async () => {
+    let releaseFirst!: (rows: LinkRows) => void;
+    h.state.links.partner_id = new Promise<LinkRows>((resolve) => {
+      releaseFirst = resolve;
+    });
+    const { result } = renderAuth();
+    const first = beginSignIn("u1", "INITIAL_SESSION");
+    h.state.links.partner_id = [{ owner_id: "owner-1" }];
+    await signIn("u1"); // newer: partner, applies
+    expect(result.current.role).toBe("partner");
+
+    await act(async () => {
+      releaseFirst([]); // older: "owner" — stale, must not win
+      await first;
+    });
+    expect(capability(result.current.role)).toEqual({
+      role: "partner",
+      ownerEngine: false,
+      readOnly: true,
+    });
+  });
+
+  it("a PREVIOUS account's late success never applies to a new account whose lookup failed", async () => {
+    let releaseA!: (rows: LinkRows) => void;
+    h.state.links["partner_id=user-a"] = new Promise<LinkRows>((resolve) => {
+      releaseA = resolve;
+    });
+    h.state.links["partner_id=user-b"] = "error";
+    const { result } = renderAuth();
+    const staleA = beginSignIn("user-a");
+    await signIn("user-b"); // B's lookup fails
+
+    await act(async () => {
+      releaseA([]); // A's lookup answers "owner" — A is no longer here
+      await staleA;
+    });
+
+    expect(result.current.user?.id).toBe("user-b");
+    expect(capability(result.current.role)).toEqual(CLOSED);
+  });
+
+  it("an answer that arrives after a sign-out never applies", async () => {
+    let release!: (rows: LinkRows) => void;
+    h.state.links.partner_id = new Promise<LinkRows>((resolve) => {
+      release = resolve;
+    });
+    const { result } = renderAuth();
+    const pending = beginSignIn("u1");
+    await act(async () => {
+      await emitAuth(null, "SIGNED_OUT");
+    });
+
+    await act(async () => {
+      release([]);
+      await pending;
+    });
+    expect(capability(result.current.role)).toEqual(CLOSED);
+  });
+});
+
 describe("splash (loading) while a NEW account's role is unknown", () => {
   // An interactive sign-in arrives as SIGNED_IN after INITIAL_SESSION already
   // ended `loading`. Without a splash the app renders with role null for the

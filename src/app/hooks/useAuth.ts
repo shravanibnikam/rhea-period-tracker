@@ -83,13 +83,17 @@ export function useAuth(): UseAuthReturn {
   const [loading, setLoading] = useState(true);
   const configured = isSupabaseConfigured();
 
-  // `resolvedUid`: the account whose role state is a POSITIVE lookup answer.
-  // `lookupSeq`: only the newest lookup may write state — a newer lookup, an
-  // account switch or a sign-out supersedes any lookup still in flight.
-  // `lookedUpUid`: the account whose FIRST lookup has started (splash once).
-  const resolvedUid = useRef<string | null>(null);
+  // `accountUid`: the account whose role is tracked (its first lookup has
+  //   started); null when signed out.
+  // `accountEpoch`: bumped on every account change and sign-out — a lookup that
+  //   began under another epoch belongs to someone else and never applies.
+  // `lookupSeq` / `appliedSeq`: the newest lookup started / the newest whose
+  //   POSITIVE answer applied. An older answer never overrides a newer applied
+  //   one, but a newer lookup that FAILS does not discard an older success.
+  const accountUid = useRef<string | null>(null);
+  const accountEpoch = useRef(0);
   const lookupSeq = useRef(0);
-  const lookedUpUid = useRef<string | null>(null);
+  const appliedSeq = useRef(0);
 
   // The splash (`loading`) is always bounded by a timer.
   const splashTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -109,8 +113,7 @@ export function useAuth(): UseAuthReturn {
 
   /** No role, no link, no write capability (signed out, or a new account). */
   const clearRole = useCallback(() => {
-    lookupSeq.current++;
-    resolvedUid.current = null;
+    accountEpoch.current++; // every lookup still in flight is now stale
     setRole(null);
     setLinkedOwnerId(null);
     setHasPartnerLinked(false);
@@ -120,24 +123,23 @@ export function useAuth(): UseAuthReturn {
   /** Signed out: no role, and the next account gets its own first-lookup splash. */
   const signedOut = useCallback(() => {
     clearRole();
-    lookedUpUid.current = null;
+    accountUid.current = null;
     endSplash();
   }, [clearRole, endSplash]);
 
   const detectRole = useCallback(
     async (userId: string) => {
-      // Fail closed for an account without a positive answer yet: another
-      // account's role never stands in, and there is no write capability until
-      // this one's role is known. A re-check of the SAME resolved account keeps
-      // its role (and its write capability) while the lookup is in flight.
-      if (resolvedUid.current !== userId) clearRole();
-      // The FIRST lookup for a new account holds the splash, so nothing can be
-      // saved while its role is unknown (such a save would be stored but never
-      // queued). Re-checks never touch it: no flash on every tab refocus.
-      if (lookedUpUid.current !== userId) {
-        lookedUpUid.current = userId;
+      if (accountUid.current !== userId) {
+        // A NEW account fails closed: another account's role never stands in,
+        // and there is no write capability until this one's role is known. Its
+        // FIRST lookup holds the splash, so nothing can be logged in the owner
+        // UI while the role is unknown. Re-checks of the same account (tab
+        // refocus, token refresh) keep its role and never touch the splash.
+        clearRole();
+        accountUid.current = userId;
         holdSplash(FIRST_LOOKUP_WAIT_MS);
       }
+      const epoch = accountEpoch.current;
       const seq = ++lookupSeq.current;
 
       let resolved: ResolvedRole | null = null;
@@ -146,18 +148,10 @@ export function useAuth(): UseAuthReturn {
       } catch (err) {
         console.error("Failed to detect role:", err);
       }
-      if (seq !== lookupSeq.current) return; // superseded: this answer is stale
-
-      if (resolved?.role === "partner") {
-        // Mark this store as holding someone else's rows BEFORE exposing role
-        // partner: the legacy partner pull (gated on the role) caches the
-        // owner's rows into it, and the one-time seed / legacy bulk push must
-        // never upload them if the account later resolves as owner. Best
-        // effort: a failed write grants nothing (the partner stays read-only).
-        await container.setMeta(META_LAST_KNOWN_ROLE, "partner").catch(() => {});
-        if (seq !== lookupSeq.current) return; // superseded while marking
-      }
-      endSplash(); // the newest lookup has answered (or failed)
+      // Another account or a sign-out since this lookup began, or a newer answer
+      // already applied: this answer is stale.
+      const stale = () => epoch !== accountEpoch.current || seq < appliedSeq.current;
+      if (stale()) return;
 
       // A failed lookup changes nothing. It grants nothing to an account that
       // has no positive answer (it stays at role null), and it does not revoke
@@ -165,14 +159,28 @@ export function useAuth(): UseAuthReturn {
       // this on every tab refocus and token refresh, and an offline blip must
       // not stop the owner engine or drop a partner out of partner mode. Only a
       // positive contrary answer, another account, or a sign-out changes it.
-      if (!resolved) return;
+      if (!resolved) {
+        if (seq === lookupSeq.current) endSplash(); // nothing newer to wait for
+        return;
+      }
 
-      resolvedUid.current = userId;
+      if (resolved.role === "partner") {
+        // Mark this store as holding someone else's rows BEFORE exposing role
+        // partner: the legacy partner pull (gated on the role) caches the
+        // owner's rows into it, and the one-time seed / legacy bulk push must
+        // never upload them if the account later resolves as owner. Best
+        // effort: a failed write grants nothing (the partner stays read-only).
+        await container.setMeta(META_LAST_KNOWN_ROLE, "partner").catch(() => {});
+        if (stale()) return;
+      }
+
+      appliedSeq.current = seq;
       setRole(resolved.role);
       setLinkedOwnerId(resolved.linkedOwnerId);
       setHasPartnerLinked(resolved.hasPartnerLinked);
       // A partner never pushes owner data (sync stays read-only).
       setSyncReadOnly(resolved.role !== "owner");
+      endSplash();
     },
     [clearRole, holdSplash, endSplash, container]
   );
