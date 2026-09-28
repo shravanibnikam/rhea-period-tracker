@@ -346,6 +346,36 @@ describe("partner sessions never start the owner engine", () => {
     expect(c.setMeta).toHaveBeenCalledWith("lastKnownRole", "partner");
   });
 
+  it("a newer owner answer while a stale partner answer is still marking: no outbox clear, no partner pull, the engine runs", async () => {
+    let markDone!: () => void;
+    c.setMeta.mockImplementation(
+      () =>
+        new Promise<void>((resolve) => {
+          markDone = resolve;
+        })
+    );
+    h.state.links.partner_id = [{ owner_id: "owner-1" }];
+    renderApp();
+    beginSignIn("u1"); // older lookup: partner, marker pending
+    await waitFor(() => expect(c.setMeta).toHaveBeenCalledWith("lastKnownRole", "partner"));
+
+    h.state.links.partner_id = []; // newer lookup: owner
+    await signIn("u1");
+    await waitFor(() => expect(c.startOwnerSync).toHaveBeenCalled());
+
+    await act(async () => {
+      markDone();
+    });
+    await settle();
+
+    expect(c.clearOutbox).not.toHaveBeenCalled();
+    expect(initialSync).not.toHaveBeenCalled();
+    expect(c.setOwnerSyncMode).toHaveBeenLastCalledWith("owner");
+    const lastStart = Math.max(...c.startOwnerSync.mock.invocationCallOrder);
+    const lastStop = Math.max(0, ...c.stopOwnerSync.mock.invocationCallOrder);
+    expect(lastStart).toBeGreaterThan(lastStop);
+  });
+
   it("the legacy partner pull waits for the lastKnownRole marker (it writes owner rows into this store)", async () => {
     let markDone!: () => void;
     c.setMeta.mockImplementation(

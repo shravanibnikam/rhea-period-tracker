@@ -514,6 +514,34 @@ describe("splash (loading) while a NEW account's role is unknown", () => {
     expect(capability(result.current.role)).toEqual(CLOSED);
   });
 
+  it("two overlapping FIRST lookups: the older one failing first does not end the splash — the newer one does", async () => {
+    let failOlder!: (err: Error) => void;
+    h.state.links.partner_id = new Promise<LinkRows>((_resolve, reject) => {
+      failOlder = reject;
+    });
+    const { result } = renderAuth();
+    const older = beginSignIn("u1", "INITIAL_SESSION");
+    let releaseNewer!: (rows: LinkRows) => void;
+    h.state.links.partner_id = new Promise<LinkRows>((resolve) => {
+      releaseNewer = resolve;
+    });
+    const newer = beginSignIn("u1");
+    expect(result.current.loading).toBe(true);
+
+    await act(async () => {
+      failOlder(new Error("Failed to fetch"));
+      await older;
+    });
+    expect(result.current.loading).toBe(true); // the newer lookup is still answering
+
+    await act(async () => {
+      releaseNewer([]);
+      await newer;
+    });
+    expect(result.current.loading).toBe(false);
+    expect(result.current.role).toBe("owner");
+  });
+
   it("an account whose first lookup failed is not re-splashed on each re-check", async () => {
     h.state.links.partner_id = "error";
     const { result } = renderAuth();
@@ -579,6 +607,62 @@ describe("resolved roles", () => {
     });
     expect(result.current.role).toBe("partner");
     expect(result.current.linkedOwnerId).toBe("owner-1");
+  });
+
+  it("a sign-out while the marker write is pending: the stale partner answer never applies (no role, no wipe armed)", async () => {
+    let markDone!: () => void;
+    fake.setMeta.mockImplementation(
+      () =>
+        new Promise<void>((resolve) => {
+          markDone = resolve;
+        })
+    );
+    h.state.links.partner_id = [{ owner_id: "owner-1" }];
+    const { result } = renderAuth();
+    const pending = beginSignIn("u1");
+    await waitFor(() => expect(fake.setMeta).toHaveBeenCalledWith("lastKnownRole", "partner"));
+
+    await act(async () => {
+      await emitAuth(null, "SIGNED_OUT");
+    });
+    await act(async () => {
+      markDone();
+      await pending;
+    });
+
+    expect(capability(result.current.role)).toEqual(CLOSED);
+    await act(async () => {
+      await result.current.signOut();
+    });
+    expect(fake.wipeLocalData).not.toHaveBeenCalled();
+  });
+
+  it("a newer OWNER answer while the partner marker write is pending wins", async () => {
+    let markDone!: () => void;
+    fake.setMeta.mockImplementation(
+      () =>
+        new Promise<void>((resolve) => {
+          markDone = resolve;
+        })
+    );
+    h.state.links.partner_id = [{ owner_id: "owner-1" }];
+    const { result } = renderAuth();
+    const pending = beginSignIn("u1"); // older lookup: partner, marker pending
+    await waitFor(() => expect(fake.setMeta).toHaveBeenCalledWith("lastKnownRole", "partner"));
+
+    h.state.links.partner_id = []; // unlinked meanwhile
+    await signIn("u1"); // newer lookup: owner, applies
+    expect(result.current.role).toBe("owner");
+
+    await act(async () => {
+      markDone();
+      await pending;
+    });
+    expect(capability(result.current.role)).toEqual({
+      role: "owner",
+      ownerEngine: true,
+      readOnly: false,
+    });
   });
 
   it("a failed lastKnownRole write grants nothing: still a read-only partner", async () => {
