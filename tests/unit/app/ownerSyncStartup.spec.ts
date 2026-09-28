@@ -13,7 +13,7 @@ import { describe, it, expect, afterEach, vi } from "vitest";
 import { Container } from "@/app/di/Container";
 import { SyncEngine, type OutboxEntry } from "@/sync";
 import type { StorageDriver } from "@/data/drivers/StorageDriver";
-import { META_NEEDS_INITIAL_SEED } from "@/data/schema";
+import { META_NEEDS_INITIAL_SEED, META_LAST_KNOWN_ROLE } from "@/data/schema";
 import { emptyLog } from "@/domain/types";
 import { encodeHlc } from "@/domain/hlc";
 
@@ -125,6 +125,70 @@ describe("Container queue mode 'unresolved' respects the partner marker (P0-06)"
     await saveOne(c);
 
     expect(await driver.getAll<OutboxEntry>("outbox")).toHaveLength(1);
+  });
+
+  it("unresolved role + a marked store: saveLogs stores the batch but queues nothing", async () => {
+    const { c, driver } = await deviceWithCachedRows("unresolved-marked-batch");
+    await driver.put("meta", "partner", "lastKnownRole");
+    c.setOwnerSyncMode("unresolved");
+
+    await c.saveLogs([
+      { ...emptyLog("2026-08-06"), flow: "light" },
+      { ...emptyLog("2026-08-07"), flow: "medium" },
+    ]);
+
+    expect(await c.getLog("2026-08-06")).toBeDefined();
+    expect(await c.getLog("2026-08-07")).toBeDefined();
+    expect(await driver.getAll<OutboxEntry>("outbox")).toHaveLength(0);
+  });
+
+  it("unresolved role + a marked store: deleteLog removes the row locally but queues no tombstone intent", async () => {
+    const { c, driver } = await deviceWithCachedRows("unresolved-marked-delete");
+    await driver.put("meta", "partner", "lastKnownRole");
+    c.setOwnerSyncMode("unresolved");
+
+    await c.deleteLog(DATES[0]); // one of the cached (owner's) rows
+
+    expect(await c.getLog(DATES[0])).toBeUndefined();
+    expect(await driver.getAll<OutboxEntry>("outbox")).toHaveLength(0);
+  });
+
+  it("a partner answer landing WHILE the marker is being read wins: the save is stored, not queued", async () => {
+    // The race: logs() reads meta.lastKnownRole in its own step. If the role
+    // resolves to partner meanwhile, the app sets "off" and clears the outbox;
+    // the save must then re-read the mode — not act on the stale "unresolved"
+    // it saw before the read, which would queue it after the clear (and a later
+    // unlink would upload it).
+    const { c, driver } = await deviceWithCachedRows("marker-read-race");
+    c.setOwnerSyncMode("unresolved");
+    let markerReadStarted!: () => void;
+    const started = new Promise<void>((resolve) => {
+      markerReadStarted = resolve;
+    });
+    let releaseMarkerRead!: () => void;
+    const gate = new Promise<void>((resolve) => {
+      releaseMarkerRead = resolve;
+    });
+    const realGet = driver.get.bind(driver);
+    let delayed = false;
+    vi.spyOn(driver, "get").mockImplementation(async (store, key) => {
+      if (!delayed && store === "meta" && key === META_LAST_KNOWN_ROLE) {
+        delayed = true;
+        markerReadStarted();
+        await gate;
+      }
+      return realGet(store, key);
+    });
+
+    const saving = c.saveLog({ ...emptyLog("2026-08-05"), flow: "light" });
+    await started; // the marker read is in flight
+    c.setOwnerSyncMode("off"); // the partner answer lands (App: "off" + clearOutbox)
+    await c.clearOutbox();
+    releaseMarkerRead();
+    await saving;
+
+    expect(await c.getLog("2026-08-05")).toBeDefined();
+    expect(await driver.getAll<OutboxEntry>("outbox")).toHaveLength(0);
   });
 
   it("a CONFIRMED owner queues even in a marked store (the resolved ex-partner edit is the S-07 residual)", async () => {

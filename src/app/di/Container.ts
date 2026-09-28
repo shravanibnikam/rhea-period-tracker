@@ -122,6 +122,13 @@ export class Container {
     return mode === "owner" || (mode === "unresolved" && !marked);
   }
 
+  /**
+   * The mode as it is NOW. A method call on purpose: after the early return in
+   * queuesWrites, TypeScript narrows `this.outboxMode` to "unresolved" and keeps
+   * that narrowing across the await, so reading the field directly there would
+   * not type-check as a re-read. The re-read matters: a partner answer can set
+   * "off" (and clear the outbox) while the marker read is in flight.
+   */
   private currentOutboxMode(): OutboxMode {
     return this.outboxMode;
   }
