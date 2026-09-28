@@ -1,0 +1,487 @@
+// @vitest-environment jsdom
+/**
+ * App sync gate (P0-06): nothing syncs until the role is POSITIVELY resolved.
+ *
+ * The sync effect used to fire as soon as `auth.user` was set — before
+ * detectRole had answered — and treated the unknown role as owner. Every
+ * partner session therefore started the OWNER engine for a moment, and that
+ * engine's initial seed uploads whatever is in the local `logs` store: on a
+ * partner / ex-partner device, the owner's rows, under the partner's own id.
+ * The legacy (flag-off) path had the same window via initialSync → pushAllLogs.
+ *
+ * Two separate decisions (P0-06 review): QUEUEING a write in the durable outbox
+ * is purely local and stays on while the role is unresolved (offline logging
+ * must sync once the owner is confirmed). RUNNING the engine — the only thing
+ * that pushes, pulls or seeds — waits for a positive owner answer.
+ */
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { render, screen, fireEvent, act, waitFor, cleanup } from "@testing-library/react";
+import { ContainerProvider } from "@/app/di/context";
+import type { Container, OutboxMode } from "@/app/di/Container";
+import type { DailyLog } from "@/domain/types";
+import { emptyLog } from "@/domain/types";
+
+type LinkRows = Array<Record<string, string>>;
+type LinkBehaviour = LinkRows | "error" | "hang" | Promise<LinkRows>;
+interface LinkResult {
+  data: unknown;
+  error: { message: string; code?: string } | null;
+}
+
+const h = vi.hoisted(() => {
+  const state = {
+    authCb: null as ((event: string, session: unknown) => Promise<void>) | null,
+    links: {} as Record<string, LinkBehaviour>,
+    /** The real flags.ts decision, captured so each test starts from it. */
+    realIsOwnerEngineSync: null as
+      | null
+      | ((authed: boolean, role: string | null | undefined) => boolean),
+  };
+  const settle = (column: string, shape: (rows: LinkRows) => LinkResult) => {
+    const b = state.links[column] ?? [];
+    if (b === "hang") return new Promise<LinkResult>(() => {});
+    if (b === "error") {
+      return Promise.resolve<LinkResult>({ data: null, error: { message: "permission denied" } });
+    }
+    return Promise.resolve(b).then(shape);
+  };
+  const query = (column: string) => ({
+    // Emulates postgrest-js: >1 row is a RETURNED error (PGRST116), not a throw.
+    maybeSingle: () =>
+      settle(column, (rows) =>
+        rows.length > 1
+          ? { data: null, error: { code: "PGRST116", message: "multiple (or no) rows returned" } }
+          : { data: rows[0] ?? null, error: null }
+      ),
+    limit: (n: number) => settle(column, (rows) => ({ data: rows.slice(0, n), error: null })),
+  });
+  return { state, query };
+});
+
+vi.mock("@/app/lib/supabase", () => ({
+  isSupabaseConfigured: () => true,
+  supabase: {
+    auth: {
+      onAuthStateChange: (cb: (event: string, session: unknown) => Promise<void>) => {
+        h.state.authCb = cb;
+        return { data: { subscription: { unsubscribe: () => {} } } };
+      },
+      signOut: () => Promise.resolve({ error: null }),
+    },
+    from: (_table: string) => ({
+      select: (_cols: string) => ({
+        eq: (column: string, _value: string) => h.query(column),
+      }),
+    }),
+  },
+}));
+
+// The legacy direct-sync functions are the observable side effects here.
+vi.mock("@/app/lib/sync", () => ({
+  initialSync: vi.fn((_ownerId: string) => Promise.resolve()),
+  pushLog: vi.fn((_ownerId: string, _log: DailyLog) => Promise.resolve()),
+  subscribeToLogs: vi.fn((_ownerId: string, _onUpdate: () => void) => null),
+  unsubscribe: vi.fn(),
+  setSyncReadOnly: vi.fn(),
+  isSyncReadOnly: vi.fn(() => false),
+}));
+
+// isOwnerEngineSync stays real unless a test swaps it, so the App gate can be
+// pinned on its own — flags.ts's fail-closed decision would otherwise mask it.
+vi.mock("@/app/lib/flags", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/app/lib/flags")>();
+  h.state.realIsOwnerEngineSync = actual.isOwnerEngineSync;
+  return { ...actual, isOwnerEngineSync: vi.fn(actual.isOwnerEngineSync) };
+});
+
+// PartnerView loads share settings over the network; keep it offline.
+vi.mock("@/app/lib/sharing", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/app/lib/sharing")>();
+  return {
+    ...actual,
+    getShareSettings: vi.fn(() => Promise.resolve(null)),
+    getQuietWindows: vi.fn(() => Promise.resolve([])),
+    getSharedNotes: vi.fn(() => Promise.resolve([])),
+  };
+});
+
+// A stub records which owner the partner view was asked to show. The real one
+// treats a null owner as "local demo mode" and shows the local cache ungated.
+vi.mock("@/app/views/partner/PartnerView", () => ({
+  PartnerView: ({ ownerId }: { ownerId?: string | null }) => (
+    <div data-testid="partner-view" data-owner-id={ownerId ?? "null"} />
+  ),
+}));
+
+import App from "@/app/App";
+import { initialSync, pushLog, subscribeToLogs } from "@/app/lib/sync";
+import { flags, isOwnerEngineSync } from "@/app/lib/flags";
+
+/** A device that already holds rows — on a partner device, the owner's. */
+const CACHED: DailyLog[] = [{ ...emptyLog("2026-09-01"), flow: "medium" }];
+
+function fakeContainer() {
+  const engine = { onStatus: vi.fn((_cb: () => void) => () => {}) };
+  return {
+    setAccount: vi.fn(),
+    setOwnerSyncMode: vi.fn((_mode: OutboxMode) => {}),
+    clearOutbox: vi.fn(() => Promise.resolve()),
+    startOwnerSync: vi.fn((_uid: string, _client: unknown) => Promise.resolve(engine)),
+    stopOwnerSync: vi.fn(() => Promise.resolve()),
+    getAllLogs: vi.fn(() => Promise.resolve(CACHED)),
+    getMeta: vi.fn((_key: string) => Promise.resolve(undefined)),
+    setMeta: vi.fn((_key: string, _value: unknown) => Promise.resolve()),
+    getLog: vi.fn((_date: string) => Promise.resolve(undefined)),
+    saveLog: vi.fn((_log: DailyLog) => Promise.resolve()),
+    deleteLog: vi.fn((_date: string) => Promise.resolve()),
+    wipeLocalData: vi.fn(() => Promise.resolve()),
+  };
+}
+type FakeContainer = ReturnType<typeof fakeContainer>;
+
+let c: FakeContainer;
+const syncEngineFlag = flags.syncEngine;
+
+function renderApp() {
+  render(
+    <ContainerProvider value={c as unknown as Container}>
+      <App />
+    </ContainerProvider>
+  );
+}
+
+function emitSignIn(uid: string): Promise<void> {
+  const cb = h.state.authCb;
+  if (!cb) throw new Error("useAuth did not subscribe to auth state");
+  return cb("SIGNED_IN", { user: { id: uid, email: `${uid}@example.test` } });
+}
+
+/** Sign in and let detectRole finish. */
+async function signIn(uid: string) {
+  await act(async () => {
+    await emitSignIn(uid);
+  });
+}
+
+/** Sign in WITHOUT waiting — the role lookup stays in flight. */
+function beginSignIn(uid: string) {
+  act(() => {
+    void emitSignIn(uid);
+  });
+}
+
+/** Let pending promise continuations (effects, async IIFEs) run. */
+async function settle() {
+  await act(async () => {
+    await new Promise<void>((resolve) => setTimeout(resolve, 0));
+  });
+}
+
+/** Save today's log through the real DailyLogSheet → useLogger → onSaved path. */
+async function saveTodayViaSheet() {
+  fireEvent.click(await screen.findByRole("button", { name: "Log today" }));
+  fireEvent.click(await screen.findByRole("button", { name: /save log/i }));
+  await waitFor(() => expect(c.saveLog).toHaveBeenCalled());
+  await settle();
+}
+
+/** Nothing can leave the device: no owner engine, no legacy pull/subscribe/push. */
+function expectNoSyncCapability() {
+  expect(c.startOwnerSync).not.toHaveBeenCalled();
+  expect(initialSync).not.toHaveBeenCalled();
+  expect(subscribeToLogs).not.toHaveBeenCalled();
+  expect(pushLog).not.toHaveBeenCalled();
+}
+
+/** Legacy mode: the outbox mode is never anything but "off". */
+function expectNeverQueued() {
+  expect(c.setOwnerSyncMode.mock.calls.map(([mode]) => mode).filter((m) => m !== "off")).toEqual([]);
+}
+
+beforeEach(() => {
+  vi.clearAllMocks();
+  h.state.links = {};
+  h.state.authCb = null;
+  flags.syncEngine = true;
+  const real = h.state.realIsOwnerEngineSync;
+  if (real) vi.mocked(isOwnerEngineSync).mockImplementation(real);
+  c = fakeContainer();
+});
+afterEach(() => {
+  cleanup();
+  vi.useRealTimers();
+  flags.syncEngine = syncEngineFlag;
+});
+
+describe("role unresolved → nothing leaves the device (writes only queue locally)", () => {
+  it("lookup never resolves: no owner engine or push — before OR after the loading timeout — and a save only queues", async () => {
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+    h.state.links.partner_id = "hang";
+    renderApp();
+    beginSignIn("u1");
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    expectNoSyncCapability();
+    // Queueing (local only) is on for the signed-in, unresolved session.
+    expect(c.setOwnerSyncMode).toHaveBeenLastCalledWith("unresolved");
+
+    // useAuth's splash bound ends `loading` with the role still unknown.
+    await act(async () => {
+      vi.advanceTimersByTime(15_000);
+    });
+    vi.useRealTimers();
+    await saveTodayViaSheet();
+
+    expectNoSyncCapability();
+    expect(c.setOwnerSyncMode).toHaveBeenLastCalledWith("unresolved");
+  });
+
+  it("lookup fails: no owner engine, no legacy sync, and a save only queues", async () => {
+    h.state.links.partner_id = "error";
+    renderApp();
+    await signIn("u1");
+    await settle();
+
+    expectNoSyncCapability();
+    await saveTodayViaSheet();
+    expectNoSyncCapability();
+    expect(c.setOwnerSyncMode).toHaveBeenLastCalledWith("unresolved");
+  });
+
+  it("legacy mode (engine flag off): no pull/push-all of the local store, no push, and no queueing while unresolved", async () => {
+    flags.syncEngine = false;
+    h.state.links.partner_id = "error";
+    renderApp();
+    await signIn("u1");
+    await settle();
+
+    expectNoSyncCapability();
+    await saveTodayViaSheet();
+    expectNoSyncCapability();
+    expectNeverQueued();
+  });
+});
+
+describe("the App gate holds on its own (pinned independently of flags.ts)", () => {
+  it("with isOwnerEngineSync forced back to fail-open, an unresolved role starts nothing — during the splash or after it", async () => {
+    vi.mocked(isOwnerEngineSync).mockImplementation(
+      (authed, role) => authed && flags.syncEngine && role !== "partner"
+    );
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+    h.state.links.partner_id = "hang";
+    renderApp();
+    beginSignIn("u1");
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    expect(c.startOwnerSync).not.toHaveBeenCalled();
+
+    // Splash bound passes: `loading` is false, the role is still null.
+    await act(async () => {
+      vi.advanceTimersByTime(15_000);
+    });
+
+    expect(c.startOwnerSync).not.toHaveBeenCalled();
+    expect(initialSync).not.toHaveBeenCalled();
+  });
+});
+
+describe("interactive sign-in shows the splash until the role resolves", () => {
+  it("SIGNED_IN after INITIAL_SESSION: no tracker (no way to save) until the lookup answers", async () => {
+    let resolveLink!: (rows: LinkRows) => void;
+    h.state.links.partner_id = new Promise<LinkRows>((resolve) => {
+      resolveLink = resolve;
+    });
+    renderApp();
+    const cb = h.state.authCb;
+    if (!cb) throw new Error("useAuth did not subscribe to auth state");
+    await act(async () => {
+      await cb("INITIAL_SESSION", null);
+    });
+    await settle();
+
+    beginSignIn("owner-1");
+    await settle();
+
+    expect(screen.getByText("Loading...")).toBeTruthy();
+    expect(screen.queryByRole("button", { name: "Log today" })).toBeNull();
+
+    await act(async () => {
+      resolveLink([]);
+    });
+    expect(await screen.findByRole("button", { name: "Log today" })).toBeTruthy();
+    await waitFor(() => expect(c.startOwnerSync).toHaveBeenCalledTimes(1));
+  });
+});
+
+describe("partner sessions never start the owner engine", () => {
+  it("not in the pre-resolution window, not after: only the read-only pull of the linked owner", async () => {
+    let resolveLink!: (rows: LinkRows) => void;
+    h.state.links.partner_id = new Promise<LinkRows>((resolve) => {
+      resolveLink = resolve;
+    });
+    renderApp();
+    beginSignIn("partner-1");
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    // Pre-resolution window: the user is set, the role is not.
+    expectNoSyncCapability();
+
+    await act(async () => {
+      resolveLink([{ owner_id: "owner-1" }]);
+    });
+    await waitFor(() => expect(initialSync).toHaveBeenCalledWith("owner-1"));
+
+    expect(subscribeToLogs).toHaveBeenCalledWith("owner-1", expect.any(Function));
+    expect(initialSync).not.toHaveBeenCalledWith("partner-1");
+    expect(c.startOwnerSync).not.toHaveBeenCalled();
+    // A confirmed partner never queues, and drops anything queued before.
+    expect(c.setOwnerSyncMode).toHaveBeenLastCalledWith("off");
+    expect(c.clearOutbox).toHaveBeenCalled();
+    expect(c.setMeta).toHaveBeenCalledWith("lastKnownRole", "partner");
+  });
+
+  it("a newer owner answer while a stale partner answer is still marking: no outbox clear, no partner pull, the engine runs", async () => {
+    let markDone!: () => void;
+    c.setMeta.mockImplementation(
+      () =>
+        new Promise<void>((resolve) => {
+          markDone = resolve;
+        })
+    );
+    h.state.links.partner_id = [{ owner_id: "owner-1" }];
+    renderApp();
+    beginSignIn("u1"); // older lookup: partner, marker pending
+    await waitFor(() => expect(c.setMeta).toHaveBeenCalledWith("lastKnownRole", "partner"));
+
+    h.state.links.partner_id = []; // newer lookup: owner
+    await signIn("u1");
+    await waitFor(() => expect(c.startOwnerSync).toHaveBeenCalled());
+
+    await act(async () => {
+      markDone();
+    });
+    await settle();
+
+    expect(c.clearOutbox).not.toHaveBeenCalled();
+    expect(initialSync).not.toHaveBeenCalled();
+    expect(c.setOwnerSyncMode).toHaveBeenLastCalledWith("owner");
+    const lastStart = Math.max(...c.startOwnerSync.mock.invocationCallOrder);
+    const lastStop = Math.max(0, ...c.stopOwnerSync.mock.invocationCallOrder);
+    expect(lastStart).toBeGreaterThan(lastStop);
+  });
+
+  it("the legacy partner pull waits for the lastKnownRole marker (it writes owner rows into this store)", async () => {
+    let markDone!: () => void;
+    c.setMeta.mockImplementation(
+      () =>
+        new Promise<void>((resolve) => {
+          markDone = resolve;
+        })
+    );
+    h.state.links.partner_id = [{ owner_id: "owner-1" }];
+    renderApp();
+    beginSignIn("partner-1");
+    await waitFor(() => expect(c.setMeta).toHaveBeenCalledWith("lastKnownRole", "partner"));
+    await settle();
+
+    expect(initialSync).not.toHaveBeenCalled();
+    expect(subscribeToLogs).not.toHaveBeenCalled();
+
+    await act(async () => {
+      markDone();
+    });
+    await waitFor(() => expect(initialSync).toHaveBeenCalledWith("owner-1"));
+  });
+
+  it("a multi-linked partner sees a notice instead of the partner view (no ungated cache)", async () => {
+    h.state.links.partner_id = [{ owner_id: "o1" }, { owner_id: "o2" }];
+    renderApp();
+    await signIn("partner-1");
+    await settle();
+
+    expect(await screen.findByText(/linked to more than one person/i)).toBeTruthy();
+    expect(screen.queryByTestId("partner-view")).toBeNull();
+  });
+
+  it("a single-linked partner still gets the partner view for that owner (control)", async () => {
+    h.state.links.partner_id = [{ owner_id: "owner-1" }];
+    renderApp();
+    await signIn("partner-1");
+
+    const view = await screen.findByTestId("partner-view");
+    expect(view.getAttribute("data-owner-id")).toBe("owner-1");
+    expect(screen.queryByText(/linked to more than one person/i)).toBeNull();
+  });
+
+  it("a multi-linked partner (ambiguous owner) runs no owner engine and never pulls under its own id", async () => {
+    h.state.links.partner_id = [{ owner_id: "o1" }, { owner_id: "o2" }];
+    renderApp();
+    await signIn("partner-1");
+    await settle();
+
+    expectNoSyncCapability();
+    expect(c.setOwnerSyncMode).toHaveBeenLastCalledWith("off");
+    expect(c.clearOutbox).toHaveBeenCalled();
+  });
+});
+
+describe("resolved owner (controls: the gate opens once the role is known)", () => {
+  it("starts the owner engine exactly once, only after resolution", async () => {
+    let resolveLink!: (rows: LinkRows) => void;
+    h.state.links.partner_id = new Promise<LinkRows>((resolve) => {
+      resolveLink = resolve;
+    });
+    h.state.links.owner_id = [];
+    renderApp();
+    beginSignIn("owner-1");
+    await act(async () => {
+      await Promise.resolve();
+    });
+    expect(c.startOwnerSync).not.toHaveBeenCalled();
+
+    await act(async () => {
+      resolveLink([]);
+    });
+    await waitFor(() => expect(c.startOwnerSync).toHaveBeenCalledTimes(1));
+
+    expect(c.startOwnerSync.mock.calls[0][0]).toBe("owner-1");
+    expect(c.setOwnerSyncMode).toHaveBeenLastCalledWith("owner");
+    expect(initialSync).not.toHaveBeenCalled();
+  });
+
+  it("a failed re-check of the same owner (tab refocus re-emits SIGNED_IN) never leaves owner-engine mode", async () => {
+    renderApp();
+    await signIn("owner-1");
+    await waitFor(() => expect(c.startOwnerSync).toHaveBeenCalledTimes(1));
+    c.setOwnerSyncMode.mockClear();
+
+    h.state.links.partner_id = "error";
+    await signIn("owner-1"); // supabase-js re-emits SIGNED_IN from storage on refocus
+    await settle();
+
+    expect(c.setOwnerSyncMode).not.toHaveBeenCalledWith("off");
+    // The engine is running at the end: the last start follows the last stop.
+    const lastStart = Math.max(...c.startOwnerSync.mock.invocationCallOrder);
+    const lastStop = Math.max(0, ...c.stopOwnerSync.mock.invocationCallOrder);
+    expect(lastStart).toBeGreaterThan(lastStop);
+  });
+
+  it("legacy mode: an owner pulls its own id and pushes saves directly", async () => {
+    flags.syncEngine = false;
+    renderApp();
+    await signIn("owner-1");
+    await waitFor(() => expect(initialSync).toHaveBeenCalledWith("owner-1"));
+
+    await saveTodayViaSheet();
+
+    expect(pushLog).toHaveBeenCalledWith("owner-1", expect.objectContaining({ date: expect.any(String) }));
+    expect(c.startOwnerSync).not.toHaveBeenCalled();
+    expectNeverQueued();
+  });
+});

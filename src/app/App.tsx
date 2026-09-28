@@ -6,7 +6,7 @@ import { useAuth } from "@/app/hooks/useAuth";
 import { useLogger } from "@/app/hooks/useLogger";
 import { initialSync, pushLog, subscribeToLogs, unsubscribe } from "@/app/lib/sync";
 import { supabase } from "@/app/lib/supabase";
-import { isOwnerEngineSync } from "@/app/lib/flags";
+import { isOwnerEngineSync, ownerOutboxMode } from "@/app/lib/flags";
 import { useContainer } from "@/app/di";
 import { Header } from "@/app/components/layout/Header";
 import { TabNav, type TabName } from "@/app/components/layout/TabNav";
@@ -50,6 +50,23 @@ export default function App() {
   const { logs, state, loading: dataLoading, excludedStarts, refresh } = useCycleData();
   const hasData = logs.length > 0;
 
+  // Data follows the account (P0-06): re-read the local store whenever the
+  // signed-in account changes, whatever its role — the sync paths below refresh
+  // only once a role is resolved, so a new account whose lookup fails or hangs
+  // would keep showing the previous account's rows. The main UI waits until
+  // that account's read has landed (see the loading gate).
+  const accountId = auth.user?.id ?? null;
+  const [dataAccount, setDataAccount] = useState<string | null | undefined>(undefined);
+  useEffect(() => {
+    let current = true;
+    void refresh().then(() => {
+      if (current) setDataAccount(accountId);
+    });
+    return () => {
+      current = false;
+    };
+  }, [accountId, refresh]);
+
   const activeLogDate = logSheetDate ?? today;
   const {
     log: activeLog,
@@ -67,10 +84,13 @@ export default function App() {
       async (saved: DailyLog[]) => {
         // In owner-engine mode saveLog already enqueued the write to the durable
         // outbox; the engine delivers it (possibly after it finishes starting).
-        // Only the legacy path needs an explicit push. Decide on the CONFIGURED
-        // mode, NOT on whether the engine instance exists yet — otherwise a save
-        // during the startup gap would BOTH enqueue and legacy-push (double send).
-        if (auth.user && !isOwnerEngineSync(true, auth.role)) {
+        // Only a resolved OWNER on the legacy path pushes explicitly. Decide on
+        // the CONFIGURED mode, NOT on whether the engine instance exists yet —
+        // otherwise a save during the startup gap would BOTH enqueue and
+        // legacy-push (double send). A partner or an unresolved role (P0-06:
+        // fail closed) never pushes directly; an unresolved role's saves only
+        // queue, and are delivered once the engine starts for a confirmed owner.
+        if (auth.user && auth.role === "owner" && !isOwnerEngineSync(true, auth.role)) {
           for (const l of saved) await pushLog(auth.user.id, l);
         }
         refresh();
@@ -90,13 +110,22 @@ export default function App() {
 
   // ── Sync ──
   useEffect(() => {
-    // Set the CONFIGURED sync mode first (covers unauthenticated/local too, so
-    // local-only writes never accrue undrainable outbox intents). This is what
-    // gates the durable outbox — independent of engine start state.
-    const ownerEngine = isOwnerEngineSync(!!auth.user, auth.role);
-    container.setOwnerSyncMode(ownerEngine);
+    // Two separate decisions (P0-06):
+    // (i) QUEUE writes in the durable outbox — purely local. On for a signed-in
+    //     owner OR a still-unresolved role (with the engine flag on), so an
+    //     offline start doesn't lose the owner's logging — though never, while
+    //     unresolved, in a store that has served a partner session (Container).
+    //     Off for a partner, no user, or legacy mode. Set first, independent of
+    //     engine start state.
+    container.setOwnerSyncMode(ownerOutboxMode(!!auth.user, auth.role));
 
-    if (!auth.user) return;
+    // (ii) Anything that leaves the device — owner engine, legacy pull/
+    //     subscribe/push — waits until the role is POSITIVELY resolved. Until
+    //     then the local store may hold someone else's rows (a partner's cache).
+    const roleResolved = !auth.loading && auth.role !== null;
+    const ownerEngine = roleResolved && isOwnerEngineSync(!!auth.user, auth.role);
+
+    if (!auth.user || !roleResolved) return;
 
     // Owner path (M1.9): the SyncEngine owns push/pull/realtime — outbox,
     // HLC merge, tombstones. Partners stay on the legacy read-only pull until
@@ -123,8 +152,16 @@ export default function App() {
       };
     }
 
-    // Legacy path (partner, or engine flag off).
-    const ownerId = auth.linkedOwnerId ?? auth.user.id;
+    // A confirmed partner never pushes. Anything queued before the role resolved
+    // is an edit to the owner's cached rows: drop it, so nothing can upload it
+    // later (e.g. after an unlink). Queueing is already off (see (i)).
+    if (auth.role === "partner") void container.clearOutbox().catch(console.error);
+
+    // Legacy path (partner, or engine flag off). A partner reads ONLY its linked
+    // owner — never its own id; a multi-link partner (no owner selected) syncs
+    // nothing.
+    const ownerId = auth.role === "owner" ? auth.user.id : auth.linkedOwnerId;
+    if (!ownerId) return;
     initialSync(ownerId).then(() => refresh()).catch(console.error);
 
     const channel = subscribeToLogs(ownerId, refresh);
@@ -134,7 +171,7 @@ export default function App() {
       unsubscribe(channelRef.current);
       channelRef.current = null;
     };
-  }, [auth.user, auth.role, auth.linkedOwnerId, refresh, container]);
+  }, [auth.user, auth.loading, auth.role, auth.linkedOwnerId, refresh, container]);
 
   // Partner should always see partner view
   useEffect(() => {
@@ -188,7 +225,7 @@ export default function App() {
   );
 
   // ── Loading ──
-  if (auth.loading || dataLoading) {
+  if (auth.loading || dataLoading || dataAccount !== accountId) {
     return (
       <div className="min-h-screen bg-background font-sans flex items-center justify-center">
         <div className="text-center">
@@ -237,7 +274,20 @@ export default function App() {
       />
 
       <main id="main-content" role="main" className="max-w-4xl mx-auto px-4 sm:px-6 py-8 pb-24">
-        {isPartner ? (
+        {isPartner && auth.linkedOwnerId === null ? (
+          /* ── Partner linked to several owners: no owner is chosen, and
+                PartnerView treats a null owner as local demo mode (the cache,
+                ungated by share settings) — so show a notice instead. ── */
+          <div
+            role="status"
+            className="rounded-3xl p-8 sm:p-10 border text-center bg-card border-border"
+          >
+            <p className="text-sm text-foreground">
+              This account is linked to more than one person, so the partner
+              view is unavailable. Ask them to unlink the extra link.
+            </p>
+          </div>
+        ) : isPartner ? (
           /* ── Partner: only sees partner view ── */
           <PartnerView
             phaseData={phaseData}
