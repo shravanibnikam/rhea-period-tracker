@@ -98,4 +98,10 @@ export default tseslint.config(
     },
     rules: baseRules,
   },
+  {
+    // typescript-eslint's recommended set disables core `no-undef` (tsc does
+    // that job), but these JS files are in no tsc program. Restore it for them.
+    files: ["tests/**/*.{js,mjs}", "*.config.js"],
+    rules: { "no-undef": "error" },
+  },
 );

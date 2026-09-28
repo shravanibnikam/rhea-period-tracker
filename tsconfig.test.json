@@ -5,6 +5,9 @@
   // out of tsconfig.json so that browser code in src/ cannot type-check
   // against Node APIs. `npm run build` uses tsconfig.json only, so a
   // test-only type error never blocks a production build.
+  // This program also re-checks src/ with Node globals, where e.g.
+  // `const id: number = setTimeout(...)` fails: type timer handles in src/ as
+  // `ReturnType<typeof setTimeout>` (as src/sync/SyncEngine.ts does).
   "extends": "./tsconfig.json",
   "compilerOptions": {
     "types": ["node"]
