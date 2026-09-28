@@ -52,7 +52,9 @@ const FORBIDDEN: Forbidden[] = [
   { id: "never-shared", pattern: /\bnever\s+shared\b/i, until: "server-side partner projection (SEC-01)" },
   { id: "shared-fields-only", pattern: /shared\s+fields\s+only/i, until: "server-side partner projection (SEC-01)" },
   // Container.eraseAllData clears local stores only (P0-09a); the server half is P0-09b.
-  { id: "erase-server", pattern: /from\s+your\s+device\s+and\s+the\s+server/i, until: "server erase with tombstones (P0-09b)" },
+  { id: "erase-server", pattern: /from\s+(your|this)\s+device\s+and\s+(the|our)\s+server/i, until: "server erase with tombstones (P0-09b)" },
+  // The originally shipped Settings erase claim; synced data re-downloads.
+  { id: "cannot-be-undone", pattern: /\b(cannot|can't)\s+be\s+undone\b/i, until: "server erase with tombstones (P0-09b)" },
   // unpair() deletes the link; the partner's downloaded copy stays, and
   // outstanding invite codes stay valid (N12).
   { id: "immediately-revokes", pattern: /immediately\s+revokes/i, until: "partner purge on unpair + invite invalidation (M2.13, N12)" },
@@ -280,6 +282,13 @@ describe("copy guard mechanism (self-test)", () => {
     expect(violationsIn("Rhea uses end-to-end encryption.", withE2ee)).toHaveLength(1);
     expect(violationsIn("Not yet protected by end-to-end encryption.", withE2ee)).toEqual([]);
     expect(violationsIn("End-to-end encryption is planned.", withE2ee)).toEqual([]);
+  });
+
+  it("catches erase-scope claims", () => {
+    expect(violationsIn("Erase all data from this device and the server.", rule("erase-server"))).toHaveLength(1);
+    expect(violationsIn("Deletes it from your device and our server.", rule("erase-server"))).toHaveLength(1);
+    expect(violationsIn("This cannot be undone.", rule("cannot-be-undone"))).toHaveLength(1);
+    expect(violationsIn("This can&apos;t be undone.", rule("cannot-be-undone"))).toHaveLength(1);
   });
 
   it("catches the partner-copy and revocation claims", () => {
