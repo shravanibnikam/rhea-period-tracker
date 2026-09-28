@@ -336,6 +336,9 @@ describe("an owner pulling her own rows (legacy path, engine flag off)", () => {
 
     expect(savedLogs()).toHaveLength(1);
     expect(savedLogs()[0].notes).toBe("owner secret");
+    // The mock returns every column whatever is selected, so pin the request
+    // itself: an own-rows pull that stops asking for notes blanks them in prod.
+    expect(h.selects[0].split(",").map((c) => c.trim())).toContain("notes");
     // Unchanged legacy behaviour: v2 fields are not mapped by this path.
     expect(savedLogs()[0]).not.toHaveProperty("medication");
     expect(savedLogs()[0]).not.toHaveProperty("intimacy");
