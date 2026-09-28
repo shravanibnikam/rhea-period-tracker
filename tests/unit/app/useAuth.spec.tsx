@@ -412,6 +412,23 @@ describe("splash (loading) while a NEW account's role is unknown", () => {
     expect(loadingSeen).not.toContain(true);
   });
 
+  it("owner U signs out and signs in again as U: that first lookup is splashed again", async () => {
+    const { result } = renderAuth();
+    await signIn("owner-1");
+    expect(result.current.role).toBe("owner");
+
+    await act(async () => {
+      await emitAuth(null, "SIGNED_OUT");
+    });
+    expect(result.current.loading).toBe(false);
+
+    h.state.links.partner_id = "hang";
+    void beginSignIn("owner-1");
+
+    expect(result.current.loading).toBe(true);
+    expect(capability(result.current.role)).toEqual(CLOSED);
+  });
+
   it("an account whose first lookup failed is not re-splashed on each re-check", async () => {
     h.state.links.partner_id = "error";
     const { result } = renderAuth();
