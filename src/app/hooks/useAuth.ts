@@ -49,6 +49,16 @@ async function lookupRole(client: SupabaseClient, userId: string): Promise<Resol
   return { role: "owner", linkedOwnerId: null, hasPartnerLinked: asOwner.data.length > 0 };
 }
 
+/** With no auth event at all, show the app after this long (unchanged). */
+const AUTH_EVENT_WAIT_MS = 3_000;
+/**
+ * Longest the splash waits for a NEW account's first role lookup (P0-06). It
+ * outlasts postgrest's retry backoff (1 s + 2 s + 4 s), so an offline start ends
+ * through the lookup's own error; the bound only stops a hung request from
+ * holding the splash forever.
+ */
+const FIRST_LOOKUP_WAIT_MS = 10_000;
+
 interface UseAuthReturn {
   user: User | null;
   session: Session | null;
@@ -76,8 +86,26 @@ export function useAuth(): UseAuthReturn {
   // `resolvedUid`: the account whose role state is a POSITIVE lookup answer.
   // `lookupSeq`: only the newest lookup may write state — a newer lookup, an
   // account switch or a sign-out supersedes any lookup still in flight.
+  // `lookedUpUid`: the account whose FIRST lookup has started (splash once).
   const resolvedUid = useRef<string | null>(null);
   const lookupSeq = useRef(0);
+  const lookedUpUid = useRef<string | null>(null);
+
+  // The splash (`loading`) is always bounded by a timer.
+  const splashTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const endSplash = useCallback(() => {
+    if (splashTimer.current !== null) clearTimeout(splashTimer.current);
+    splashTimer.current = null;
+    setLoading(false);
+  }, []);
+  const holdSplash = useCallback(
+    (ms: number) => {
+      if (splashTimer.current !== null) clearTimeout(splashTimer.current);
+      splashTimer.current = setTimeout(endSplash, ms);
+      setLoading(true);
+    },
+    [endSplash]
+  );
 
   /** No role, no link, no write capability (signed out, or a new account). */
   const clearRole = useCallback(() => {
@@ -89,6 +117,13 @@ export function useAuth(): UseAuthReturn {
     setSyncReadOnly(true);
   }, []);
 
+  /** Signed out: no role, and the next account gets its own first-lookup splash. */
+  const signedOut = useCallback(() => {
+    clearRole();
+    lookedUpUid.current = null;
+    endSplash();
+  }, [clearRole, endSplash]);
+
   const detectRole = useCallback(
     async (userId: string) => {
       // Fail closed for an account without a positive answer yet: another
@@ -96,6 +131,13 @@ export function useAuth(): UseAuthReturn {
       // this one's role is known. A re-check of the SAME resolved account keeps
       // its role (and its write capability) while the lookup is in flight.
       if (resolvedUid.current !== userId) clearRole();
+      // The FIRST lookup for a new account holds the splash, so nothing can be
+      // saved while its role is unknown (such a save would be stored but never
+      // queued). Re-checks never touch it: no flash on every tab refocus.
+      if (lookedUpUid.current !== userId) {
+        lookedUpUid.current = userId;
+        holdSplash(FIRST_LOOKUP_WAIT_MS);
+      }
       const seq = ++lookupSeq.current;
 
       let resolved: ResolvedRole | null = null;
@@ -105,6 +147,7 @@ export function useAuth(): UseAuthReturn {
         console.error("Failed to detect role:", err);
       }
       if (seq !== lookupSeq.current) return; // superseded: this answer is stale
+      endSplash(); // the newest lookup has answered (or failed)
 
       // A failed lookup changes nothing. It grants nothing to an account that
       // has no positive answer (it stays at role null), and it does not revoke
@@ -127,7 +170,7 @@ export function useAuth(): UseAuthReturn {
         void container.setMeta(META_LAST_KNOWN_ROLE, "partner").catch(() => {});
       }
     },
-    [clearRole, container]
+    [clearRole, holdSplash, endSplash, container]
   );
 
   useEffect(() => {
@@ -136,7 +179,9 @@ export function useAuth(): UseAuthReturn {
       return;
     }
 
-    let handled = false;
+    // Splash until the first auth event (bounded); a signed-in event then
+    // holds it for that account's first role lookup (see detectRole).
+    holdSplash(AUTH_EVENT_WAIT_MS);
 
     // Use onAuthStateChange as the single source of truth (Supabase v2 pattern)
     const {
@@ -150,29 +195,16 @@ export function useAuth(): UseAuthReturn {
       if (s?.user) {
         await detectRole(s.user.id).catch(() => {});
       } else {
-        clearRole();
-      }
-
-      // Always resolve loading regardless of outcome
-      if (!handled) {
-        handled = true;
-        setLoading(false);
+        signedOut();
       }
     });
 
-    // Fallback: if no auth event fires within 3 seconds, stop loading
-    const timeout = setTimeout(() => {
-      if (!handled) {
-        handled = true;
-        setLoading(false);
-      }
-    }, 3000);
-
     return () => {
       subscription.unsubscribe();
-      clearTimeout(timeout);
+      if (splashTimer.current !== null) clearTimeout(splashTimer.current);
+      splashTimer.current = null;
     };
-  }, [detectRole, clearRole, container]);
+  }, [detectRole, signedOut, holdSplash, container]);
 
   const signUp = useCallback(
     async (email: string, password: string): Promise<string | null> => {
@@ -205,8 +237,8 @@ export function useAuth(): UseAuthReturn {
     await supabase.auth.signOut();
     setUser(null);
     setSession(null);
-    clearRole();
-  }, [role, container, clearRole]);
+    signedOut();
+  }, [role, container, signedOut]);
 
   const refreshRole = useCallback(async () => {
     if (user) await detectRole(user.id);

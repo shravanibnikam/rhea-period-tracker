@@ -89,11 +89,21 @@ type FakeContainer = ReturnType<typeof fakeContainer>;
 
 let fake: FakeContainer;
 
+/** Every `loading` value the hook rendered with, in order. */
+let loadingSeen: boolean[] = [];
+
 function renderAuth() {
   const value = fake as unknown as Container;
   const wrapper = ({ children }: { children: ReactNode }) =>
     createElement(ContainerProvider, { value }, children);
-  return renderHook(() => useAuth(), { wrapper });
+  return renderHook(
+    () => {
+      const auth = useAuth();
+      loadingSeen.push(auth.loading);
+      return auth;
+    },
+    { wrapper }
+  );
 }
 
 /**
@@ -137,12 +147,16 @@ const CLOSED = { role: null, ownerEngine: false, readOnly: true };
 beforeEach(() => {
   h.state.links = {};
   h.state.authCb = null;
+  loadingSeen = [];
   fake = fakeContainer();
   // The legacy write guard's module default: writes allowed. A fail-open
   // detectRole leaves it there.
   setSyncReadOnly(false);
 });
-afterEach(cleanup);
+afterEach(() => {
+  cleanup();
+  vi.useRealTimers();
+});
 
 describe("detectRole fails closed", () => {
   it("a THROWN partner lookup yields role null and no write capability", async () => {
@@ -314,6 +328,102 @@ describe("re-checks of an already-resolved account (same uid)", () => {
       readOnly: true,
     });
     expect(result.current.linkedOwnerId).toBe("owner-9");
+  });
+});
+
+describe("splash (loading) while a NEW account's role is unknown", () => {
+  // An interactive sign-in arrives as SIGNED_IN after INITIAL_SESSION already
+  // ended `loading`. Without a splash the app renders with role null for the
+  // whole lookup, and anything saved in that window is stored but never queued.
+  it("an interactive sign-in holds loading until the new account's role resolves", async () => {
+    const { result } = renderAuth();
+    await act(async () => {
+      await emitAuth(null, "INITIAL_SESSION"); // signed out → AuthScreen
+    });
+    expect(result.current.loading).toBe(false);
+
+    let release!: (rows: LinkRows) => void;
+    h.state.links.partner_id = new Promise<LinkRows>((resolve) => {
+      release = resolve;
+    });
+    const pending = beginSignIn("u1");
+
+    expect(result.current.user?.id).toBe("u1");
+    expect(result.current.loading).toBe(true);
+
+    await act(async () => {
+      release([]);
+      await pending;
+    });
+    expect(result.current.loading).toBe(false);
+    expect(result.current.role).toBe("owner");
+  });
+
+  it("a failed first lookup ends the splash with the role closed", async () => {
+    const { result } = renderAuth();
+    await act(async () => {
+      await emitAuth(null, "INITIAL_SESSION");
+    });
+    h.state.links.partner_id = "error";
+    await signIn("u1");
+
+    expect(result.current.loading).toBe(false);
+    expect(capability(result.current.role)).toEqual(CLOSED);
+  });
+
+  for (const event of ["INITIAL_SESSION", "SIGNED_IN"]) {
+    it(`a hung first lookup (${event}) cannot hold the splash forever — but it outlasts postgrest's ~7 s retry backoff`, async () => {
+      vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+      const { result } = renderAuth();
+      if (event === "SIGNED_IN") {
+        await act(async () => {
+          await emitAuth(null, "INITIAL_SESSION");
+        });
+      }
+      h.state.links.partner_id = "hang";
+      void beginSignIn("u1", event);
+      expect(result.current.loading).toBe(true);
+
+      await act(async () => {
+        vi.advanceTimersByTime(7_000); // postgrest backoff 1 s + 2 s + 4 s
+      });
+      expect(result.current.loading).toBe(true);
+
+      await act(async () => {
+        vi.advanceTimersByTime(8_000);
+      });
+      expect(result.current.loading).toBe(false);
+      expect(capability(result.current.role)).toEqual(CLOSED);
+    });
+  }
+
+  it("same-uid re-checks never toggle loading (no splash flash on every refocus)", async () => {
+    const { result } = renderAuth();
+    await signIn("owner-1");
+    expect(result.current.loading).toBe(false);
+
+    loadingSeen = [];
+    h.state.links.partner_id = "hang";
+    void beginSignIn("owner-1"); // refocus re-emit
+    h.state.links.partner_id = "error";
+    await signIn("owner-1", "TOKEN_REFRESHED");
+
+    expect(loadingSeen.length).toBeGreaterThan(0);
+    expect(loadingSeen).not.toContain(true);
+  });
+
+  it("an account whose first lookup failed is not re-splashed on each re-check", async () => {
+    h.state.links.partner_id = "error";
+    const { result } = renderAuth();
+    await signIn("u1");
+    expect(result.current.loading).toBe(false);
+
+    loadingSeen = [];
+    h.state.links.partner_id = "hang";
+    void beginSignIn("u1");
+
+    expect(loadingSeen).not.toContain(true);
+    expect(capability(result.current.role)).toEqual(CLOSED);
   });
 });
 

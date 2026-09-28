@@ -194,9 +194,9 @@ describe("role unresolved → no sync of any kind", () => {
     expectNoSyncCapability();
     expect(c.setOwnerSyncMode).toHaveBeenCalledWith(false);
 
-    // useAuth's 3s fallback ends `loading` with the role still unknown.
+    // useAuth's splash bound ends `loading` with the role still unknown.
     await act(async () => {
-      vi.advanceTimersByTime(3000);
+      vi.advanceTimersByTime(15_000);
     });
     vi.useRealTimers();
     await saveTodayViaSheet();
@@ -225,6 +225,34 @@ describe("role unresolved → no sync of any kind", () => {
     expectNoSyncCapability();
     await saveTodayViaSheet();
     expectNoSyncCapability();
+  });
+});
+
+describe("interactive sign-in shows the splash until the role resolves", () => {
+  it("SIGNED_IN after INITIAL_SESSION: no tracker (no way to save) until the lookup answers", async () => {
+    let resolveLink!: (rows: LinkRows) => void;
+    h.state.links.partner_id = new Promise<LinkRows>((resolve) => {
+      resolveLink = resolve;
+    });
+    renderApp();
+    const cb = h.state.authCb;
+    if (!cb) throw new Error("useAuth did not subscribe to auth state");
+    await act(async () => {
+      await cb("INITIAL_SESSION", null);
+    });
+    await settle();
+
+    beginSignIn("owner-1");
+    await settle();
+
+    expect(screen.getByText("Loading...")).toBeTruthy();
+    expect(screen.queryByRole("button", { name: "Log today" })).toBeNull();
+
+    await act(async () => {
+      resolveLink([]);
+    });
+    expect(await screen.findByRole("button", { name: "Log today" })).toBeTruthy();
+    await waitFor(() => expect(c.startOwnerSync).toHaveBeenCalledTimes(1));
   });
 });
 
