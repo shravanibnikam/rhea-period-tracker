@@ -10,7 +10,7 @@
 import "fake-indexeddb/auto";
 import { describe, it, expect, afterEach, vi } from "vitest";
 import { Container } from "@/app/di/Container";
-import { flags, isOwnerEngineSync, queuesOwnerWrites } from "@/app/lib/flags";
+import { flags, isOwnerEngineSync, ownerOutboxMode } from "@/app/lib/flags";
 import { emptyLog } from "@/domain/types";
 import { logKey } from "@/data/envelope";
 import type { OutboxEntry } from "@/sync";
@@ -56,23 +56,23 @@ describe("isOwnerEngineSync — flag/role decision (not engine-instance)", () =>
     expect(isOwnerEngineSync(false, "owner")).toBe(false));
 });
 
-describe("queuesOwnerWrites — local queueing is separate from running the engine (P0-06)", () => {
-  it("queues for an owner and for a still-unresolved role (offline logging must sync later)", () => {
-    expect(queuesOwnerWrites(true, "owner")).toBe(true);
-    expect(queuesOwnerWrites(true, null)).toBe(true);
-    expect(queuesOwnerWrites(true, undefined)).toBe(true);
+describe("ownerOutboxMode — local queueing is separate from running the engine (P0-06)", () => {
+  it("a confirmed owner queues; a still-unresolved role queues as 'unresolved' (offline logging must sync later)", () => {
+    expect(ownerOutboxMode(true, "owner")).toBe("owner");
+    expect(ownerOutboxMode(true, null)).toBe("unresolved");
+    expect(ownerOutboxMode(true, undefined)).toBe("unresolved");
   });
   it("never queues for a partner or without a user", () => {
-    expect(queuesOwnerWrites(true, "partner")).toBe(false);
-    expect(queuesOwnerWrites(false, "owner")).toBe(false);
-    expect(queuesOwnerWrites(false, null)).toBe(false);
+    expect(ownerOutboxMode(true, "partner")).toBe("off");
+    expect(ownerOutboxMode(false, "owner")).toBe("off");
+    expect(ownerOutboxMode(false, null)).toBe("off");
   });
   it("never queues in legacy mode (engine flag off: nothing would drain it)", () => {
     const saved = flags.syncEngine;
     flags.syncEngine = false;
     try {
-      expect(queuesOwnerWrites(true, "owner")).toBe(false);
-      expect(queuesOwnerWrites(true, null)).toBe(false);
+      expect(ownerOutboxMode(true, "owner")).toBe("off");
+      expect(ownerOutboxMode(true, null)).toBe("off");
     } finally {
       flags.syncEngine = saved;
     }
@@ -110,7 +110,7 @@ describe("Container durable-outbox mode gating", () => {
 
   it("owner mode + null engine: delete removes the local row, writes a tombstone, and queues a deleted:true intent atomically", async () => {
     const c = freshContainer("owner-a");
-    c.setOwnerSyncMode(true);
+    c.setOwnerSyncMode("owner");
 
     await c.saveLog(mkLog());
     await c.deleteLog(DATE);
@@ -125,7 +125,7 @@ describe("Container durable-outbox mode gating", () => {
 
   it("owner mode: a save enqueues exactly once and re-saves coalesce (no duplicate intents)", async () => {
     const c = freshContainer("owner-b");
-    c.setOwnerSyncMode(true);
+    c.setOwnerSyncMode("owner");
 
     await c.saveLog(mkLog());
     expect(await outboxOf(c)).toHaveLength(1);
@@ -136,7 +136,7 @@ describe("Container durable-outbox mode gating", () => {
 
   it("local/legacy mode: writes apply locally but never accrue owner outbox intents", async () => {
     const c = freshContainer("local-c");
-    c.setOwnerSyncMode(false);
+    c.setOwnerSyncMode("off");
 
     await c.saveLog(mkLog());
     await c.deleteLog(DATE);

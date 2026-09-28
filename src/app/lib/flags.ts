@@ -1,3 +1,5 @@
+import type { OutboxMode } from "@/app/di/Container";
+
 // Feature flags. Behavior-changing work lands here "dark" (default off), is
 // validated, then flipped on in a small follow-up. See V2_IMPLEMENTATION_PLAN §1.1.
 export const flags = {
@@ -23,7 +25,7 @@ export const flags = {
  * Fails closed (P0-06): a null/undefined role — still resolving, or the lookup
  * failed — is NOT owner and gets no engine, because the local store may hold
  * someone else's rows (a partner's cache of the owner). Queueing writes locally
- * is a separate decision: see `queuesOwnerWrites`.
+ * is a separate decision: see `ownerOutboxMode`.
  *
  * Derived from auth + feature flag + role ONLY — deliberately NOT from whether
  * the engine instance has finished starting. Using the transient
@@ -39,17 +41,20 @@ export function isOwnerEngineSync(
 }
 
 /**
- * Whether writes QUEUE in the durable outbox (Container.setOwnerSyncMode). This
- * is purely local — nothing is pushed unless `isOwnerEngineSync` later lets the
- * engine start for a confirmed owner. True for an authenticated session whose
- * role is owner OR still unresolved (null/undefined), with the engine flag on:
- * an offline start must not lose the owner's logging (P0-06 review). False for
- * a partner (it never pushes; the app drops what was queued before the role
- * resolved), with no user, and in legacy mode (no outbox to drain).
+ * The durable-outbox queue mode for a session (Container.setOwnerSyncMode).
+ * Queueing is purely local — nothing is pushed unless `isOwnerEngineSync` later
+ * lets the engine start for a confirmed owner.
+ * - "owner": an authenticated, confirmed owner (engine flag on).
+ * - "unresolved": authenticated, role still unknown (null/undefined), engine
+ *   flag on — an offline start must not lose the owner's logging (P0-06). The
+ *   Container still refuses to queue in a store marked lastKnownRole=partner.
+ * - "off": a partner (it never pushes; the app drops what was queued before the
+ *   role resolved), no user, or legacy mode (no outbox to drain).
  */
-export function queuesOwnerWrites(
+export function ownerOutboxMode(
   authed: boolean,
   role: string | null | undefined
-): boolean {
-  return authed && flags.syncEngine && role !== "partner";
+): OutboxMode {
+  if (!authed || !flags.syncEngine || role === "partner") return "off";
+  return role === "owner" ? "owner" : "unresolved";
 }

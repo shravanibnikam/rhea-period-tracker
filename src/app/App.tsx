@@ -6,7 +6,7 @@ import { useAuth } from "@/app/hooks/useAuth";
 import { useLogger } from "@/app/hooks/useLogger";
 import { initialSync, pushLog, subscribeToLogs, unsubscribe } from "@/app/lib/sync";
 import { supabase } from "@/app/lib/supabase";
-import { isOwnerEngineSync, queuesOwnerWrites } from "@/app/lib/flags";
+import { isOwnerEngineSync, ownerOutboxMode } from "@/app/lib/flags";
 import { useContainer } from "@/app/di";
 import { Header } from "@/app/components/layout/Header";
 import { TabNav, type TabName } from "@/app/components/layout/TabNav";
@@ -113,9 +113,11 @@ export default function App() {
     // Two separate decisions (P0-06):
     // (i) QUEUE writes in the durable outbox — purely local. On for a signed-in
     //     owner OR a still-unresolved role (with the engine flag on), so an
-    //     offline start doesn't lose the owner's logging; off for a partner, no
-    //     user, or legacy mode. Set first, independent of engine start state.
-    container.setOwnerSyncMode(queuesOwnerWrites(!!auth.user, auth.role));
+    //     offline start doesn't lose the owner's logging — though never, while
+    //     unresolved, in a store that has served a partner session (Container).
+    //     Off for a partner, no user, or legacy mode. Set first, independent of
+    //     engine start state.
+    container.setOwnerSyncMode(ownerOutboxMode(!!auth.user, auth.role));
 
     // (ii) Anything that leaves the device — owner engine, legacy pull/
     //     subscribe/push — waits until the role is POSITIVELY resolved. Until

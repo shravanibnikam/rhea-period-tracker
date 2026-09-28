@@ -91,7 +91,7 @@ describe("Container.startOwnerSync — a cancelled startup", () => {
 describe("Container.clearOutbox (partner resolution)", () => {
   it("drops every queued intent of the active account's store and leaves its logs alone", async () => {
     const { c, driver } = await deviceWithCachedRows("clear-outbox");
-    c.setOwnerSyncMode(true);
+    c.setOwnerSyncMode("owner");
     await c.saveLog({ ...emptyLog("2026-08-05"), flow: "light" });
     expect(await driver.getAll<OutboxEntry>("outbox")).toHaveLength(1);
 
@@ -99,5 +99,41 @@ describe("Container.clearOutbox (partner resolution)", () => {
 
     expect(await driver.getAll<OutboxEntry>("outbox")).toHaveLength(0);
     expect(await driver.getAll("logs")).toHaveLength(DATES.length + 1);
+  });
+});
+
+describe("Container queue mode 'unresolved' respects the partner marker (P0-06)", () => {
+  async function saveOne(c: Container) {
+    await c.saveLog({ ...emptyLog("2026-08-05"), flow: "light" });
+  }
+
+  it("unresolved role + a store marked lastKnownRole=partner: a write is stored but NOT queued", async () => {
+    const { c, driver } = await deviceWithCachedRows("unresolved-marked");
+    await driver.put("meta", "partner", "lastKnownRole");
+    c.setOwnerSyncMode("unresolved");
+
+    await saveOne(c);
+
+    expect(await c.getLog("2026-08-05")).toBeDefined();
+    expect(await driver.getAll<OutboxEntry>("outbox")).toHaveLength(0);
+  });
+
+  it("unresolved role + an unmarked store: a write IS queued (offline logging syncs later)", async () => {
+    const { c, driver } = await deviceWithCachedRows("unresolved-unmarked");
+    c.setOwnerSyncMode("unresolved");
+
+    await saveOne(c);
+
+    expect(await driver.getAll<OutboxEntry>("outbox")).toHaveLength(1);
+  });
+
+  it("a CONFIRMED owner queues even in a marked store (the resolved ex-partner edit is the S-07 residual)", async () => {
+    const { c, driver } = await deviceWithCachedRows("owner-marked");
+    await driver.put("meta", "partner", "lastKnownRole");
+    c.setOwnerSyncMode("owner");
+
+    await saveOne(c);
+
+    expect(await driver.getAll<OutboxEntry>("outbox")).toHaveLength(1);
   });
 });

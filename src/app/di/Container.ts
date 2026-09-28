@@ -12,6 +12,7 @@ import { LogRepository, MetaRepository } from "@/data/repositories";
 import type { SaveLogsArgs } from "@/data/repositories/LogRepository";
 import type { StorageDriver } from "@/data/drivers/StorageDriver";
 import { ensureDeviceId } from "@/data/syncStamp";
+import { META_LAST_KNOWN_ROLE } from "@/data/schema";
 import { buildExport, type ExportDataV2 } from "@/data/exporter";
 import {
   parseBackup,
@@ -27,6 +28,18 @@ import {
   seedInitialOutbox,
 } from "@/sync";
 
+/**
+ * Whether writes QUEUE in the durable outbox (P0-06). Queueing is local only —
+ * nothing leaves the device until the engine starts for a confirmed owner.
+ * - "owner": a confirmed owner (or its running engine) — every write queues.
+ * - "unresolved": signed in, role not yet known — writes queue, EXCEPT in a
+ *   store that has served a partner session (meta.lastKnownRole = "partner"):
+ *   its rows may be the owner's cache, and an edit to one must never be queued
+ *   for a later upload under this account.
+ * - "off": partner, no user, or legacy mode — nothing queues.
+ */
+export type OutboxMode = "owner" | "unresolved" | "off";
+
 export class Container {
   // Account-scoped storage. NO automatic legacy copy-forward: the old unscoped
   // `rhea` database is never auto-imported into an account, because it is not
@@ -38,16 +51,14 @@ export class Container {
   private engine: SyncEngine | null = null;
   private syncGeneration = 0;
   /**
-   * Whether writes QUEUE in the durable outbox. Set by the app from auth +
-   * feature flag + role — NOT from `engine !== null`. Owner writes must enqueue
-   * even while `engine` is transiently null (lifecycle gap or pre-start), so the
-   * outbox attaches on this flag, not on the instance. Queueing is local only:
-   * the app also enables it while the role is still unresolved (P0-06), but
-   * nothing leaves the device until it starts the engine for a confirmed owner.
-   * For a partner, no user, or legacy mode it stays false so we never accrue
+   * Whether writes QUEUE in the durable outbox (see OutboxMode). Set by the app
+   * from auth + feature flag + role — NOT from `engine !== null`. Owner writes
+   * must enqueue even while `engine` is transiently null (lifecycle gap or
+   * pre-start), so the outbox attaches on this mode, not on the instance. For a
+   * partner, no user, or legacy mode it stays "off" so we never accrue
    * undrainable intents.
    */
-  private ownerSyncMode = false;
+  private outboxMode: OutboxMode = "off";
 
   // ── Account scoping (per-account DB name; M0.4 semantics) ─────────────────
   /**
@@ -72,12 +83,11 @@ export class Container {
 
   /**
    * Select whether writes queue in the durable outbox. Call from the app
-   * whenever auth/flag/role changes. Enabled attaches a durable outbox to every
-   * write; disabled attaches none. Independent of engine start state (see field
-   * doc) — enabling it never pushes anything by itself.
+   * whenever auth/flag/role changes. Independent of engine start state (see
+   * field doc) — queueing never pushes anything by itself.
    */
-  setOwnerSyncMode(enabled: boolean): void {
-    this.ownerSyncMode = enabled;
+  setOwnerSyncMode(mode: OutboxMode): void {
+    this.outboxMode = mode;
   }
 
   /**
@@ -91,15 +101,29 @@ export class Container {
 
   async logs(): Promise<LogRepository> {
     const driver = await this.driver();
-    // Owner-engine mode → attach a durable, driver-backed outbox so the write
-    // and its sync intent commit in ONE transaction, even if `engine` is null
-    // (not yet started / lifecycle gap). Reuse the engine's outbox when present
-    // (same "outbox" store either way); otherwise a fresh Outbox over the same
-    // driver. Local/legacy mode → no outbox (never accrue undrainable intents).
-    const outbox = this.ownerSyncMode
+    // Queueing → attach a durable, driver-backed outbox so the write and its
+    // sync intent commit in ONE transaction, even if `engine` is null (not yet
+    // started / lifecycle gap). Reuse the engine's outbox when present (same
+    // "outbox" store either way); otherwise a fresh Outbox over the same driver.
+    // Not queueing → no outbox (never accrue undrainable intents).
+    const outbox = (await this.queuesWrites(driver))
       ? (this.engine?.outbox ?? new Outbox(driver))
       : undefined;
     return new LogRepository(driver, { outbox });
+  }
+
+  /** Apply the OutboxMode to THIS store (the marker lives in its own meta). */
+  private async queuesWrites(driver: StorageDriver): Promise<boolean> {
+    if (this.outboxMode !== "unresolved") return this.outboxMode === "owner";
+    const marked = (await driver.get<string>("meta", META_LAST_KNOWN_ROLE)) === "partner";
+    // The mode may have moved on during the read: only a still-unresolved role
+    // consults the marker.
+    const mode = this.currentOutboxMode();
+    return mode === "owner" || (mode === "unresolved" && !marked);
+  }
+
+  private currentOutboxMode(): OutboxMode {
+    return this.outboxMode;
   }
 
   async meta(): Promise<MetaRepository> {
@@ -207,7 +231,7 @@ export class Container {
     // An owner engine implies owner-engine mode — keep the invariant even if the
     // app didn't call setOwnerSyncMode first, so writes always enqueue durably.
     if (this.engine) {
-      this.ownerSyncMode = true;
+      this.outboxMode = "owner";
       return this.engine;
     }
     const generation = this.syncGeneration;
@@ -225,7 +249,7 @@ export class Container {
     // re-assert owner mode over its successor's, and never replace or start
     // alongside it.
     if (generation !== this.syncGeneration) return engine;
-    this.ownerSyncMode = true;
+    this.outboxMode = "owner";
     await seedInitialOutbox(driver, engine.outbox); // one-time post-upgrade merge-up
     if (generation !== this.syncGeneration) return engine;
     this.engine = engine; // repository writes now enqueue atomically

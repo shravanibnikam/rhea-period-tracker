@@ -17,7 +17,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, screen, fireEvent, act, waitFor, cleanup } from "@testing-library/react";
 import { ContainerProvider } from "@/app/di/context";
-import type { Container } from "@/app/di/Container";
+import type { Container, OutboxMode } from "@/app/di/Container";
 import type { DailyLog } from "@/domain/types";
 import { emptyLog } from "@/domain/types";
 
@@ -124,7 +124,7 @@ function fakeContainer() {
   const engine = { onStatus: vi.fn((_cb: () => void) => () => {}) };
   return {
     setAccount: vi.fn(),
-    setOwnerSyncMode: vi.fn((_enabled: boolean) => {}),
+    setOwnerSyncMode: vi.fn((_mode: OutboxMode) => {}),
     clearOutbox: vi.fn(() => Promise.resolve()),
     startOwnerSync: vi.fn((_uid: string, _client: unknown) => Promise.resolve(engine)),
     stopOwnerSync: vi.fn(() => Promise.resolve()),
@@ -193,6 +193,11 @@ function expectNoSyncCapability() {
   expect(pushLog).not.toHaveBeenCalled();
 }
 
+/** Legacy mode: the outbox mode is never anything but "off". */
+function expectNeverQueued() {
+  expect(c.setOwnerSyncMode.mock.calls.map(([mode]) => mode).filter((m) => m !== "off")).toEqual([]);
+}
+
 beforeEach(() => {
   vi.clearAllMocks();
   h.state.links = {};
@@ -220,7 +225,7 @@ describe("role unresolved → nothing leaves the device (writes only queue local
 
     expectNoSyncCapability();
     // Queueing (local only) is on for the signed-in, unresolved session.
-    expect(c.setOwnerSyncMode).toHaveBeenLastCalledWith(true);
+    expect(c.setOwnerSyncMode).toHaveBeenLastCalledWith("unresolved");
 
     // useAuth's splash bound ends `loading` with the role still unknown.
     await act(async () => {
@@ -230,7 +235,7 @@ describe("role unresolved → nothing leaves the device (writes only queue local
     await saveTodayViaSheet();
 
     expectNoSyncCapability();
-    expect(c.setOwnerSyncMode).toHaveBeenLastCalledWith(true);
+    expect(c.setOwnerSyncMode).toHaveBeenLastCalledWith("unresolved");
   });
 
   it("lookup fails: no owner engine, no legacy sync, and a save only queues", async () => {
@@ -242,7 +247,7 @@ describe("role unresolved → nothing leaves the device (writes only queue local
     expectNoSyncCapability();
     await saveTodayViaSheet();
     expectNoSyncCapability();
-    expect(c.setOwnerSyncMode).toHaveBeenLastCalledWith(true);
+    expect(c.setOwnerSyncMode).toHaveBeenLastCalledWith("unresolved");
   });
 
   it("legacy mode (engine flag off): no pull/push-all of the local store, no push, and no queueing while unresolved", async () => {
@@ -255,7 +260,7 @@ describe("role unresolved → nothing leaves the device (writes only queue local
     expectNoSyncCapability();
     await saveTodayViaSheet();
     expectNoSyncCapability();
-    expect(c.setOwnerSyncMode).not.toHaveBeenCalledWith(true);
+    expectNeverQueued();
   });
 });
 
@@ -336,7 +341,7 @@ describe("partner sessions never start the owner engine", () => {
     expect(initialSync).not.toHaveBeenCalledWith("partner-1");
     expect(c.startOwnerSync).not.toHaveBeenCalled();
     // A confirmed partner never queues, and drops anything queued before.
-    expect(c.setOwnerSyncMode).toHaveBeenLastCalledWith(false);
+    expect(c.setOwnerSyncMode).toHaveBeenLastCalledWith("off");
     expect(c.clearOutbox).toHaveBeenCalled();
     expect(c.setMeta).toHaveBeenCalledWith("lastKnownRole", "partner");
   });
@@ -391,7 +396,7 @@ describe("partner sessions never start the owner engine", () => {
     await settle();
 
     expectNoSyncCapability();
-    expect(c.setOwnerSyncMode).toHaveBeenLastCalledWith(false);
+    expect(c.setOwnerSyncMode).toHaveBeenLastCalledWith("off");
     expect(c.clearOutbox).toHaveBeenCalled();
   });
 });
@@ -416,7 +421,7 @@ describe("resolved owner (controls: the gate opens once the role is known)", () 
     await waitFor(() => expect(c.startOwnerSync).toHaveBeenCalledTimes(1));
 
     expect(c.startOwnerSync.mock.calls[0][0]).toBe("owner-1");
-    expect(c.setOwnerSyncMode).toHaveBeenLastCalledWith(true);
+    expect(c.setOwnerSyncMode).toHaveBeenLastCalledWith("owner");
     expect(initialSync).not.toHaveBeenCalled();
   });
 
@@ -430,7 +435,7 @@ describe("resolved owner (controls: the gate opens once the role is known)", () 
     await signIn("owner-1"); // supabase-js re-emits SIGNED_IN from storage on refocus
     await settle();
 
-    expect(c.setOwnerSyncMode).not.toHaveBeenCalledWith(false);
+    expect(c.setOwnerSyncMode).not.toHaveBeenCalledWith("off");
     // The engine is running at the end: the last start follows the last stop.
     const lastStart = Math.max(...c.startOwnerSync.mock.invocationCallOrder);
     const lastStop = Math.max(0, ...c.stopOwnerSync.mock.invocationCallOrder);
@@ -447,6 +452,6 @@ describe("resolved owner (controls: the gate opens once the role is known)", () 
 
     expect(pushLog).toHaveBeenCalledWith("owner-1", expect.objectContaining({ date: expect.any(String) }));
     expect(c.startOwnerSync).not.toHaveBeenCalled();
-    expect(c.setOwnerSyncMode).not.toHaveBeenCalledWith(true);
+    expectNeverQueued();
   });
 });

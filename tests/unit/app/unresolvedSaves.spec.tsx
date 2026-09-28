@@ -20,7 +20,7 @@ import { ContainerProvider } from "@/app/di/context";
 import { Container } from "@/app/di/Container";
 import { NullTransport, type SyncEngine, type OutboxEntry } from "@/sync";
 import type { SyncRecord } from "@/data/envelope";
-import { logKey } from "@/data/envelope";
+import { logKey, openPlain } from "@/data/envelope";
 import { emptyLog, type DailyLog } from "@/domain/types";
 import { toDateKey } from "@/domain/dates";
 import { encodeHlc } from "@/domain/hlc";
@@ -95,17 +95,24 @@ let n = 0;
 const fresh = (p: string) => `${p}-${Date.now()}-${n++}`;
 const TODAY_KEY = logKey(toDateKey(new Date()));
 
-async function seedStore(uid: string) {
+async function seedStore(
+  uid: string,
+  rows: Array<Partial<DailyLog> & { date: string }> = [{ date: "2026-06-01", flow: "heavy" }],
+  meta: Record<string, unknown> = {}
+) {
   const c = new Container();
   c.setAccount(uid);
   const d = await c.driver();
-  await d.put("logs", {
-    ...emptyLog("2026-06-01"),
-    flow: "heavy",
-    updatedAt: encodeHlc(0, 0, "dev"),
-    deviceId: "dev",
-    deleted: false,
-  });
+  for (const row of rows) {
+    await d.put("logs", {
+      ...emptyLog(row.date),
+      ...row,
+      updatedAt: encodeHlc(0, 0, "dev"),
+      deviceId: "dev",
+      deleted: false,
+    });
+  }
+  for (const [key, value] of Object.entries(meta)) await d.put("meta", value, key);
   await c.closeDB();
 }
 
@@ -135,10 +142,10 @@ async function settle(ms = 30) {
   });
 }
 
-/** Every record key the owner engine handed to its transport. */
-const pushed: string[] = [];
+/** Every record the owner engine handed to its transport: key + opened payload. */
+const pushed: Array<{ key: string; payload: string }> = [];
 function pushedKeys(): string[] {
-  return [...pushed];
+  return pushed.map((p) => p.key);
 }
 async function outboxKeys(c: Container): Promise<string[]> {
   return (await (await c.driver()).getAll<OutboxEntry>("outbox")).map((e) => e.record.key);
@@ -171,7 +178,9 @@ beforeEach(() => {
     rows: SyncRecord[],
     ctx
   ) {
-    pushed.push(...rows.map((r) => r.key));
+    for (const r of rows) {
+      pushed.push({ key: r.key, payload: r.payload ? JSON.stringify(openPlain(r.payload)) : "" });
+    }
     return realPush.call(this, rows, ctx);
   });
 });
@@ -227,5 +236,39 @@ describe("a save made while the role is unresolved", () => {
     await settle(80);
 
     expect(pushedKeys()).toEqual([]);
+  });
+});
+
+describe("a store that has served a partner session (lastKnownRole=partner)", () => {
+  const OWNER_NOTE = "OWNER-PRIVATE-NOTE";
+
+  it("an unresolved role never queues an edit of the owner's cached row, so a later owner answer uploads nothing (probe Q2b)", async () => {
+    const uid = fresh("expartner");
+    const now = new Date();
+    const cachedDate = toDateKey(new Date(now.getFullYear(), now.getMonth(), 2));
+    await seedStore(uid, [{ date: cachedDate, flow: "heavy", notes: OWNER_NOTE }], {
+      lastKnownRole: "partner",
+    });
+    h.links[`partner_id=${uid}`] = "error"; // offline start: role unresolved
+    const c = renderApp();
+    await settle();
+    await emit("INITIAL_SESSION", uid);
+    await settle(50);
+
+    // Open the owner's cached day from the calendar and save it.
+    fireEvent.click(await screen.findByRole("tab", { name: /calendar/i }));
+    fireEvent.click(await screen.findByRole("button", { name: "2" }));
+    fireEvent.click(await screen.findByRole("button", { name: /save log/i }));
+    await settle(80);
+    expect(await outboxKeys(c)).toEqual([]);
+
+    // The owner unlinks him; the next lookup answers "owner" and starts the engine.
+    h.links[`partner_id=${uid}`] = [];
+    await emit("SIGNED_IN", uid);
+    await waitFor(() => expect(c.syncEngine()).not.toBeNull());
+    await settle(80);
+
+    expect(pushedKeys()).toEqual([]);
+    expect(pushed.some((p) => p.payload.includes(OWNER_NOTE))).toBe(false);
   });
 });
