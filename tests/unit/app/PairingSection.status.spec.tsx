@@ -24,16 +24,25 @@ vi.mock("@/app/lib/supabase", () => ({
     rpc: vi.fn(),
     from: (_table: string) => ({
       select: (_cols: string) => ({
-        eq: (column: string, _value: string) => ({
-          limit: (n: number) => {
-            const b = h.links[column] ?? [];
-            return Promise.resolve(
-              b === "error"
-                ? { data: null, error: { message: "Failed to fetch" } }
-                : { data: b.slice(0, n), error: null }
-            );
-          },
-        }),
+        eq: (column: string, _value: string) => {
+          const b = h.links[column] ?? [];
+          const failed = { data: null, error: { message: "Failed to fetch" } };
+          return {
+            limit: (n: number) =>
+              Promise.resolve(b === "error" ? failed : { data: b.slice(0, n), error: null }),
+            // The pre-P0-06 lookup shape, emulating postgrest-js: >1 row is a
+            // RETURNED error (PGRST116), not a throw — so the parent's RED is
+            // behavioural rather than a TypeError.
+            maybeSingle: () =>
+              Promise.resolve(
+                b === "error"
+                  ? failed
+                  : b.length > 1
+                    ? { data: null, error: { code: "PGRST116", message: "multiple (or no) rows returned" } }
+                    : { data: b[0] ?? null, error: null }
+              ),
+          };
+        },
       }),
     }),
   },
