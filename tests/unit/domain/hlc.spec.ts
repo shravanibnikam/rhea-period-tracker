@@ -79,7 +79,7 @@ describe("hlcNow (stamping)", () => {
   });
 
   it("same-ms edits bump the counter; new ms resets it", () => {
-    let s: HlcState = { pt: T0, c: 0 };
+    const s: HlcState = { pt: T0, c: 0 };
     const a = hlcNow(s, T0, "dev");
     expect(decodeHlc(a.hlc)).toMatchObject({ pt: T0, c: 1 });
     const b = hlcNow(a.state, T0 + 5, "dev");

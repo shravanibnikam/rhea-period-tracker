@@ -1,0 +1,13 @@
+{
+  // Typecheck program for test sources and tool configs (G-01). Same compiler
+  // options as the app program (tsconfig.json); it adds only Node's globals,
+  // which tests and configs use (process, Buffer, node:fs, ...). They are kept
+  // out of tsconfig.json so that browser code in src/ cannot type-check
+  // against Node APIs. `npm run build` uses tsconfig.json only, so a
+  // test-only type error never blocks a production build.
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "types": ["node"]
+  },
+  "include": ["src", "tests", "*.config.ts"]
+}
