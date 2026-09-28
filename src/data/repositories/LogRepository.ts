@@ -6,12 +6,25 @@
  * transaction — a record is never persisted without its push intent (§1.5).
  */
 
-import type { DailyLog } from "@/domain/types";
+import { emptyLog, type DailyLog } from "@/domain/types";
 import type { StorageDriver, StorageTx } from "../drivers/StorageDriver";
 import { logKey, sealPlain, type SyncedRow, type TombstoneRow, type SyncRecord } from "../envelope";
 import { nextStamp, type SyncStamp } from "../syncStamp";
 
 export type StoredLog = SyncedRow<DailyLog>;
+
+/** A merge-defined input: the date key plus only the fields to overwrite. */
+export type DailyLogPatch = Pick<DailyLog, "date"> & Partial<DailyLog>;
+
+/**
+ * saveAll's arguments (P0-01). "replace" (default) writes each log as the
+ * whole record — DailyLogSheet / the symptom toggles save a log they just
+ * rendered. "merge-defined" overlays only the patch's defined fields onto the
+ * stored row, so Quick Add sets flow without wiping notes, symptoms, etc.
+ */
+export type SaveLogsArgs =
+  | [logs: DailyLog[], opts?: { mode?: "replace" }]
+  | [logs: DailyLogPatch[], opts: { mode: "merge-defined" }];
 
 /** Same-transaction enqueue seam; implemented by sync/Outbox (M1.8). */
 export interface TxEnqueuer {
@@ -39,17 +52,24 @@ export class LogRepository {
     await this.saveAll([log]);
   }
 
-  async saveAll(logs: DailyLog[]): Promise<void> {
+  /** Save a batch in ONE transaction; resolves to the persisted domain records. */
+  async saveAll(...[logs, opts]: SaveLogsArgs): Promise<DailyLog[]> {
+    const merge = opts?.mode === "merge-defined";
     const stores: Array<"logs" | "meta" | "outbox"> = this.opts.outbox
       ? ["logs", "meta", "outbox"]
       : ["logs", "meta"];
-    await this.driver.transaction({ mode: "readwrite", stores }, async (tx) => {
+    return this.driver.transaction({ mode: "readwrite", stores }, async (tx) => {
+      const saved: DailyLog[] = [];
       for (const log of logs) {
         // Fold the row's own current HLC so an edit strictly dominates the
         // version it replaces (even if authored by another device / lagging clock).
         const prior = await tx.get<StoredLog>("logs", log.date);
         const stamp = await nextStamp(tx, this.opts.now?.(), prior?.updatedAt);
-        const domain: DailyLog = { medication: [], intimacy: null, ...log };
+        // merge-defined keeps every stored field the patch leaves undefined;
+        // replace-mode inputs are whole DailyLogs (SaveLogsArgs), as before.
+        const domain: DailyLog = merge
+          ? mergeDefined(prior, log)
+          : { medication: [], intimacy: null, ...(log as DailyLog) };
         const row: StoredLog = { ...domain, ...stamp, deleted: false };
         await tx.put("logs", row);
         if (this.opts.outbox) {
@@ -59,7 +79,9 @@ export class LogRepository {
             "owner"
           );
         }
+        saved.push(domain);
       }
+      return saved;
     });
   }
 
@@ -131,4 +153,22 @@ export class LogRepository {
   async clear(): Promise<void> {
     await this.driver.clear("logs");
   }
+}
+
+/**
+ * merge-defined (P0-01): the defaults an absent row gets under replace, then
+ * the stored row's DOMAIN fields, then only the patch fields that are defined
+ * (`undefined` = leave as is). The result is what gets stored AND enqueued.
+ */
+function mergeDefined(prior: StoredLog | undefined, patch: DailyLogPatch): DailyLog {
+  let stored: DailyLog | undefined;
+  if (prior) {
+    // Sync metadata is not domain data: saveAll re-stamps the row.
+    const { updatedAt: _updatedAt, deviceId: _deviceId, deleted: _deleted, ...domain } = prior;
+    stored = domain;
+  }
+  const defined = Object.fromEntries(
+    Object.entries(patch).filter(([, value]) => value !== undefined)
+  );
+  return { medication: [], intimacy: null, ...emptyLog(patch.date), ...stored, ...defined };
 }

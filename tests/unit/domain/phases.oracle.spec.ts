@@ -98,7 +98,13 @@ describe("buildPeriodLogs (single write path, M1.3)", () => {
     const logs = buildPeriodLogs("2026-03-30", 3);
     expect(logs.map((l) => l.date)).toEqual(["2026-03-30", "2026-03-31", "2026-04-01"]);
     expect(logs.every((l) => l.flow === "medium")).toBe(true);
-    expect(logs.every((l) => l.symptoms.length === 0 && l.notes === "")).toBe(true);
+  });
+
+  it("defines only date + flow, so a merge-defined save keeps every other field (P0-01)", () => {
+    expect(buildPeriodLogs("2026-03-30", 2)).toEqual([
+      { date: "2026-03-30", flow: "medium" },
+      { date: "2026-03-31", flow: "medium" },
+    ]);
   });
 
   it("keys stay on local calendar days across a DST-adjacent range", () => {
