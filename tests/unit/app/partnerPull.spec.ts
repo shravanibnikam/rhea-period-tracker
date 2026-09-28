@@ -199,6 +199,36 @@ describe("realtime changes honour tombstones", () => {
     expect(onUpdate).toHaveBeenCalledTimes(1);
   });
 
+  it("a hard DELETE during an in-flight wake pull is not undone by that pull", async () => {
+    // Real repository, so "stays deleted" is observed on the store itself.
+    const { logs } = makeContainer();
+    await logs.save({ ...emptyLog("2026-07-10"), flow: "light" });
+    h.container.getLog.mockImplementation((d) => logs.get(d));
+    h.container.saveLog.mockImplementation((l) => logs.save(l));
+    h.container.deleteLog.mockImplementation((d) => logs.delete(d));
+
+    // The in-flight pull's snapshot predates the delete: it still has the row.
+    h.rows.data = [row("2026-07-10")];
+    let release: () => void = () => {};
+    h.gate.wait = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    subscribeToLogs("owner-1", () => {});
+
+    const wake = h.handlers[0]({ eventType: "UPDATE", new: row("2026-07-10") });
+    await tick();
+    expect(h.selects).toHaveLength(1); // the wake's pull is in flight
+    const del = h.handlers[0]({
+      eventType: "DELETE",
+      old: { owner_id: "owner-1", date: "2026-07-10" },
+    });
+    await tick();
+    release();
+    await Promise.all([wake, del]);
+
+    expect(await logs.get("2026-07-10")).toBeUndefined();
+  });
+
   it("a normal UPDATE still saves the log (via the pull it wakes)", async () => {
     h.rows.data = [row("2026-07-05")];
     subscribeToLogs("owner-1", () => {});

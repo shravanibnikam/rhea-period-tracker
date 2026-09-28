@@ -145,7 +145,8 @@ export async function pullAllLogs(ownerId: string): Promise<number> {
     // Built from the explicit fields only. medication/intimacy are never
     // copied; notes only for the account's own rows (DailyLog.notes is
     // required, so a partner gets ""). saveLog replaces the whole record, so
-    // this also blanks any copy an older build cached.
+    // this also blanks an older build's cached copy — but only for rows the
+    // server still returns; purging other cached rows is S-07.
     const log: DailyLog = {
       date: row.date,
       flow: row.flow ?? "none",
@@ -207,8 +208,10 @@ export function subscribeToLogs(
         if (payload.eventType === "DELETE") {
           // Hard delete (row removed outright rather than tombstoned). The old
           // record carries only the primary key unless REPLICA IDENTITY FULL;
-          // only the date key is read.
+          // only the date key is read. Wait out an in-flight wake pull first:
+          // its snapshot may predate the delete and would write the row back.
           const date = (payload.old as Record<string, unknown> | null)?.date;
+          if (inFlight) await inFlight;
           if (typeof date === "string") await applyRemoteDelete(date);
           onUpdate();
           return;
