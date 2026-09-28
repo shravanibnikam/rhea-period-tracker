@@ -12,6 +12,11 @@
  * A POSITIVE partner answer drops what was queued: those entries are edits to
  * the owner's cached rows and must never be uploaded (e.g. after an unlink).
  * Real Container over fake-indexeddb; the engine's NullTransport push is spied.
+ *
+ * Every save here first waits for the day's stored record to load in the sheet,
+ * then edits it, and the test asserts the edit WAS stored. useLogger refuses a
+ * whole-record save while the day's read is pending ("still loading"), and a
+ * refused save would make "nothing queued / nothing pushed" pass vacuously.
  */
 import "fake-indexeddb/auto";
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
@@ -93,7 +98,11 @@ class TestContainer extends Container {
 
 let n = 0;
 const fresh = (p: string) => `${p}-${Date.now()}-${n++}`;
-const TODAY_KEY = logKey(toDateKey(new Date()));
+const TODAY = toDateKey(new Date());
+const TODAY_KEY = logKey(TODAY);
+/** Today's stored note — its appearance in the sheet proves the day's read landed. */
+const TODAY_NOTE = "today, before the edit";
+const TODAY_EDIT = "today, edited offline";
 
 async function seedStore(
   uid: string,
@@ -151,20 +160,39 @@ async function outboxKeys(c: Container): Promise<string[]> {
   return (await (await c.driver()).getAll<OutboxEntry>("outbox")).map((e) => e.record.key);
 }
 
-/** Offline cold start: a stored session, the role lookup fails; the user logs today. */
+/**
+ * In the open log sheet: wait until the day's STORED record has loaded (its
+ * note shows), replace the note, save, and wait for the sheet to close — it
+ * closes only once the save has persisted, so a refused ("still loading") or
+ * failed save fails here instead of passing vacuously.
+ */
+async function editLoadedDayAndSave(loadedNote: string, newNote: string) {
+  const notes = (await screen.findByPlaceholderText(
+    "How are you feeling today?"
+  )) as HTMLTextAreaElement;
+  await waitFor(() => expect(notes.value).toBe(loadedNote));
+  fireEvent.change(notes, { target: { value: newNote } });
+  fireEvent.click(screen.getByRole("button", { name: /save log/i }));
+  await waitFor(() => expect(screen.queryByRole("dialog", { name: "Log your day" })).toBeNull());
+  expect(screen.queryByText(/still loading/i)).toBeNull();
+  await settle(50);
+}
+
+/** Offline cold start: a stored session, the role lookup fails; the user edits today. */
 async function offlineStartAndSaveToday(uid: string) {
-  await seedStore(uid);
+  await seedStore(uid, [
+    { date: "2026-06-01", flow: "heavy" },
+    { date: TODAY, flow: "light", notes: TODAY_NOTE },
+  ]);
   h.links[`partner_id=${uid}`] = "error";
   const c = renderApp();
   await settle();
   await emit("INITIAL_SESSION", uid);
   await settle(50);
   fireEvent.click(await screen.findByRole("button", { name: "Log today" }));
-  fireEvent.click(await screen.findByRole("button", { name: /save log/i }));
-  await waitFor(async () =>
-    expect((await c.getAllLogs()).map((l) => l.date)).toContain(toDateKey(new Date()))
-  );
-  await settle(50);
+  await editLoadedDayAndSave(TODAY_NOTE, TODAY_EDIT);
+  // The save really happened: the stored row carries the edit.
+  expect((await c.getLog(TODAY))?.notes).toBe(TODAY_EDIT);
   return c;
 }
 
@@ -255,11 +283,15 @@ describe("a store that has served a partner session (lastKnownRole=partner)", ()
     await emit("INITIAL_SESSION", uid);
     await settle(50);
 
-    // Open the owner's cached day from the calendar and save it.
+    // Open the owner's cached day from the calendar, wait for her row to load,
+    // edit it (keeping her note in the text) and save.
+    const edited = `${OWNER_NOTE} (edited offline)`;
     fireEvent.click(await screen.findByRole("tab", { name: /calendar/i }));
     fireEvent.click(await screen.findByRole("button", { name: "2" }));
-    fireEvent.click(await screen.findByRole("button", { name: /save log/i }));
-    await settle(80);
+    await editLoadedDayAndSave(OWNER_NOTE, edited);
+
+    // The edit WAS stored locally (not refused) — and nothing was queued.
+    expect((await c.getLog(cachedDate))?.notes).toBe(edited);
     expect(await outboxKeys(c)).toEqual([]);
 
     // The owner unlinks him; the next lookup answers "owner" and starts the engine.
