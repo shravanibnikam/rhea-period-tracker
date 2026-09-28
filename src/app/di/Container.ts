@@ -193,8 +193,10 @@ export class Container {
   async startOwnerSync(uid: string, client: SupabaseClient | null): Promise<SyncEngine> {
     // An owner engine implies owner-engine mode — keep the invariant even if the
     // app didn't call setOwnerSyncMode first, so writes always enqueue durably.
-    this.ownerSyncMode = true;
-    if (this.engine) return this.engine;
+    if (this.engine) {
+      this.ownerSyncMode = true;
+      return this.engine;
+    }
     const generation = this.syncGeneration;
     const driver = await this.driver();
     const engine = new SyncEngine({
@@ -204,9 +206,14 @@ export class Container {
       transport: client ? new SupabaseTransport(client) : new NullTransport(),
       driver,
     });
+    // An effect cleanup may stop sync while storage/seed awaits are in flight
+    // (role resolved to partner, sign-out, account switch). A cancelled startup
+    // must never seed — the local rows may be someone else's (P0-06) — never
+    // re-assert owner mode over its successor's, and never replace or start
+    // alongside it.
+    if (generation !== this.syncGeneration) return engine;
+    this.ownerSyncMode = true;
     await seedInitialOutbox(driver, engine.outbox); // one-time post-upgrade merge-up
-    // An effect cleanup may stop sync while storage/seed awaits are in flight.
-    // A cancelled startup must never replace or start alongside its successor.
     if (generation !== this.syncGeneration) return engine;
     this.engine = engine; // repository writes now enqueue atomically
     await engine.start();

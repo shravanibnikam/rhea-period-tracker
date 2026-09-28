@@ -75,3 +75,9 @@ export const META_DEVICE_ID = "deviceId";
 export const META_HLC_STATE = "hlcState";
 export const META_NEEDS_INITIAL_SEED = "needsInitialSeed";
 export const META_DB_SCHEMA_VERSION = "dbSchemaVersion";
+/**
+ * "partner" once this account's store has served a partner session (P0-06):
+ * its `logs` then hold another person's cached rows. Only "partner" is ever
+ * written, and it is never downgraded when the account later resolves as owner.
+ */
+export const META_LAST_KNOWN_ROLE = "lastKnownRole";

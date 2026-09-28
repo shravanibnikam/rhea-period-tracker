@@ -1,0 +1,299 @@
+// @vitest-environment jsdom
+/**
+ * useAuth role resolution fails CLOSED (P0-06).
+ *
+ * The role decides who may write: an owner pushes, a partner is read-only. The
+ * old detectRole defaulted to "owner" whenever the partner_links lookup failed —
+ * and PostgREST RETURNS errors (network, RLS, multi-row `.maybeSingle()`)
+ * instead of throwing, so an error read as "no link" → owner. On a partner or
+ * ex-partner device that grants write capability over the OWNER's cached rows.
+ * An unknown role must grant nothing: role null, sync read-only, no engine.
+ */
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { renderHook, act, waitFor, cleanup } from "@testing-library/react";
+import { createElement, type ReactNode } from "react";
+import { ContainerProvider } from "@/app/di/context";
+import type { Container } from "@/app/di/Container";
+
+type LinkRows = Array<Record<string, string>>;
+/** How the partner_links lookup for one filter behaves. */
+type LinkBehaviour = LinkRows | "error" | "throw" | "hang" | Promise<LinkRows>;
+interface LinkResult {
+  data: unknown;
+  error: { message: string; code?: string } | null;
+}
+
+const h = vi.hoisted(() => {
+  const state = {
+    authCb: null as ((event: string, session: unknown) => Promise<void>) | null,
+    /** Keyed "<column>=<value>" (per user) or "<column>" (any user). */
+    links: {} as Record<string, LinkBehaviour>,
+  };
+  const settle = (key: string, fallback: string, shape: (rows: LinkRows) => LinkResult) => {
+    const b = state.links[key] ?? state.links[fallback] ?? [];
+    if (b === "hang") return new Promise<LinkResult>(() => {});
+    if (b === "throw") return Promise.reject(new Error("network down"));
+    if (b === "error") {
+      // PostgREST resolves with an error; it does not throw.
+      return Promise.resolve<LinkResult>({
+        data: null,
+        error: { message: "permission denied", code: "42501" },
+      });
+    }
+    return Promise.resolve(b).then(shape);
+  };
+  const query = (column: string, value: string) => ({
+    // Emulates postgrest-js: >1 row is a RETURNED error (PGRST116), not a throw.
+    maybeSingle: () =>
+      settle(`${column}=${value}`, column, (rows) =>
+        rows.length > 1
+          ? { data: null, error: { code: "PGRST116", message: "multiple (or no) rows returned" } }
+          : { data: rows[0] ?? null, error: null }
+      ),
+    limit: (n: number) =>
+      settle(`${column}=${value}`, column, (rows) => ({ data: rows.slice(0, n), error: null })),
+  });
+  return { state, query };
+});
+
+vi.mock("@/app/lib/supabase", () => ({
+  isSupabaseConfigured: () => true,
+  supabase: {
+    auth: {
+      onAuthStateChange: (cb: (event: string, session: unknown) => Promise<void>) => {
+        h.state.authCb = cb;
+        return { data: { subscription: { unsubscribe: () => {} } } };
+      },
+      signOut: () => Promise.resolve({ error: null }),
+    },
+    from: (_table: string) => ({
+      select: (_cols: string) => ({
+        eq: (column: string, value: string) => h.query(column, value),
+      }),
+    }),
+  },
+}));
+
+import { useAuth } from "@/app/hooks/useAuth";
+import { isOwnerEngineSync } from "@/app/lib/flags";
+import { isSyncReadOnly, setSyncReadOnly } from "@/app/lib/sync";
+
+function fakeContainer() {
+  return {
+    setAccount: vi.fn(),
+    setMeta: vi.fn((_key: string, _value: unknown) => Promise.resolve()),
+    wipeLocalData: vi.fn(() => Promise.resolve()),
+  };
+}
+type FakeContainer = ReturnType<typeof fakeContainer>;
+
+let fake: FakeContainer;
+
+function renderAuth() {
+  const value = fake as unknown as Container;
+  const wrapper = ({ children }: { children: ReactNode }) =>
+    createElement(ContainerProvider, { value }, children);
+  return renderHook(() => useAuth(), { wrapper });
+}
+
+function emitAuth(uid: string | null): Promise<void> {
+  const cb = h.state.authCb;
+  if (!cb) throw new Error("useAuth did not subscribe to auth state");
+  return cb(uid ? "SIGNED_IN" : "SIGNED_OUT", uid ? { user: { id: uid } } : null);
+}
+
+/** Sign in and wait for detectRole to finish. */
+async function signIn(uid: string) {
+  await act(async () => {
+    await emitAuth(uid);
+  });
+}
+
+/** Sign in WITHOUT waiting — the role lookup stays in flight. */
+function beginSignIn(uid: string): Promise<void> {
+  let pending: Promise<void> = Promise.resolve();
+  act(() => {
+    pending = emitAuth(uid);
+  });
+  return pending;
+}
+
+/** What the session is allowed to do, in one comparable object. */
+function capability(role: "owner" | "partner" | null) {
+  return {
+    role,
+    ownerEngine: isOwnerEngineSync(true, role),
+    readOnly: isSyncReadOnly(),
+  };
+}
+
+const CLOSED = { role: null, ownerEngine: false, readOnly: true };
+
+beforeEach(() => {
+  h.state.links = {};
+  h.state.authCb = null;
+  fake = fakeContainer();
+  // The legacy write guard's module default: writes allowed. A fail-open
+  // detectRole leaves it there.
+  setSyncReadOnly(false);
+});
+afterEach(cleanup);
+
+describe("detectRole fails closed", () => {
+  it("a THROWN partner lookup yields role null and no write capability", async () => {
+    h.state.links.partner_id = "throw";
+    const { result } = renderAuth();
+    await signIn("u1");
+
+    expect(result.current.loading).toBe(false);
+    expect(capability(result.current.role)).toEqual(CLOSED);
+    expect(result.current.linkedOwnerId).toBeNull();
+    expect(result.current.hasPartnerLinked).toBe(false);
+  });
+
+  it("a RETURNED partner-lookup error (PostgREST does not throw) yields role null and no write capability", async () => {
+    h.state.links.partner_id = "error";
+    const { result } = renderAuth();
+    await signIn("u1");
+
+    expect(result.current.loading).toBe(false);
+    expect(capability(result.current.role)).toEqual(CLOSED);
+    expect(result.current.linkedOwnerId).toBeNull();
+    expect(result.current.hasPartnerLinked).toBe(false);
+  });
+
+  it("a returned error on the owner lookup also fails closed", async () => {
+    h.state.links.partner_id = [];
+    h.state.links.owner_id = "error";
+    const { result } = renderAuth();
+    await signIn("u1");
+
+    expect(capability(result.current.role)).toEqual(CLOSED);
+    expect(result.current.hasPartnerLinked).toBe(false);
+  });
+
+  it("grants no write capability while the lookup is still in flight", () => {
+    h.state.links.partner_id = "hang";
+    const { result } = renderAuth();
+    void beginSignIn("u1");
+
+    expect(result.current.user?.id).toBe("u1");
+    expect(result.current.loading).toBe(true);
+    expect(capability(result.current.role)).toEqual(CLOSED);
+  });
+
+  it("a new account never inherits the previous account's resolved role", async () => {
+    const { result } = renderAuth();
+    await signIn("owner-a"); // no links → owner
+    expect(result.current.role).toBe("owner");
+
+    h.state.links["partner_id=partner-b"] = "hang";
+    void beginSignIn("partner-b");
+
+    expect(result.current.user?.id).toBe("partner-b");
+    expect(capability(result.current.role)).toEqual(CLOSED);
+  });
+
+  it("a stale lookup for a previous account cannot overwrite the current account's role", async () => {
+    let releaseA!: (rows: LinkRows) => void;
+    h.state.links["partner_id=user-a"] = new Promise<LinkRows>((resolve) => {
+      releaseA = resolve;
+    });
+    h.state.links["partner_id=user-b"] = [{ owner_id: "owner-9" }];
+    const { result } = renderAuth();
+
+    const staleA = beginSignIn("user-a"); // lookup for A stays in flight
+    await signIn("user-b"); // B resolves as a partner
+    expect(result.current.role).toBe("partner");
+
+    // A's lookup now resolves as "no link" (→ owner) — but A is no longer here.
+    await act(async () => {
+      releaseA([]);
+      await staleA;
+    });
+
+    expect(result.current.user?.id).toBe("user-b");
+    expect(result.current.role).toBe("partner");
+    expect(result.current.linkedOwnerId).toBe("owner-9");
+    expect(isSyncReadOnly()).toBe(true);
+  });
+});
+
+describe("resolved roles", () => {
+  it("an owner (no links) gets owner capability — the gate is not over-closed", async () => {
+    const { result } = renderAuth();
+    await signIn("u1");
+
+    expect(capability(result.current.role)).toEqual({
+      role: "owner",
+      ownerEngine: true,
+      readOnly: false,
+    });
+    expect(result.current.hasPartnerLinked).toBe(false);
+  });
+
+  it("a single partner link → read-only partner of that owner, and lastKnownRole=partner is persisted", async () => {
+    h.state.links.partner_id = [{ owner_id: "owner-1" }];
+    const { result } = renderAuth();
+    await signIn("u1");
+
+    expect(capability(result.current.role)).toEqual({
+      role: "partner",
+      ownerEngine: false,
+      readOnly: true,
+    });
+    expect(result.current.linkedOwnerId).toBe("owner-1");
+    await waitFor(() => expect(fake.setMeta).toHaveBeenCalledWith("lastKnownRole", "partner"));
+  });
+
+  it("a failed lastKnownRole write grants nothing: still a read-only partner", async () => {
+    fake.setMeta.mockRejectedValue(new Error("quota exceeded"));
+    h.state.links.partner_id = [{ owner_id: "owner-1" }];
+    const { result } = renderAuth();
+    await signIn("u1");
+    await waitFor(() => expect(fake.setMeta).toHaveBeenCalled());
+
+    expect(capability(result.current.role)).toEqual({
+      role: "partner",
+      ownerEngine: false,
+      readOnly: true,
+    });
+  });
+});
+
+describe("multi-link row sets (.limit(2), N11)", () => {
+  it("an owner with TWO partner links reports hasPartnerLinked (Unlink stays reachable)", async () => {
+    h.state.links.partner_id = [];
+    h.state.links.owner_id = [{ partner_id: "p1" }, { partner_id: "p2" }];
+    const { result } = renderAuth();
+    await signIn("owner-1");
+
+    expect(result.current.role).toBe("owner");
+    expect(result.current.hasPartnerLinked).toBe(true);
+  });
+
+  it("a partner linked to TWO owners is never owner: read-only partner, no owner auto-selected", async () => {
+    h.state.links.partner_id = [{ owner_id: "o1" }, { owner_id: "o2" }];
+    const { result } = renderAuth();
+    await signIn("u1");
+
+    expect(capability(result.current.role)).toEqual({
+      role: "partner",
+      ownerEngine: false,
+      readOnly: true,
+    });
+    expect(result.current.linkedOwnerId).toBeNull();
+  });
+
+  it("a multi-linked partner still gets the partner sign-out wipe", async () => {
+    h.state.links.partner_id = [{ owner_id: "o1" }, { owner_id: "o2" }];
+    const { result } = renderAuth();
+    await signIn("u1");
+
+    await act(async () => {
+      await result.current.signOut();
+    });
+
+    expect(fake.wipeLocalData).toHaveBeenCalledTimes(1);
+  });
+});

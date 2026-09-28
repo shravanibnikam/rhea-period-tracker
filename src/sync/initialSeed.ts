@@ -10,12 +10,21 @@ import type { StorageDriver } from "@/data/drivers/StorageDriver";
 import type { DailyLog } from "@/domain/types";
 import type { SyncedRow } from "@/data/envelope";
 import { logKey, sealPlain } from "@/data/envelope";
-import { META_NEEDS_INITIAL_SEED } from "@/data/schema";
+import { META_NEEDS_INITIAL_SEED, META_LAST_KNOWN_ROLE } from "@/data/schema";
 import type { Outbox } from "./outbox";
 
 export async function seedInitialOutbox(driver: StorageDriver, outbox: Outbox): Promise<number> {
   const needsSeed = await driver.get<boolean>("meta", META_NEEDS_INITIAL_SEED);
   if (!needsSeed) return 0;
+
+  // A store that has served a partner session holds the OWNER's cached rows,
+  // indistinguishable from this account's own (the legacy pull stamped them with
+  // this device's id). Never upload them under this account — e.g. an
+  // ex-partner who now resolves as owner. Retire the seed without enqueuing.
+  if ((await driver.get<string>("meta", META_LAST_KNOWN_ROLE)) === "partner") {
+    await driver.put("meta", false, META_NEEDS_INITIAL_SEED);
+    return 0;
+  }
 
   const rows = await driver.getAll<SyncedRow<DailyLog>>("logs");
   for (const row of rows) {

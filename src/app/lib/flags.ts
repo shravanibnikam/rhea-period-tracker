@@ -15,18 +15,25 @@ export const flags = {
 };
 
 /**
- * The CONFIGURED sync mode for a session: true when an authenticated, non-partner
- * account should run the owner SyncEngine (durable outbox) rather than the legacy
- * direct-push path. Derived from auth + feature flag + role ONLY — deliberately
- * NOT from whether the engine instance has finished starting. Using the transient
- * `isSyncEngineActive()` here would let a write during the startup gap both enqueue
- * AND legacy-push (double delivery), and would leave lifecycle gaps able to lose a
- * mutation. Role may be null/undefined mid-resolution → treat as owner (safe: the
- * durable outbox drains once the engine starts; partners never write logs).
+ * The CONFIGURED sync mode for a session: true only for an authenticated account
+ * whose role has been POSITIVELY resolved as "owner" (with the engine flag on),
+ * which then runs the owner SyncEngine (durable outbox) instead of the legacy
+ * direct-push path.
+ *
+ * Fails closed (P0-06): a null/undefined role — still resolving, or the lookup
+ * failed — is NOT owner. It gets no outbox and no engine, because the local
+ * store may hold someone else's rows (a partner's cache of the owner's logs).
+ * Writes made while the role is unresolved stay local and are not queued.
+ *
+ * Derived from auth + feature flag + role ONLY — deliberately NOT from whether
+ * the engine instance has finished starting. Using the transient
+ * `isSyncEngineActive()` here would let a write during the startup gap both
+ * enqueue AND legacy-push (double delivery), and would leave lifecycle gaps able
+ * to lose a mutation.
  */
 export function isOwnerEngineSync(
   authed: boolean,
   role: string | null | undefined
 ): boolean {
-  return authed && flags.syncEngine && role !== "partner";
+  return authed && flags.syncEngine && role === "owner";
 }

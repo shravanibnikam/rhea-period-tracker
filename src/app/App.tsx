@@ -67,10 +67,12 @@ export default function App() {
       async (saved: DailyLog[]) => {
         // In owner-engine mode saveLog already enqueued the write to the durable
         // outbox; the engine delivers it (possibly after it finishes starting).
-        // Only the legacy path needs an explicit push. Decide on the CONFIGURED
-        // mode, NOT on whether the engine instance exists yet — otherwise a save
-        // during the startup gap would BOTH enqueue and legacy-push (double send).
-        if (auth.user && !isOwnerEngineSync(true, auth.role)) {
+        // Only a resolved OWNER on the legacy path pushes explicitly. Decide on
+        // the CONFIGURED mode, NOT on whether the engine instance exists yet —
+        // otherwise a save during the startup gap would BOTH enqueue and
+        // legacy-push (double send). A partner or an unresolved role (P0-06:
+        // fail closed) never pushes; such saves stay local and unqueued.
+        if (auth.user && auth.role === "owner" && !isOwnerEngineSync(true, auth.role)) {
           for (const l of saved) await pushLog(auth.user.id, l);
         }
         refresh();
@@ -90,13 +92,18 @@ export default function App() {
 
   // ── Sync ──
   useEffect(() => {
-    // Set the CONFIGURED sync mode first (covers unauthenticated/local too, so
-    // local-only writes never accrue undrainable outbox intents). This is what
+    // Fail closed (P0-06): no sync of any kind — owner engine, outbox, legacy
+    // pull/subscribe — until the role is POSITIVELY resolved. Until then the
+    // local store may hold someone else's rows (a partner's cache of the owner).
+    const roleResolved = !auth.loading && auth.role !== null;
+
+    // Set the CONFIGURED sync mode first (covers unauthenticated/local and
+    // unresolved too, so those writes never accrue outbox intents). This is what
     // gates the durable outbox — independent of engine start state.
-    const ownerEngine = isOwnerEngineSync(!!auth.user, auth.role);
+    const ownerEngine = roleResolved && isOwnerEngineSync(!!auth.user, auth.role);
     container.setOwnerSyncMode(ownerEngine);
 
-    if (!auth.user) return;
+    if (!auth.user || !roleResolved) return;
 
     // Owner path (M1.9): the SyncEngine owns push/pull/realtime — outbox,
     // HLC merge, tombstones. Partners stay on the legacy read-only pull until
@@ -123,8 +130,11 @@ export default function App() {
       };
     }
 
-    // Legacy path (partner, or engine flag off).
-    const ownerId = auth.linkedOwnerId ?? auth.user.id;
+    // Legacy path (partner, or engine flag off). A partner reads ONLY its linked
+    // owner — never its own id; a multi-link partner (no owner selected) syncs
+    // nothing.
+    const ownerId = auth.role === "owner" ? auth.user.id : auth.linkedOwnerId;
+    if (!ownerId) return;
     initialSync(ownerId).then(() => refresh()).catch(console.error);
 
     const channel = subscribeToLogs(ownerId, refresh);
@@ -134,7 +144,7 @@ export default function App() {
       unsubscribe(channelRef.current);
       channelRef.current = null;
     };
-  }, [auth.user, auth.role, auth.linkedOwnerId, refresh, container]);
+  }, [auth.user, auth.loading, auth.role, auth.linkedOwnerId, refresh, container]);
 
   // Partner should always see partner view
   useEffect(() => {

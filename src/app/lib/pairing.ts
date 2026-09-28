@@ -48,31 +48,50 @@ export async function redeemInviteCode(code: string): Promise<string | null> {
 
 // ─── Check if the current user has a partner linked ──────────────────────────
 
-export async function getPartnerLink(
-  userId: string
-): Promise<{ ownerId: string; partnerId: string } | null> {
+/**
+ * A partner link as seen from `userId`. The counterpart is null when several
+ * links make it ambiguous (multi-link, N11) — none is auto-selected.
+ */
+export interface PartnerLink {
+  ownerId: string | null;
+  partnerId: string | null;
+}
+
+/**
+ * `.limit(2)`, not `.maybeSingle()`: with several links `.maybeSingle()` RETURNS
+ * an error (it does not throw), which used to read as "no link" and hid Unlink.
+ * Any returned error REJECTS instead: an unknown link state is never reported as
+ * "no link" (which would offer a second invite to an already-linked owner).
+ */
+export async function getPartnerLink(userId: string): Promise<PartnerLink | null> {
   if (!supabase) return null;
 
-  // Check if user is an owner with a partner
-  const { data: asOwner } = await supabase
+  // Check if user is an owner with a partner (any row → linked, so Unlink renders)
+  const asOwner = await supabase
     .from("partner_links")
     .select("partner_id")
     .eq("owner_id", userId)
-    .maybeSingle();
-
-  if (asOwner) {
-    return { ownerId: userId, partnerId: asOwner.partner_id };
+    .limit(2);
+  if (asOwner.error || !asOwner.data) {
+    throw asOwner.error ?? new Error("owner link lookup returned no rows array");
+  }
+  if (asOwner.data.length > 0) {
+    const partnerId = asOwner.data.length === 1 ? asOwner.data[0].partner_id : null;
+    return { ownerId: userId, partnerId };
   }
 
-  // Check if user is a partner linked to an owner
-  const { data: asPartner } = await supabase
+  // Check if user is a partner linked to an owner (several → still a partner)
+  const asPartner = await supabase
     .from("partner_links")
     .select("owner_id")
     .eq("partner_id", userId)
-    .maybeSingle();
-
-  if (asPartner) {
-    return { ownerId: asPartner.owner_id, partnerId: userId };
+    .limit(2);
+  if (asPartner.error || !asPartner.data) {
+    throw asPartner.error ?? new Error("partner link lookup returned no rows array");
+  }
+  if (asPartner.data.length > 0) {
+    const ownerId = asPartner.data.length === 1 ? asPartner.data[0].owner_id : null;
+    return { ownerId, partnerId: userId };
   }
 
   return null;

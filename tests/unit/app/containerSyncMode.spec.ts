@@ -48,8 +48,10 @@ describe("isOwnerEngineSync — flag/role decision (not engine-instance)", () =>
     expect(isOwnerEngineSync(true, "owner")).toBe(true));
   it("authenticated partner → legacy", () =>
     expect(isOwnerEngineSync(true, "partner")).toBe(false));
-  it("owner whose role is still resolving (null) → owner-engine (no legacy double-push in the gap)", () =>
-    expect(isOwnerEngineSync(true, null)).toBe(true));
+  it("role still resolving or failed (null/undefined) → NOT owner-engine (fail closed, P0-06)", () => {
+    expect(isOwnerEngineSync(true, null)).toBe(false);
+    expect(isOwnerEngineSync(true, undefined)).toBe(false);
+  });
   it("unauthenticated → local (no queue accrual)", () =>
     expect(isOwnerEngineSync(false, "owner")).toBe(false));
 });

@@ -1,10 +1,53 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { supabase, isSupabaseConfigured } from "@/app/lib/supabase";
 import { setSyncReadOnly } from "@/app/lib/sync";
 import { useContainer } from "@/app/di";
-import type { User, Session } from "@supabase/supabase-js";
+import { META_LAST_KNOWN_ROLE } from "@/data/schema";
+import type { User, Session, SupabaseClient } from "@supabase/supabase-js";
 
 export type UserRole = "owner" | "partner" | null;
+
+interface ResolvedRole {
+  role: "owner" | "partner";
+  linkedOwnerId: string | null;
+  hasPartnerLinked: boolean;
+}
+
+/**
+ * Look up the account's role in `partner_links`. THROWS on any failure —
+ * including the errors PostgREST RETURNS rather than throws — so the caller can
+ * fail closed. `.limit(2)`, not `.maybeSingle()`: a multi-link row set is a
+ * detectable state, not an error that used to read as "no link" → owner (N11).
+ */
+async function lookupRole(client: SupabaseClient, userId: string): Promise<ResolvedRole> {
+  const asPartner = await client
+    .from("partner_links")
+    .select("owner_id")
+    .eq("partner_id", userId)
+    .limit(2);
+  if (asPartner.error || !asPartner.data) {
+    throw asPartner.error ?? new Error("partner lookup returned no rows array");
+  }
+  if (asPartner.data.length > 0) {
+    // One link → that owner. Several → still a read-only partner (NEVER owner),
+    // but the owner is ambiguous, so none is selected.
+    return {
+      role: "partner",
+      linkedOwnerId: asPartner.data.length === 1 ? asPartner.data[0].owner_id : null,
+      hasPartnerLinked: false,
+    };
+  }
+
+  const asOwner = await client
+    .from("partner_links")
+    .select("partner_id")
+    .eq("owner_id", userId)
+    .limit(2);
+  if (asOwner.error || !asOwner.data) {
+    throw asOwner.error ?? new Error("owner lookup returned no rows array");
+  }
+  return { role: "owner", linkedOwnerId: null, hasPartnerLinked: asOwner.data.length > 0 };
+}
 
 interface UseAuthReturn {
   user: User | null;
@@ -30,46 +73,60 @@ export function useAuth(): UseAuthReturn {
   const [loading, setLoading] = useState(true);
   const configured = isSupabaseConfigured();
 
-  const detectRole = useCallback(async (userId: string) => {
-    if (!supabase) return;
+  // Role state belongs to exactly one account and one lookup: a newer lookup,
+  // an account switch or a sign-out supersedes any lookup still in flight.
+  const roleUid = useRef<string | null>(null);
+  const lookupSeq = useRef(0);
 
-    try {
-      // Check if user is a partner (linked to an owner)
-      const { data: asPartner } = await supabase
-        .from("partner_links")
-        .select("owner_id")
-        .eq("partner_id", userId)
-        .maybeSingle();
+  /** No role, no link, no write capability (signed out, or role unknown). */
+  const clearRole = useCallback(() => {
+    lookupSeq.current++;
+    roleUid.current = null;
+    setRole(null);
+    setLinkedOwnerId(null);
+    setHasPartnerLinked(false);
+    setSyncReadOnly(true);
+  }, []);
 
-      if (asPartner) {
-        setRole("partner");
-        setLinkedOwnerId(asPartner.owner_id);
-        setHasPartnerLinked(false);
-        setSyncReadOnly(true); // a partner never pushes owner data
+  const detectRole = useCallback(
+    async (userId: string) => {
+      // Fail closed from the first moment: no write capability while the role
+      // is unknown, and another account's role never stands in for this one.
+      if (roleUid.current !== userId) clearRole();
+      setSyncReadOnly(true);
+      roleUid.current = userId;
+      const seq = ++lookupSeq.current;
+
+      let resolved: ResolvedRole | null = null;
+      try {
+        if (supabase) resolved = await lookupRole(supabase, userId);
+      } catch (err) {
+        console.error("Failed to detect role:", err);
+      }
+      if (seq !== lookupSeq.current) return; // superseded: this answer is stale
+
+      if (!resolved) {
+        // Fail CLOSED: an unknown role grants nothing — no owner engine, no
+        // outbox, no legacy push. The app stays usable locally.
+        clearRole();
         return;
       }
 
-      // User is an owner — check if they have a partner linked
-      setRole("owner");
-      setLinkedOwnerId(null);
-      setSyncReadOnly(false);
-
-      const { data: asOwner } = await supabase
-        .from("partner_links")
-        .select("partner_id")
-        .eq("owner_id", userId)
-        .maybeSingle();
-
-      setHasPartnerLinked(asOwner !== null);
-    } catch (err) {
-      console.error("Failed to detect role:", err);
-      // Default to owner so the app doesn't hang
-      setRole("owner");
-      setLinkedOwnerId(null);
-      setHasPartnerLinked(false);
-      setSyncReadOnly(false);
-    }
-  }, []);
+      setRole(resolved.role);
+      setLinkedOwnerId(resolved.linkedOwnerId);
+      setHasPartnerLinked(resolved.hasPartnerLinked);
+      if (resolved.role === "owner") {
+        setSyncReadOnly(false);
+      } else {
+        // A partner never pushes owner data (sync stays read-only). Mark this
+        // store as holding someone else's rows so the one-time seed can never
+        // upload them if the account later resolves as owner. Best effort: a
+        // failed write grants nothing.
+        void container.setMeta(META_LAST_KNOWN_ROLE, "partner").catch(() => {});
+      }
+    },
+    [clearRole, container]
+  );
 
   useEffect(() => {
     if (!supabase) {
@@ -91,9 +148,7 @@ export function useAuth(): UseAuthReturn {
       if (s?.user) {
         await detectRole(s.user.id).catch(() => {});
       } else {
-        setRole(null);
-        setLinkedOwnerId(null);
-        setHasPartnerLinked(false);
+        clearRole();
       }
 
       // Always resolve loading regardless of outcome
@@ -115,7 +170,7 @@ export function useAuth(): UseAuthReturn {
       subscription.unsubscribe();
       clearTimeout(timeout);
     };
-  }, [detectRole, container]);
+  }, [detectRole, clearRole, container]);
 
   const signUp = useCallback(
     async (email: string, password: string): Promise<string | null> => {
@@ -148,10 +203,8 @@ export function useAuth(): UseAuthReturn {
     await supabase.auth.signOut();
     setUser(null);
     setSession(null);
-    setRole(null);
-    setLinkedOwnerId(null);
-    setHasPartnerLinked(false);
-  }, [role, container]);
+    clearRole();
+  }, [role, container, clearRole]);
 
   const refreshRole = useCallback(async () => {
     if (user) await detectRole(user.id);
