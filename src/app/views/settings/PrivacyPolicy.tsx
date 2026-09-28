@@ -49,9 +49,13 @@ export function PrivacyPolicy({ onClose }: PrivacyPolicyProps) {
                 <strong>On our server (Supabase):</strong> When you sign in,
                 your daily logs (including notes) sync to a Postgres database so
                 your devices stay in sync and a linked partner can use the
-                partner view. Your sharing settings, quiet windows, and sharing
-                activity log are stored there too, along with your email and a
-                hashed password for authentication.
+                partner view. Each synced entry also records which device last
+                changed it and when; deleting a day&apos;s log leaves a deletion
+                marker for that date. The server also holds your email and a
+                hashed password, which partner account you are linked to, invite
+                codes you create (stored hashed), your sharing settings, quiet
+                windows, and sharing activity log. Shared notes sent with earlier
+                versions of Rhea, if any, also remain there.
               </li>
             </ul>
           </section>
@@ -105,9 +109,11 @@ export function PrivacyPolicy({ onClose }: PrivacyPolicyProps) {
               </li>
               <li>
                 <strong>Delete:</strong> &ldquo;Erase all data&rdquo; in Settings
-                deletes everything Rhea stores on this device. It does not delete
-                data already synced to your account: that stays on the server
-                and comes back the next time you sign in or sync.
+                deletes your logs, settings, and cycle history from this device.
+                It does not sign you out, and it does not delete data already
+                synced to your account: that stays on the server and downloads
+                again the next time the app syncs, which happens automatically
+                while you are signed in.
               </li>
               <li>
                 <strong>Portability:</strong> Your exported data is structured

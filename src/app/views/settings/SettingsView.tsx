@@ -344,9 +344,9 @@ export function SettingsView({
                       </p>
                       <p className="text-xs text-muted-foreground mt-1">
                         This deletes all your logs, settings, and cycle history
-                        on this device. Data already synced to your account is
-                        not deleted: it stays on the server and comes back the
-                        next time you sign in or sync.
+                        on this device. It does not sign you out or delete data
+                        already synced to your account: that stays on the server
+                        and downloads again the next time the app syncs.
                       </p>
                     </div>
                   </div>
@@ -361,7 +361,7 @@ export function SettingsView({
                       onClick={handleErase}
                       className="flex-1 py-2 rounded-xl text-sm font-medium bg-destructive text-destructive-foreground hover:opacity-90 transition-opacity"
                     >
-                      Erase Everything
+                      Erase this device
                     </button>
                   </div>
                 </div>

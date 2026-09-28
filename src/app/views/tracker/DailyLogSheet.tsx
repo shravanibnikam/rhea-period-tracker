@@ -242,7 +242,7 @@ export function DailyLogSheet({
           {/* Notes */}
           <div>
             <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-3">
-              Notes <span className="font-normal opacity-60">(synced in plaintext when signed in; readable by a linked partner&apos;s account)</span>
+              Notes <span className="font-normal opacity-60">(not end-to-end encrypted; a linked partner&apos;s account can read it)</span>
             </p>
             <textarea
               value={log.notes}
