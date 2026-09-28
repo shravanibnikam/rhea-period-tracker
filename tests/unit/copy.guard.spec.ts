@@ -24,21 +24,27 @@ interface Forbidden {
   until: string;
 }
 
+/**
+ * Negative lookbehind: the claim is allowed when "not", "n't", "never" or
+ * "until" appears up to 20 characters earlier in the same sentence ("not yet
+ * end-to-end encrypted", "isn't encrypted end-to-end", "until ... end-to-end
+ * encrypted ... ships"). Anything else (including "No setup — end-to-end
+ * encrypted") is treated as affirmative.
+ */
+const NOT_NEGATED = String.raw`(?<!(?:\bnot|n't|\bnever|\buntil)\b[^.!?]{0,20})`;
+const affirmative = (core: string): RegExp => new RegExp(`${NOT_NEGATED}${core}`, "i");
+
 const FORBIDDEN: Forbidden[] = [
   { id: "is-e2ee", pattern: /\b(is|are)\s+end-to-end\s+encrypted\b/i, until: "Phase 2 E2EE (M2.4)" },
   { id: "zero-knowledge", pattern: /zero-knowledge/i, until: "Phase 2 E2EE (M2.4)" },
-  { id: "wipes-their-copy", pattern: /wipes\s+their\s+(synced\s+)?copy/i, until: "partner projection + purge (M2.9/M2.13)" },
+  { id: "wipes-their-copy", pattern: /wipes\s+(their|the\s+partner's)\s+(synced\s+)?copy/i, until: "partner projection + purge (M2.9/M2.13)" },
   { id: "encrypted-and-synced", pattern: /data is encrypted and synced securely/i, until: "Phase 2 E2EE (M2.4)" },
-  // Affirmative "end-to-end encrypted" in any grammatical frame the (is|are)
-  // anchor misses ("travels end-to-end encrypted", "stays end-to-end
-  // encrypted"). A negation or planned-future word up to 20 characters earlier
-  // in the same sentence ("not yet", "isn't", "never", "without", "until",
-  // "once", "before") keeps negative/planned phrasing legal.
-  {
-    id: "affirmative-e2ee",
-    pattern: /(?<!(?:\bnot|n't|\bnever|\bno|\bwithout|\buntil|\bonce|\bbefore)\b[^.!?]{0,20})\bend-to-end[\s-]+encrypted\b/i,
-    until: "Phase 2 E2EE (M2.4)",
-  },
+  // Affirmative end-to-end claims in the frames the (is|are) anchor misses
+  // ("travels end-to-end encrypted", "encrypted end-to-end", "with end-to-end
+  // encryption"); negated/planned phrasing stays legal (see NOT_NEGATED).
+  { id: "affirmative-e2ee", pattern: affirmative(String.raw`\bend-to-end[\s-]+encrypted\b`), until: "Phase 2 E2EE (M2.4)" },
+  { id: "encrypted-end-to-end", pattern: affirmative(String.raw`\bencrypted\s+end-to-end\b`), until: "Phase 2 E2EE (M2.4)" },
+  { id: "with-e2ee", pattern: affirmative(String.raw`\b(?:with|by|uses?|using)\s+end-to-end\s+encryption\b`), until: "Phase 2 E2EE (M2.4)" },
   // Notes are in the partner's RLS grant (0001_baseline.sql "partner read linked logs").
   { id: "never-shared-regardless", pattern: /never\s+shared\s+regardless/i, until: "server-side partner projection (SEC-01)" },
   // Broader form of the same claim (e.g. the daily-log "Notes (private, never
@@ -51,6 +57,7 @@ const FORBIDDEN: Forbidden[] = [
   // outstanding invite codes stay valid (N12).
   { id: "immediately-revokes", pattern: /immediately\s+revokes/i, until: "partner purge on unpair + invite invalidation (M2.13, N12)" },
   { id: "revoke-is-immediate", pattern: /revok\w*\s+(partner\s+)?access\s+is\s+immediate/i, until: "partner purge on unpair + invite invalidation (M2.13, N12)" },
+  { id: "revocation-is-immediate", pattern: /revocation\s+is\s+immediate/i, until: "partner purge on unpair + invite invalidation (M2.13, N12)" },
   { id: "stops-all-future-sharing", pattern: /stops\s+all\s+future\s+sharing/i, until: "invite invalidation on unpair (N12)" },
   // No UI path switches role in either direction (N9).
   { id: "change-role-later", pattern: /\bchange\s+(this|it|your\s+role)\s+later\b/i, until: "a real role-switch flow (N9)" },
@@ -60,6 +67,7 @@ const FORBIDDEN: Forbidden[] = [
   { id: "control-exactly", pattern: /control\s+exactly\s+what\s+your\s+partner/i, until: "server-side partner projection (SEC-01)" },
   // The hosted build requires sign-in and syncs logs to the server.
   { id: "no-account-required", pattern: /no\s+account\s+required/i, until: "a local-only mode in the hosted build" },
+  { id: "optional-sync", pattern: /\boptional\s+(account\s+)?sync\b/i, until: "a local-only mode in the hosted build" },
 ];
 
 /** A document opts out of the scan with this exact line near its top. */
@@ -144,13 +152,20 @@ function walk(dir: string): string[] {
 const ROOT = process.cwd();
 const read = (p: string): Doc => ({ path: relative(ROOT, p), text: readFileSync(p, "utf8") });
 
-const SRC: Doc[] = walk(join(ROOT, "src"))
-  .filter((f) => /\.(ts|tsx)$/.test(f))
-  .map(read);
+// Shipped copy outside src/: the page description and the PWA manifest.
+const SHIPPED_STATIC = [join(ROOT, "index.html"), join(ROOT, "public", "manifest.json")];
+
+const SRC: Doc[] = [...walk(join(ROOT, "src")).filter((f) => /\.(ts|tsx)$/.test(f)), ...SHIPPED_STATIC].map(read);
 
 const DOCS: Doc[] = [join(ROOT, "README.md"), ...walk(join(ROOT, "docs")).filter((f) => f.endsWith(".md"))].map(read);
 
-describe("no not-yet-true privacy claims in UI copy (src/**)", () => {
+describe("no not-yet-true privacy claims in shipped copy (src/**, index.html, manifest)", () => {
+  it("includes the static shipped files", () => {
+    const paths = SRC.map((d) => d.path);
+    expect(paths).toContain("index.html");
+    expect(paths).toContain(join("public", "manifest.json"));
+  });
+
   for (const rule of FORBIDDEN) {
     it(`does not claim ${rule.pattern} (allowed once: ${rule.until})`, () => {
       // src has no exemption and no allow-marker: every match is a violation.
@@ -245,9 +260,33 @@ describe("copy guard mechanism (self-test)", () => {
     ]) {
       expect(violationsIn(ok, e2ee)).toEqual([]);
     }
-    for (const bad of [CLAIM, "Everything stays end-to-end encrypted.", "Logs are stored end-to-end-encrypted."]) {
+    for (const bad of [
+      CLAIM,
+      "Everything stays end-to-end encrypted.",
+      "Logs are stored end-to-end-encrypted.",
+      "No setup — end-to-end encrypted.",
+      "Once paired, notes are sent end-to-end encrypted.",
+    ]) {
       expect(violationsIn(bad, e2ee)).toHaveLength(1);
     }
+  });
+
+  it("applies the same negation rule to 'encrypted end-to-end' and 'with end-to-end encryption'", () => {
+    const reversed = rule("encrypted-end-to-end");
+    const withE2ee = rule("with-e2ee");
+    expect(violationsIn("Notes are encrypted end-to-end.", reversed)).toHaveLength(1);
+    expect(violationsIn("Notes aren't encrypted end-to-end yet.", reversed)).toEqual([]);
+    expect(violationsIn("Protected with end-to-end encryption.", withE2ee)).toHaveLength(1);
+    expect(violationsIn("Rhea uses end-to-end encryption.", withE2ee)).toHaveLength(1);
+    expect(violationsIn("Not yet protected by end-to-end encryption.", withE2ee)).toEqual([]);
+    expect(violationsIn("End-to-end encryption is planned.", withE2ee)).toEqual([]);
+  });
+
+  it("catches the partner-copy and revocation claims", () => {
+    const text = "Revocation is immediate and wipes the partner's synced copy.";
+    expect(violationsIn(text, rule("revocation-is-immediate"))).toHaveLength(1);
+    expect(violationsIn(text, rule("wipes-their-copy"))).toHaveLength(1);
+    expect(violationsIn("Unpair wipes their copy.", rule("wipes-their-copy"))).toHaveLength(1);
   });
 
   it("checks toggle counts written as digits or words", () => {
