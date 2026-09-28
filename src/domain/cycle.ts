@@ -2,21 +2,25 @@
 // kernel/domain only; no I/O, no framework. Moved verbatim from lib/cycle.ts
 // (M1.2 / RHEA-024); logic unchanged, verified by the characterization suite.
 import type { DailyLog, FlowLevel, PhaseName, Period, Cycle, CycleState, PredictedCycle, FertileWindow } from "./types";
-import { emptyLog } from "./types";
 import { DEFAULT_CYCLE_LENGTH, DEFAULT_LUTEAL_LENGTH, ROLLING_AVERAGE_WINDOW } from "./constants";
 import { parseDate, addDays, diffDays, toDateKey } from "./dates";
 import { anchorsFrom, getPhaseForDay } from "./phases";
 
 /**
- * Build the DailyLog rows for a quick-added period: `durationDays` consecutive
- * medium-flow logs starting at `startKey` (local calendar days). Pure — the
- * write path persists them via useLogger.saveMany (M1.3 single write path).
+ * Build the flow patches for a quick-added period: `durationDays` consecutive
+ * medium-flow days starting at `startKey` (local calendar days). Only `date` +
+ * `flow` are defined, so the merge-defined save keeps any notes, symptoms,
+ * mood, etc. already logged on those days (P0-01). Pure — the write path
+ * persists them via useLogger.saveMany (M1.3 single write path).
  */
-export function buildPeriodLogs(startKey: string, durationDays: number): DailyLog[] {
+export function buildPeriodLogs(
+  startKey: string,
+  durationDays: number
+): Array<Pick<DailyLog, "date" | "flow">> {
   const start = parseDate(startKey);
-  const logs: DailyLog[] = [];
+  const logs: Array<Pick<DailyLog, "date" | "flow">> = [];
   for (let i = 0; i < durationDays; i++) {
-    logs.push({ ...emptyLog(toDateKey(addDays(start, i))), flow: "medium" });
+    logs.push({ date: toDateKey(addDays(start, i)), flow: "medium" });
   }
   return logs;
 }

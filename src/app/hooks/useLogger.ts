@@ -3,6 +3,7 @@ import type { DailyLog } from "@/domain/types";
 import { emptyLog } from "@/domain/types";
 import { toDateKey } from "@/domain/dates";
 import { useContainer } from "@/app/di";
+import type { SaveLogsArgs } from "@/data/repositories/LogRepository";
 
 interface UseLoggerReturn {
   log: DailyLog;
@@ -11,8 +12,9 @@ interface UseLoggerReturn {
   /**
    * Persist an explicit batch of logs through the same write path (used by
    * QuickAddPeriod and the Overview symptom toggles — M1.3 single write path).
+   * Default "replace"; QuickAddPeriod passes "merge-defined" patches (P0-01).
    */
-  saveMany: (logs: DailyLog[]) => Promise<void>;
+  saveMany: (...args: SaveLogsArgs) => Promise<void>;
   remove: () => Promise<void>;
   /**
    * True only when a persisted, non-deleted log exists for this date — drives
@@ -58,15 +60,16 @@ export function useLogger(
   }, [log, onSaved, container]);
 
   const saveMany = useCallback(
-    async (logs: DailyLog[]) => {
-      for (const l of logs) {
-        await container.saveLog(l);
-        if (l.date === dateKey) {
-          setLog(l); // keep the active view in step
-          setExists(true);
-        }
+    async (...args: SaveLogsArgs) => {
+      // One transaction for the batch. Use the PERSISTED records, never the
+      // input: a merge-defined patch is partial, and onSaved may push them.
+      const saved = await container.saveLogs(...args);
+      const active = saved.find((l) => l.date === dateKey);
+      if (active) {
+        setLog(active); // keep the active view in step
+        setExists(true);
       }
-      onSaved?.(logs);
+      onSaved?.(saved);
     },
     [dateKey, onSaved, container]
   );

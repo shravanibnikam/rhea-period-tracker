@@ -9,6 +9,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import type { DailyLog } from "@/domain/types";
 import { StorageManager, identityFor } from "@/data/storageManager";
 import { LogRepository, MetaRepository } from "@/data/repositories";
+import type { SaveLogsArgs } from "@/data/repositories/LogRepository";
 import type { StorageDriver } from "@/data/drivers/StorageDriver";
 import { ensureDeviceId } from "@/data/syncStamp";
 import { buildExport, type ExportDataV2 } from "@/data/exporter";
@@ -103,6 +104,16 @@ export class Container {
   async saveLog(log: DailyLog): Promise<void> {
     await (await this.logs()).save(log);
     void this.engine?.flush("enqueue").catch(() => {});
+  }
+
+  /**
+   * Batch save in ONE transaction (default "replace"; Quick Add passes
+   * "merge-defined" — P0-01). Resolves to the persisted, merged records.
+   */
+  async saveLogs(...args: SaveLogsArgs): Promise<DailyLog[]> {
+    const saved = await (await this.logs()).saveAll(...args);
+    void this.engine?.flush("enqueue").catch(() => {});
+    return saved;
   }
 
   async getLog(date: string): Promise<DailyLog | undefined> {

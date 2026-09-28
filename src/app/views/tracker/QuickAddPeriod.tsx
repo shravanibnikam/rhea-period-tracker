@@ -1,14 +1,16 @@
 import { useState } from "react";
 import { X, CalendarPlus } from "lucide-react";
-import type { DailyLog, PhaseData } from "@/domain/types";
+import type { PhaseData } from "@/domain/types";
+import type { DailyLogPatch } from "@/data/repositories/LogRepository";
 import { buildPeriodLogs } from "@/domain/cycle";
 import { toDateKey } from "@/domain/dates";
 
 interface QuickAddPeriodProps {
   onClose: () => void;
   /** The single write path (useLogger.saveMany) — QuickAdd no longer writes
-   *  to the database directly, so its logs sync like any other save (M1.3). */
-  saveLogs: (logs: DailyLog[]) => Promise<void>;
+   *  to the database directly, so its logs sync like any other save (M1.3).
+   *  Merge-defined: only flow is set; existing day content is kept (P0-01). */
+  saveLogs: (logs: DailyLogPatch[], opts: { mode: "merge-defined" }) => Promise<void>;
   phaseData: PhaseData;
 }
 
@@ -22,7 +24,7 @@ export function QuickAddPeriod({ onClose, saveLogs, phaseData }: QuickAddPeriodP
 
   const handleSave = async () => {
     setSaving(true);
-    await saveLogs(buildPeriodLogs(startDate, duration));
+    await saveLogs(buildPeriodLogs(startDate, duration), { mode: "merge-defined" });
     onClose();
   };
 
