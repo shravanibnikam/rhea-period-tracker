@@ -3,11 +3,16 @@ import { X, Trash2 } from "lucide-react";
 import type { DailyLog, PhaseData } from "@/domain/types";
 import { ALL_SYMPTOMS, FLOW_LEVELS, MOOD_OPTIONS, ENERGY_OPTIONS } from "@/app/lib/constants";
 import { fmt } from "@/app/lib/format";
+import { saveErrorMessage } from "@/app/hooks/useLogger";
 
 interface DailyLogSheetProps {
   log: DailyLog;
   setLog: React.Dispatch<React.SetStateAction<DailyLog>>;
-  onSave: () => void;
+  /**
+   * Persist the log. Must REJECT on failure: the sheet closes only after it
+   * resolves, and on failure stays open with the error and the user's edits.
+   */
+  onSave: () => Promise<void>;
   onClose: () => void;
   phaseData: PhaseData;
   date: Date;
@@ -34,6 +39,8 @@ export function DailyLogSheet({
   const [confirming, setConfirming] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [deleteError, setDeleteError] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
 
   useEffect(() => {
     const handleKey = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
@@ -47,6 +54,7 @@ export function DailyLogSheet({
     if (!onDelete) return;
     setDeleting(true);
     setDeleteError(null);
+    setSaveError(null);
     try {
       await onDelete(); // parent closes the sheet on success
     } catch (err) {
@@ -58,6 +66,23 @@ export function DailyLogSheet({
       setConfirming(false);
     }
   }, [onDelete]);
+
+  const runSave = useCallback(async () => {
+    setSaving(true);
+    setSaveError(null);
+    setDeleteError(null);
+    try {
+      await onSave();
+    } catch (err) {
+      // Failure: keep the sheet open with the user's edits and say so.
+      console.error("Failed to save the daily log:", err);
+      setSaveError(saveErrorMessage(err));
+      setSaving(false);
+      return;
+    }
+    setSaving(false);
+    onClose(); // only once the log is persisted
+  }, [onSave, onClose]);
 
   const setField = useCallback(
     <K extends keyof DailyLog>(key: K, value: DailyLog[K]) => {
@@ -256,17 +281,20 @@ export function DailyLogSheet({
 
         {/* Save + Delete */}
         <div className="sticky bottom-0 bg-card/95 backdrop-blur-sm border-t border-border px-6 py-4 space-y-3">
+          {saveError && (
+            <p role="alert" className="text-xs text-red-600 text-center">
+              {saveError}
+            </p>
+          )}
           {deleteError && (
             <p role="alert" className="text-xs text-red-600 text-center">
               {deleteError}
             </p>
           )}
           <button
-            onClick={() => {
-              onSave();
-              onClose();
-            }}
-            disabled={deleting}
+            onClick={runSave}
+            disabled={saving || deleting}
+            aria-busy={saving}
             className="w-full py-3 rounded-xl font-medium text-sm text-white transition-all duration-200 hover:opacity-90 disabled:opacity-50"
             style={{ backgroundColor: phaseData.color }}
           >
@@ -275,8 +303,9 @@ export function DailyLogSheet({
 
           {showDelete && !confirming && (
             <button
-              onClick={() => { setDeleteError(null); setConfirming(true); }}
-              className="w-full py-2.5 rounded-xl font-medium text-sm text-red-600 border border-red-200 hover:bg-red-50 transition-colors flex items-center justify-center gap-2"
+              onClick={() => { setDeleteError(null); setSaveError(null); setConfirming(true); }}
+              disabled={saving}
+              className="w-full py-2.5 rounded-xl font-medium text-sm text-red-600 border border-red-200 hover:bg-red-50 transition-colors flex items-center justify-center gap-2 disabled:opacity-50"
               aria-label="Delete this log"
             >
               <Trash2 size={15} aria-hidden="true" />
@@ -288,14 +317,14 @@ export function DailyLogSheet({
             <div className="flex gap-2" role="group" aria-label="Confirm deleting this log">
               <button
                 onClick={() => setConfirming(false)}
-                disabled={deleting}
+                disabled={deleting || saving}
                 className="flex-1 py-2.5 rounded-xl font-medium text-sm text-muted-foreground border border-border hover:bg-muted transition-colors disabled:opacity-50"
               >
                 Cancel
               </button>
               <button
                 onClick={runDelete}
-                disabled={deleting}
+                disabled={deleting || saving}
                 autoFocus
                 className="flex-1 py-2.5 rounded-xl font-medium text-sm text-white bg-red-600 hover:bg-red-700 transition-colors disabled:opacity-50"
                 aria-label="Confirm delete log"
