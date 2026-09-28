@@ -7,6 +7,9 @@
 import type { PhaseName, PhaseData } from "./types";
 import { DEFAULT_LUTEAL_LENGTH } from "./constants";
 
+// Re-exported so callers can import the phase type with the oracle (type-only; no runtime effect).
+export type { PhaseName } from "./types";
+
 export const PHASES: Record<PhaseName, PhaseData> = {
   menstrual: {
     name: "Menstrual",
