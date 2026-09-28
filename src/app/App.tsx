@@ -3,7 +3,7 @@ import type { DailyLog } from "@/domain/types";
 import { PHASES } from "@/domain/phases";
 import { useCycleData } from "@/app/hooks/useCycleData";
 import { useAuth } from "@/app/hooks/useAuth";
-import { useLogger, saveErrorMessage } from "@/app/hooks/useLogger";
+import { useLogger, LOAD_FAILED_MESSAGE } from "@/app/hooks/useLogger";
 import { initialSync, pushLog, subscribeToLogs, unsubscribe } from "@/app/lib/sync";
 import { supabase } from "@/app/lib/supabase";
 import { isOwnerEngineSync, ownerOutboxMode } from "@/app/lib/flags";
@@ -79,6 +79,7 @@ export default function App() {
     revert: revertActiveLog,
     remove: removeActiveLog,
     exists: activeLogExists,
+    loadError: activeLogLoadError,
   } = useLogger(
     activeLogDate,
     // Single write path (M1.3): every save flows through here. The saved logs
@@ -237,9 +238,12 @@ export default function App() {
       await setActiveSymptom(s, present);
     } catch (err) {
       console.error("Failed to save the symptom:", err);
-      setSymptomError(saveErrorMessage(err));
+      // The toggle has been undone on screen (useLogger went back to the
+      // stored record), so say exactly that.
+      setSymptomError("Couldn't save that symptom. It's back to what was saved — please try again.");
     }
   };
+  const activeLogLoadMessage = activeLogLoadError ? LOAD_FAILED_MESSAGE : null;
 
   const handleCycleLengthOverrideChange = useCallback(
     async (value: number | null) => {
@@ -383,7 +387,7 @@ export default function App() {
                 state={state}
                 symptoms={new Set(activeLog.symptoms)}
                 toggleSymptom={toggleSymptom}
-                symptomError={symptomError}
+                symptomError={symptomError ?? activeLogLoadMessage}
                 today={today}
               />
             )}
@@ -452,6 +456,7 @@ export default function App() {
           date={activeLogDate}
           onDelete={handleDeleteActiveLog}
           canDelete={activeLogExists}
+          loadError={activeLogLoadMessage}
         />
       )}
 

@@ -76,6 +76,9 @@ const NOT_LOADED_PENDING = "This day's log is still loading. Please try again in
 const NOT_LOADED_FAILED =
   "Couldn't load this day's saved log, so saving now could overwrite it. Nothing was saved — reload the app and try again.";
 
+/** User-facing text for `loadError` (shown on the Overview and in the Log sheet). */
+export const LOAD_FAILED_MESSAGE = "Couldn't load this day's saved log. Reload the app and try again.";
+
 /**
  * User-facing text for a rejected save(): the refusal's own reason, else a
  * generic retry prompt (raw storage errors are not shown to the user).
