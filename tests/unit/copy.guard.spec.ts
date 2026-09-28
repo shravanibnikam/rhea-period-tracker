@@ -41,6 +41,9 @@ const FORBIDDEN: Forbidden[] = [
   },
   // Notes are in the partner's RLS grant (0001_baseline.sql "partner read linked logs").
   { id: "never-shared-regardless", pattern: /never\s+shared\s+regardless/i, until: "server-side partner projection (SEC-01)" },
+  // Broader form of the same claim (e.g. the daily-log "Notes (private, never
+  // shared)" label): notes sync in plaintext and a linked partner's account can read them.
+  { id: "never-shared", pattern: /\bnever\s+shared\b/i, until: "server-side partner projection (SEC-01)" },
   { id: "shared-fields-only", pattern: /shared\s+fields\s+only/i, until: "server-side partner projection (SEC-01)" },
   // Container.eraseAllData clears local stores only (P0-09a); the server half is P0-09b.
   { id: "erase-server", pattern: /from\s+your\s+device\s+and\s+the\s+server/i, until: "server erase with tombstones (P0-09b)" },
