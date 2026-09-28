@@ -20,7 +20,7 @@
  */
 import "fake-indexeddb/auto";
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { render, screen, fireEvent, act, waitFor, cleanup } from "@testing-library/react";
+import { render, screen, fireEvent, act, waitFor, cleanup, within } from "@testing-library/react";
 import { ContainerProvider } from "@/app/di/context";
 import { Container } from "@/app/di/Container";
 import { NullTransport, type SyncEngine, type OutboxEntry } from "@/sync";
@@ -178,6 +178,17 @@ async function editLoadedDayAndSave(loadedNote: string, newNote: string) {
   await settle(50);
 }
 
+/**
+ * The calendar cell for `date`. Scoped to the day grid under the weekday header,
+ * so no other button with the same number can match; the grid shows only the
+ * displayed month's own days, so the number is unique there.
+ */
+function calendarDayButton(date: Date): HTMLElement {
+  const grid = screen.getByText("Su").parentElement?.nextElementSibling;
+  if (!(grid instanceof HTMLElement)) throw new Error("calendar day grid not found");
+  return within(grid).getByRole("button", { name: String(date.getDate()) });
+}
+
 /** Offline cold start: a stored session, the role lookup fails; the user edits today. */
 async function offlineStartAndSaveToday(uid: string) {
   await seedStore(uid, [
@@ -272,8 +283,12 @@ describe("a store that has served a partner session (lastKnownRole=partner)", ()
 
   it("an unresolved role never queues an edit of the owner's cached row, so a later owner answer uploads nothing (probe Q2b)", async () => {
     const uid = fresh("expartner");
+    // The owner's cached row sits on TODAY: the only date that is never in the
+    // future and always in the month the calendar opens on, whatever the date
+    // (a fixed day number is in the future on the 1st, and yesterday is in the
+    // previous month then).
     const now = new Date();
-    const cachedDate = toDateKey(new Date(now.getFullYear(), now.getMonth(), 2));
+    const cachedDate = toDateKey(now);
     await seedStore(uid, [{ date: cachedDate, flow: "heavy", notes: OWNER_NOTE }], {
       lastKnownRole: "partner",
     });
@@ -287,7 +302,7 @@ describe("a store that has served a partner session (lastKnownRole=partner)", ()
     // edit it (keeping her note in the text) and save.
     const edited = `${OWNER_NOTE} (edited offline)`;
     fireEvent.click(await screen.findByRole("tab", { name: /calendar/i }));
-    fireEvent.click(await screen.findByRole("button", { name: "2" }));
+    fireEvent.click(calendarDayButton(now));
     await editLoadedDayAndSave(OWNER_NOTE, edited);
 
     // The edit WAS stored locally (not refused) — and nothing was queued.
