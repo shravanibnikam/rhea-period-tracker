@@ -1,5 +1,6 @@
 import { supabase } from "@/app/lib/supabase";
 import { container } from "@/app/di";
+import { META_LAST_KNOWN_ROLE } from "@/data/schema";
 import type { DailyLog } from "@/domain/types";
 import type { RealtimeChannel } from "@supabase/supabase-js";
 
@@ -23,6 +24,12 @@ export function isSyncReadOnly(): boolean {
 export async function pushAllLogs(ownerId: string): Promise<number> {
   if (readOnly) return 0;
   if (!supabase) return 0;
+
+  // P0-06: a store that has served a partner session holds the OWNER's cached
+  // rows, indistinguishable from this account's own. Never bulk-upload them
+  // under this account — e.g. an ex-partner who now resolves as owner on this
+  // legacy path (engine flag off). Single edits still go through pushLog.
+  if ((await container.getMeta<string>(META_LAST_KNOWN_ROLE)) === "partner") return 0;
 
   const logs = await container.getAllLogs();
   if (logs.length === 0) return 0;
