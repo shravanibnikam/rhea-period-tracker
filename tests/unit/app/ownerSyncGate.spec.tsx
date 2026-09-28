@@ -27,6 +27,10 @@ const h = vi.hoisted(() => {
   const state = {
     authCb: null as ((event: string, session: unknown) => Promise<void>) | null,
     links: {} as Record<string, LinkBehaviour>,
+    /** The real flags.ts decision, captured so each test starts from it. */
+    realIsOwnerEngineSync: null as
+      | null
+      | ((authed: boolean, role: string | null | undefined) => boolean),
   };
   const settle = (column: string, shape: (rows: LinkRows) => LinkResult) => {
     const b = state.links[column] ?? [];
@@ -77,6 +81,14 @@ vi.mock("@/app/lib/sync", () => ({
   isSyncReadOnly: vi.fn(() => false),
 }));
 
+// isOwnerEngineSync stays real unless a test swaps it, so the App gate can be
+// pinned on its own — flags.ts's fail-closed decision would otherwise mask it.
+vi.mock("@/app/lib/flags", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/app/lib/flags")>();
+  h.state.realIsOwnerEngineSync = actual.isOwnerEngineSync;
+  return { ...actual, isOwnerEngineSync: vi.fn(actual.isOwnerEngineSync) };
+});
+
 // PartnerView loads share settings over the network; keep it offline.
 vi.mock("@/app/lib/sharing", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@/app/lib/sharing")>();
@@ -90,7 +102,7 @@ vi.mock("@/app/lib/sharing", async (importOriginal) => {
 
 import App from "@/app/App";
 import { initialSync, pushLog, subscribeToLogs } from "@/app/lib/sync";
-import { flags } from "@/app/lib/flags";
+import { flags, isOwnerEngineSync } from "@/app/lib/flags";
 
 /** A device that already holds rows — on a partner device, the owner's. */
 const CACHED: DailyLog[] = [{ ...emptyLog("2026-09-01"), flow: "medium" }];
@@ -173,6 +185,8 @@ beforeEach(() => {
   h.state.links = {};
   h.state.authCb = null;
   flags.syncEngine = true;
+  const real = h.state.realIsOwnerEngineSync;
+  if (real) vi.mocked(isOwnerEngineSync).mockImplementation(real);
   c = fakeContainer();
 });
 afterEach(() => {
@@ -225,6 +239,33 @@ describe("role unresolved → no sync of any kind", () => {
     expectNoSyncCapability();
     await saveTodayViaSheet();
     expectNoSyncCapability();
+  });
+});
+
+describe("the App gate holds on its own (pinned independently of flags.ts)", () => {
+  it("with isOwnerEngineSync forced back to fail-open, an unresolved role starts nothing — during the splash or after it", async () => {
+    vi.mocked(isOwnerEngineSync).mockImplementation(
+      (authed, role) => authed && flags.syncEngine && role !== "partner"
+    );
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+    h.state.links.partner_id = "hang";
+    renderApp();
+    beginSignIn("u1");
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    expect(c.startOwnerSync).not.toHaveBeenCalled();
+    expect(c.setOwnerSyncMode).not.toHaveBeenCalledWith(true);
+
+    // Splash bound passes: `loading` is false, the role is still null.
+    await act(async () => {
+      vi.advanceTimersByTime(15_000);
+    });
+
+    expect(c.startOwnerSync).not.toHaveBeenCalled();
+    expect(c.setOwnerSyncMode).not.toHaveBeenCalledWith(true);
+    expect(initialSync).not.toHaveBeenCalled();
   });
 });
 
