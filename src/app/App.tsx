@@ -50,6 +50,23 @@ export default function App() {
   const { logs, state, loading: dataLoading, excludedStarts, refresh } = useCycleData();
   const hasData = logs.length > 0;
 
+  // Data follows the account (P0-06): re-read the local store whenever the
+  // signed-in account changes, whatever its role — the sync paths below refresh
+  // only once a role is resolved, so a new account whose lookup fails or hangs
+  // would keep showing the previous account's rows. The main UI waits until
+  // that account's read has landed (see the loading gate).
+  const accountId = auth.user?.id ?? null;
+  const [dataAccount, setDataAccount] = useState<string | null | undefined>(undefined);
+  useEffect(() => {
+    let current = true;
+    void refresh().then(() => {
+      if (current) setDataAccount(accountId);
+    });
+    return () => {
+      current = false;
+    };
+  }, [accountId, refresh]);
+
   const activeLogDate = logSheetDate ?? today;
   const {
     log: activeLog,
@@ -198,7 +215,7 @@ export default function App() {
   );
 
   // ── Loading ──
-  if (auth.loading || dataLoading) {
+  if (auth.loading || dataLoading || dataAccount !== accountId) {
     return (
       <div className="min-h-screen bg-background font-sans flex items-center justify-center">
         <div className="text-center">

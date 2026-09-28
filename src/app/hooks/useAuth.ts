@@ -187,10 +187,11 @@ export function useAuth(): UseAuthReturn {
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange(async (_event, s) => {
+      // Scope the local database to the signed-in account (or local-only)
+      // BEFORE exposing the user, so anything keyed on the account reads its store.
+      container.setAccount(s?.user?.id ?? null);
       setSession(s);
       setUser(s?.user ?? null);
-      // Scope the local database to the signed-in account (or local-only).
-      container.setAccount(s?.user?.id ?? null);
 
       if (s?.user) {
         await detectRole(s.user.id).catch(() => {});

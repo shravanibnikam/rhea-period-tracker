@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import type { DailyLog, CycleState } from "@/domain/types";
 import { deriveCycleState } from "@/domain/cycle";
 import { useContainer } from "@/app/di";
@@ -19,8 +19,20 @@ export function useCycleData(): UseCycleDataReturn {
     deriveCycleState([], null)
   );
   const [loading, setLoading] = useState(true);
+  // Reads can resolve out of order — e.g. the mount-time read of the local store
+  // landing after the signed-in account's read (P0-06). An older read never
+  // overwrites a newer one that has already applied.
+  const requested = useRef(0);
+  const applied = useRef(0);
 
   const refresh = useCallback(async () => {
+    const seq = ++requested.current;
+    const apply = (update: () => void) => {
+      if (seq < applied.current) return; // stale: a newer read already landed
+      applied.current = seq;
+      update();
+      setLoading(false);
+    };
     try {
       const [allLogs, override, excluded] = await Promise.all([
         container.getAllLogs(),
@@ -28,15 +40,16 @@ export function useCycleData(): UseCycleDataReturn {
         container.getMeta<string[]>("excludedCycles"),
       ]);
       const excludedSet = new Set(excluded ?? []);
-      setLogs(allLogs);
-      setExcludedStarts(excludedSet);
-      setState(deriveCycleState(allLogs, override ?? null, new Date(), excludedSet));
+      apply(() => {
+        setLogs(allLogs);
+        setExcludedStarts(excludedSet);
+        setState(deriveCycleState(allLogs, override ?? null, new Date(), excludedSet));
+      });
     } catch (err) {
       console.error("Failed to load cycle data:", err);
       // Still show the app with empty state rather than hanging on loading
-      setState(deriveCycleState([], null));
+      apply(() => setState(deriveCycleState([], null)));
     }
-    setLoading(false);
   }, [container]);
 
   useEffect(() => {
