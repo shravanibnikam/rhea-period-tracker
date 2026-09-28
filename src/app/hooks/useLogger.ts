@@ -45,8 +45,14 @@ class LogNotLoadedError extends Error {
 }
 
 interface LoadStatus {
-  key: string;
+  /** The (account, date) the record belongs to — see scopeKey. */
+  scope: string;
   state: "pending" | "loaded" | "failed";
+}
+
+/** Identifies one account's record for one date. */
+function scopeKey(accountKey: string | null | undefined, dateKey: string): string {
+  return JSON.stringify([accountKey ?? null, dateKey]);
 }
 
 const SAVE_FAILED = "Couldn't save this log. Your changes are still here — please try again.";
@@ -62,12 +68,20 @@ export function saveErrorMessage(err: unknown): string {
   return err instanceof LogNotLoadedError ? err.message : SAVE_FAILED;
 }
 
+/**
+ * @param accountKey The account the container is currently scoped to (the
+ *   signed-in user id, or null for local-only). The day is re-read whenever it
+ *   changes, so the active log follows the account. Change it only after
+ *   `container.setAccount(...)` has been called for it (P0-N1).
+ */
 export function useLogger(
   date: Date,
-  onSaved?: (saved: DailyLog[]) => void
+  onSaved?: (saved: DailyLog[]) => void,
+  accountKey?: string | null
 ): UseLoggerReturn {
   const container = useContainer();
   const dateKey = toDateKey(date);
+  const scope = scopeKey(accountKey, dateKey);
   const [log, setLog] = useState<DailyLog>(() => emptyLog(dateKey));
   const [exists, setExists] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -76,19 +90,24 @@ export function useLogger(
   // races the initial read is refused rather than writing the empty draft.
   // Each read owns its object: replacing it (a newer read, or a save that
   // returned the persisted record) makes that read's late result stale.
-  const status = useRef<LoadStatus>({ key: dateKey, state: "pending" });
+  const status = useRef<LoadStatus>({ scope, state: "pending" });
 
+  // Re-read on a date OR account change. Until the read lands, show an empty
+  // draft rather than the previous date's or account's log (and no Delete);
+  // whole-record saves are refused meanwhile (assertActiveLoaded).
   useEffect(() => {
     let cancelled = false;
-    const read: LoadStatus = { key: dateKey, state: "pending" };
+    const read: LoadStatus = { scope, state: "pending" };
     status.current = read;
+    setExists(false);
+    setLog(emptyLog(dateKey));
     setLoading(true);
     setLoadError(null);
     const stale = () => cancelled || status.current !== read;
     container.getLog(dateKey).then(
       (existing) => {
         if (stale()) return;
-        status.current = { key: dateKey, state: "loaded" };
+        status.current = { scope, state: "loaded" };
         // A returned row is persisted; a locally-deleted log is removed from the
         // store, so `existing == null` there. Guard `deleted` defensively in case
         // a soft-deleted row is ever surfaced by a driver.
@@ -98,7 +117,7 @@ export function useLogger(
       },
       (err: unknown) => {
         if (stale()) return;
-        status.current = { key: dateKey, state: "failed" };
+        status.current = { scope, state: "failed" };
         console.error("Failed to load the daily log:", err);
         // Nothing is known about the stored record: never present another
         // date's (or a stale) log as this date's, and don't offer Delete.
@@ -111,23 +130,27 @@ export function useLogger(
     return () => {
       cancelled = true;
     };
-  }, [dateKey, container]);
+  }, [scope, dateKey, container]);
 
   /** Refuse a whole-record write of the active date unless its record loaded. */
   const assertActiveLoaded = useCallback(() => {
-    const { key, state } = status.current;
-    if (key === dateKey && state === "loaded") return;
+    const { scope: current, state } = status.current;
+    if (current === scope && state === "loaded") return;
     throw new LogNotLoadedError(
-      key === dateKey && state === "failed" ? NOT_LOADED_FAILED : NOT_LOADED_PENDING
+      current === scope && state === "failed" ? NOT_LOADED_FAILED : NOT_LOADED_PENDING
     );
-  }, [dateKey]);
+  }, [scope]);
+
+  // A write's outcome is applied to the view only if the same account and date
+  // are still active: the user may have switched either during the write.
+  const stillActive = useCallback(() => status.current.scope === scope, [scope]);
 
   const save = useCallback(async () => {
     assertActiveLoaded();
     await container.saveLog(log);
-    setExists(true);
+    if (stillActive()) setExists(true);
     onSaved?.([log]);
-  }, [log, onSaved, container, assertActiveLoaded]);
+  }, [log, onSaved, container, assertActiveLoaded, stillActive]);
 
   const saveMany = useCallback(
     async (...args: SaveLogsArgs) => {
@@ -141,12 +164,10 @@ export function useLogger(
       // input: a merge-defined patch is partial, and onSaved may push them.
       const saved = await container.saveLogs(...args);
       const active = saved.find((l) => l.date === dateKey);
-      // Only while that date is still the active one: the user may have moved
-      // to another date during the write.
-      if (active && status.current.key === dateKey) {
+      if (active && stillActive()) {
         // The persisted record is now known: it supersedes a pending or failed
         // read, and keeps the active view in step.
-        status.current = { key: dateKey, state: "loaded" };
+        status.current = { scope, state: "loaded" };
         setLog(active);
         setExists(true);
         setLoadError(null);
@@ -154,17 +175,19 @@ export function useLogger(
       }
       onSaved?.(saved);
     },
-    [dateKey, onSaved, container, assertActiveLoaded]
+    [dateKey, scope, onSaved, container, assertActiveLoaded, stillActive]
   );
 
   const remove = useCallback(async () => {
     // Throws if the local tombstone write fails — the caller keeps the modal
     // open and surfaces the error; the log row is untouched (tx rolls back).
     await container.deleteLog(dateKey);
-    setLog(emptyLog(dateKey));
-    setExists(false);
+    if (stillActive()) {
+      setLog(emptyLog(dateKey));
+      setExists(false);
+    }
     onSaved?.([]);
-  }, [dateKey, onSaved, container]);
+  }, [dateKey, onSaved, container, stillActive]);
 
   return { log, setLog, save, saveMany, remove, exists, loading, loadError };
 }

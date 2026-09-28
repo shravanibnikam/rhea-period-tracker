@@ -97,7 +97,12 @@ export default function App() {
         refresh();
       },
       [auth.user, auth.role, refresh, container]
-    )
+    ),
+    // Re-read the active day whenever the account changes (P0-N1): this hook
+    // mounts before auth resolves, so its first read is the local-only store.
+    // useAuth scopes the container before exposing the user, so accountId
+    // always names the store the container reads at this render.
+    accountId
   );
 
   // Delete the active log through the sync-engine tombstone path. Rejects on
