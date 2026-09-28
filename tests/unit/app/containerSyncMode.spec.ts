@@ -10,7 +10,7 @@
 import "fake-indexeddb/auto";
 import { describe, it, expect, afterEach, vi } from "vitest";
 import { Container } from "@/app/di/Container";
-import { isOwnerEngineSync } from "@/app/lib/flags";
+import { flags, isOwnerEngineSync, queuesOwnerWrites } from "@/app/lib/flags";
 import { emptyLog } from "@/domain/types";
 import { logKey } from "@/data/envelope";
 import type { OutboxEntry } from "@/sync";
@@ -54,6 +54,31 @@ describe("isOwnerEngineSync — flag/role decision (not engine-instance)", () =>
   });
   it("unauthenticated → local (no queue accrual)", () =>
     expect(isOwnerEngineSync(false, "owner")).toBe(false));
+});
+
+describe("queuesOwnerWrites — local queueing is separate from running the engine (P0-06)", () => {
+  it("queues for an owner and for a still-unresolved role (offline logging must sync later)", () => {
+    expect(queuesOwnerWrites(true, "owner")).toBe(true);
+    expect(queuesOwnerWrites(true, null)).toBe(true);
+    expect(queuesOwnerWrites(true, undefined)).toBe(true);
+  });
+  it("never queues for a partner or without a user", () => {
+    expect(queuesOwnerWrites(true, "partner")).toBe(false);
+    expect(queuesOwnerWrites(false, "owner")).toBe(false);
+    expect(queuesOwnerWrites(false, null)).toBe(false);
+  });
+  it("never queues in legacy mode (engine flag off: nothing would drain it)", () => {
+    const saved = flags.syncEngine;
+    flags.syncEngine = false;
+    try {
+      expect(queuesOwnerWrites(true, "owner")).toBe(false);
+      expect(queuesOwnerWrites(true, null)).toBe(false);
+    } finally {
+      flags.syncEngine = saved;
+    }
+  });
+  it("queueing never implies the engine: an unresolved role still gets no engine", () =>
+    expect(isOwnerEngineSync(true, null)).toBe(false));
 });
 
 describe("Container durable-outbox mode gating", () => {

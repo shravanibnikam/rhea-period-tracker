@@ -6,7 +6,7 @@ import { useAuth } from "@/app/hooks/useAuth";
 import { useLogger } from "@/app/hooks/useLogger";
 import { initialSync, pushLog, subscribeToLogs, unsubscribe } from "@/app/lib/sync";
 import { supabase } from "@/app/lib/supabase";
-import { isOwnerEngineSync } from "@/app/lib/flags";
+import { isOwnerEngineSync, queuesOwnerWrites } from "@/app/lib/flags";
 import { useContainer } from "@/app/di";
 import { Header } from "@/app/components/layout/Header";
 import { TabNav, type TabName } from "@/app/components/layout/TabNav";
@@ -88,7 +88,8 @@ export default function App() {
         // the CONFIGURED mode, NOT on whether the engine instance exists yet —
         // otherwise a save during the startup gap would BOTH enqueue and
         // legacy-push (double send). A partner or an unresolved role (P0-06:
-        // fail closed) never pushes; such saves stay local and unqueued.
+        // fail closed) never pushes directly; an unresolved role's saves only
+        // queue, and are delivered once the engine starts for a confirmed owner.
         if (auth.user && auth.role === "owner" && !isOwnerEngineSync(true, auth.role)) {
           for (const l of saved) await pushLog(auth.user.id, l);
         }
@@ -109,16 +110,18 @@ export default function App() {
 
   // ── Sync ──
   useEffect(() => {
-    // Fail closed (P0-06): no sync of any kind — owner engine, outbox, legacy
-    // pull/subscribe — until the role is POSITIVELY resolved. Until then the
-    // local store may hold someone else's rows (a partner's cache of the owner).
-    const roleResolved = !auth.loading && auth.role !== null;
+    // Two separate decisions (P0-06):
+    // (i) QUEUE writes in the durable outbox — purely local. On for a signed-in
+    //     owner OR a still-unresolved role (with the engine flag on), so an
+    //     offline start doesn't lose the owner's logging; off for a partner, no
+    //     user, or legacy mode. Set first, independent of engine start state.
+    container.setOwnerSyncMode(queuesOwnerWrites(!!auth.user, auth.role));
 
-    // Set the CONFIGURED sync mode first (covers unauthenticated/local and
-    // unresolved too, so those writes never accrue outbox intents). This is what
-    // gates the durable outbox — independent of engine start state.
+    // (ii) Anything that leaves the device — owner engine, legacy pull/
+    //     subscribe/push — waits until the role is POSITIVELY resolved. Until
+    //     then the local store may hold someone else's rows (a partner's cache).
+    const roleResolved = !auth.loading && auth.role !== null;
     const ownerEngine = roleResolved && isOwnerEngineSync(!!auth.user, auth.role);
-    container.setOwnerSyncMode(ownerEngine);
 
     if (!auth.user || !roleResolved) return;
 
@@ -146,6 +149,11 @@ export default function App() {
         void container.stopOwnerSync();
       };
     }
+
+    // A confirmed partner never pushes. Anything queued before the role resolved
+    // is an edit to the owner's cached rows: drop it, so nothing can upload it
+    // later (e.g. after an unlink). Queueing is already off (see (i)).
+    if (auth.role === "partner") void container.clearOutbox().catch(console.error);
 
     // Legacy path (partner, or engine flag off). A partner reads ONLY its linked
     // owner — never its own id; a multi-link partner (no owner selected) syncs

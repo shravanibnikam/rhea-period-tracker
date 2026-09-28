@@ -15,15 +15,15 @@ export const flags = {
 };
 
 /**
- * The CONFIGURED sync mode for a session: true only for an authenticated account
- * whose role has been POSITIVELY resolved as "owner" (with the engine flag on),
- * which then runs the owner SyncEngine (durable outbox) instead of the legacy
- * direct-push path.
+ * Whether the session may RUN the owner SyncEngine — the only path that pushes,
+ * pulls or seeds: true only for an authenticated account whose role has been
+ * POSITIVELY resolved as "owner" (with the engine flag on). When false, the
+ * legacy direct-push path applies instead (a resolved owner with the flag off).
  *
  * Fails closed (P0-06): a null/undefined role — still resolving, or the lookup
- * failed — is NOT owner. It gets no outbox and no engine, because the local
- * store may hold someone else's rows (a partner's cache of the owner's logs).
- * Writes made while the role is unresolved stay local and are not queued.
+ * failed — is NOT owner and gets no engine, because the local store may hold
+ * someone else's rows (a partner's cache of the owner). Queueing writes locally
+ * is a separate decision: see `queuesOwnerWrites`.
  *
  * Derived from auth + feature flag + role ONLY — deliberately NOT from whether
  * the engine instance has finished starting. Using the transient
@@ -36,4 +36,20 @@ export function isOwnerEngineSync(
   role: string | null | undefined
 ): boolean {
   return authed && flags.syncEngine && role === "owner";
+}
+
+/**
+ * Whether writes QUEUE in the durable outbox (Container.setOwnerSyncMode). This
+ * is purely local — nothing is pushed unless `isOwnerEngineSync` later lets the
+ * engine start for a confirmed owner. True for an authenticated session whose
+ * role is owner OR still unresolved (null/undefined), with the engine flag on:
+ * an offline start must not lose the owner's logging (P0-06 review). False for
+ * a partner (it never pushes; the app drops what was queued before the role
+ * resolved), with no user, and in legacy mode (no outbox to drain).
+ */
+export function queuesOwnerWrites(
+  authed: boolean,
+  role: string | null | undefined
+): boolean {
+  return authed && flags.syncEngine && role !== "partner";
 }

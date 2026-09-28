@@ -38,11 +38,14 @@ export class Container {
   private engine: SyncEngine | null = null;
   private syncGeneration = 0;
   /**
-   * Whether the CONFIGURED sync mode is owner-engine (durable outbox). Set by
-   * the app from auth + feature flag + role — NOT from `engine !== null`. Owner
-   * writes must enqueue even while `engine` is transiently null (lifecycle gap
-   * or pre-start), so the outbox attaches on this flag, not on the instance.
-   * In local/legacy mode it stays false so we never accrue undrainable intents.
+   * Whether writes QUEUE in the durable outbox. Set by the app from auth +
+   * feature flag + role — NOT from `engine !== null`. Owner writes must enqueue
+   * even while `engine` is transiently null (lifecycle gap or pre-start), so the
+   * outbox attaches on this flag, not on the instance. Queueing is local only:
+   * the app also enables it while the role is still unresolved (P0-06), but
+   * nothing leaves the device until it starts the engine for a confirmed owner.
+   * For a partner, no user, or legacy mode it stays false so we never accrue
+   * undrainable intents.
    */
   private ownerSyncMode = false;
 
@@ -68,12 +71,22 @@ export class Container {
   }
 
   /**
-   * Select the configured sync mode. Call from the app whenever auth/flag/role
-   * changes. Owner-engine mode attaches a durable outbox to every write; local/
-   * legacy mode attaches none. Independent of engine start state (see field doc).
+   * Select whether writes queue in the durable outbox. Call from the app
+   * whenever auth/flag/role changes. Enabled attaches a durable outbox to every
+   * write; disabled attaches none. Independent of engine start state (see field
+   * doc) — enabling it never pushes anything by itself.
    */
   setOwnerSyncMode(enabled: boolean): void {
     this.ownerSyncMode = enabled;
+  }
+
+  /**
+   * Drop every pending sync intent of the active account's store (P0-06). Used
+   * when the account resolves as a partner: entries queued before that are
+   * edits to the owner's cached rows and must never be uploaded later.
+   */
+  async clearOutbox(): Promise<void> {
+    await (await this.driver()).clear("outbox");
   }
 
   async logs(): Promise<LogRepository> {

@@ -87,3 +87,17 @@ describe("Container.startOwnerSync — a cancelled startup", () => {
     expect(await driver.get("meta", META_NEEDS_INITIAL_SEED)).toBe(false);
   });
 });
+
+describe("Container.clearOutbox (partner resolution)", () => {
+  it("drops every queued intent of the active account's store and leaves its logs alone", async () => {
+    const { c, driver } = await deviceWithCachedRows("clear-outbox");
+    c.setOwnerSyncMode(true);
+    await c.saveLog({ ...emptyLog("2026-08-05"), flow: "light" });
+    expect(await driver.getAll<OutboxEntry>("outbox")).toHaveLength(1);
+
+    await c.clearOutbox();
+
+    expect(await driver.getAll<OutboxEntry>("outbox")).toHaveLength(0);
+    expect(await driver.getAll("logs")).toHaveLength(DATES.length + 1);
+  });
+});

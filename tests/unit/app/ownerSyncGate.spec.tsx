@@ -8,6 +8,11 @@
  * engine's initial seed uploads whatever is in the local `logs` store: on a
  * partner / ex-partner device, the owner's rows, under the partner's own id.
  * The legacy (flag-off) path had the same window via initialSync → pushAllLogs.
+ *
+ * Two separate decisions (P0-06 review): QUEUEING a write in the durable outbox
+ * is purely local and stays on while the role is unresolved (offline logging
+ * must sync once the owner is confirmed). RUNNING the engine — the only thing
+ * that pushes, pulls or seeds — waits for a positive owner answer.
  */
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, screen, fireEvent, act, waitFor, cleanup } from "@testing-library/react";
@@ -120,6 +125,7 @@ function fakeContainer() {
   return {
     setAccount: vi.fn(),
     setOwnerSyncMode: vi.fn((_enabled: boolean) => {}),
+    clearOutbox: vi.fn(() => Promise.resolve()),
     startOwnerSync: vi.fn((_uid: string, _client: unknown) => Promise.resolve(engine)),
     stopOwnerSync: vi.fn(() => Promise.resolve()),
     getAllLogs: vi.fn(() => Promise.resolve(CACHED)),
@@ -179,10 +185,9 @@ async function saveTodayViaSheet() {
   await settle();
 }
 
-/** No owner engine, no durable-outbox mode, no legacy pull/subscribe/push. */
+/** Nothing can leave the device: no owner engine, no legacy pull/subscribe/push. */
 function expectNoSyncCapability() {
   expect(c.startOwnerSync).not.toHaveBeenCalled();
-  expect(c.setOwnerSyncMode).not.toHaveBeenCalledWith(true);
   expect(initialSync).not.toHaveBeenCalled();
   expect(subscribeToLogs).not.toHaveBeenCalled();
   expect(pushLog).not.toHaveBeenCalled();
@@ -203,8 +208,8 @@ afterEach(() => {
   flags.syncEngine = syncEngineFlag;
 });
 
-describe("role unresolved → no sync of any kind", () => {
-  it("lookup never resolves: no owner engine or outbox mode — before OR after the loading timeout — and a save is not pushed", async () => {
+describe("role unresolved → nothing leaves the device (writes only queue locally)", () => {
+  it("lookup never resolves: no owner engine or push — before OR after the loading timeout — and a save only queues", async () => {
     vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
     h.state.links.partner_id = "hang";
     renderApp();
@@ -214,7 +219,8 @@ describe("role unresolved → no sync of any kind", () => {
     });
 
     expectNoSyncCapability();
-    expect(c.setOwnerSyncMode).toHaveBeenCalledWith(false);
+    // Queueing (local only) is on for the signed-in, unresolved session.
+    expect(c.setOwnerSyncMode).toHaveBeenLastCalledWith(true);
 
     // useAuth's splash bound ends `loading` with the role still unknown.
     await act(async () => {
@@ -224,9 +230,10 @@ describe("role unresolved → no sync of any kind", () => {
     await saveTodayViaSheet();
 
     expectNoSyncCapability();
+    expect(c.setOwnerSyncMode).toHaveBeenLastCalledWith(true);
   });
 
-  it("lookup fails: no owner engine, no legacy sync, and a save is not pushed", async () => {
+  it("lookup fails: no owner engine, no legacy sync, and a save only queues", async () => {
     h.state.links.partner_id = "error";
     renderApp();
     await signIn("u1");
@@ -235,9 +242,10 @@ describe("role unresolved → no sync of any kind", () => {
     expectNoSyncCapability();
     await saveTodayViaSheet();
     expectNoSyncCapability();
+    expect(c.setOwnerSyncMode).toHaveBeenLastCalledWith(true);
   });
 
-  it("legacy mode (engine flag off): no pull/push-all of the local store and no push while unresolved", async () => {
+  it("legacy mode (engine flag off): no pull/push-all of the local store, no push, and no queueing while unresolved", async () => {
     flags.syncEngine = false;
     h.state.links.partner_id = "error";
     renderApp();
@@ -247,6 +255,7 @@ describe("role unresolved → no sync of any kind", () => {
     expectNoSyncCapability();
     await saveTodayViaSheet();
     expectNoSyncCapability();
+    expect(c.setOwnerSyncMode).not.toHaveBeenCalledWith(true);
   });
 });
 
@@ -264,7 +273,6 @@ describe("the App gate holds on its own (pinned independently of flags.ts)", () 
     });
 
     expect(c.startOwnerSync).not.toHaveBeenCalled();
-    expect(c.setOwnerSyncMode).not.toHaveBeenCalledWith(true);
 
     // Splash bound passes: `loading` is false, the role is still null.
     await act(async () => {
@@ -272,7 +280,6 @@ describe("the App gate holds on its own (pinned independently of flags.ts)", () 
     });
 
     expect(c.startOwnerSync).not.toHaveBeenCalled();
-    expect(c.setOwnerSyncMode).not.toHaveBeenCalledWith(true);
     expect(initialSync).not.toHaveBeenCalled();
   });
 });
@@ -328,7 +335,9 @@ describe("partner sessions never start the owner engine", () => {
     expect(subscribeToLogs).toHaveBeenCalledWith("owner-1", expect.any(Function));
     expect(initialSync).not.toHaveBeenCalledWith("partner-1");
     expect(c.startOwnerSync).not.toHaveBeenCalled();
-    expect(c.setOwnerSyncMode).not.toHaveBeenCalledWith(true);
+    // A confirmed partner never queues, and drops anything queued before.
+    expect(c.setOwnerSyncMode).toHaveBeenLastCalledWith(false);
+    expect(c.clearOutbox).toHaveBeenCalled();
     expect(c.setMeta).toHaveBeenCalledWith("lastKnownRole", "partner");
   });
 
@@ -359,6 +368,8 @@ describe("partner sessions never start the owner engine", () => {
     await settle();
 
     expectNoSyncCapability();
+    expect(c.setOwnerSyncMode).toHaveBeenLastCalledWith(false);
+    expect(c.clearOutbox).toHaveBeenCalled();
   });
 });
 
