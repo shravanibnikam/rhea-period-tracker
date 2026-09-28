@@ -10,6 +10,8 @@ interface OverviewTabProps {
   state: CycleState;
   symptoms: Set<string>;
   toggleSymptom: (s: string) => void;
+  /** Shown when a symptom toggle could not be saved (the toggle is reverted). */
+  symptomError?: string | null;
   today: Date;
 }
 
@@ -18,6 +20,7 @@ export function OverviewTab({
   state,
   symptoms,
   toggleSymptom,
+  symptomError = null,
   today,
 }: OverviewTabProps) {
   return (
@@ -123,6 +126,11 @@ export function OverviewTab({
             </button>
           ))}
         </div>
+        {symptomError && (
+          <p role="alert" className="text-xs text-red-600 mt-3">
+            {symptomError}
+          </p>
+        )}
       </div>
 
       {/* Fertile Window */}

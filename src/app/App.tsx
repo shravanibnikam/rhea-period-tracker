@@ -3,7 +3,7 @@ import type { DailyLog } from "@/domain/types";
 import { PHASES } from "@/domain/phases";
 import { useCycleData } from "@/app/hooks/useCycleData";
 import { useAuth } from "@/app/hooks/useAuth";
-import { useLogger } from "@/app/hooks/useLogger";
+import { useLogger, saveErrorMessage } from "@/app/hooks/useLogger";
 import { initialSync, pushLog, subscribeToLogs, unsubscribe } from "@/app/lib/sync";
 import { supabase } from "@/app/lib/supabase";
 import { isOwnerEngineSync, ownerOutboxMode } from "@/app/lib/flags";
@@ -35,6 +35,7 @@ export default function App() {
   const [showSources, setShowSources] = useState(false);
   const [showPrivacy, setShowPrivacy] = useState(false);
   const [roleChosen, setRoleChosen] = useState(false);
+  const [symptomError, setSymptomError] = useState<string | null>(null);
 
   const today = useMemo(() => new Date(), []);
 
@@ -96,7 +97,12 @@ export default function App() {
         refresh();
       },
       [auth.user, auth.role, refresh, container]
-    )
+    ),
+    // Re-read the active day whenever the account changes (P0-N1): this hook
+    // mounts before auth resolves, so its first read is the local-only store.
+    // useAuth scopes the container before exposing the user, so accountId
+    // always names the store the container reads at this render.
+    accountId
   );
 
   // Delete the active log through the sync-engine tombstone path. Rejects on
@@ -184,8 +190,9 @@ export default function App() {
 
   // Overview symptom toggles persist to today's DailyLog via the single write
   // path (M1.3) — they were previously ephemeral React state that vanished on
-  // reload and never synced.
-  const toggleSymptom = (s: string) => {
+  // reload and never synced. The toggle shows at once; if the save fails it is
+  // reverted and the reason shown, never left on screen unsaved (P0-04).
+  const toggleSymptom = async (s: string) => {
     const has = activeLog.symptoms.includes(s);
     const next = {
       ...activeLog,
@@ -193,8 +200,26 @@ export default function App() {
         ? activeLog.symptoms.filter((x) => x !== s)
         : [...activeLog.symptoms, s],
     };
+    setSymptomError(null);
     setActiveLog(next);
-    void saveActiveLogs([next]);
+    try {
+      await saveActiveLogs([next]);
+    } catch (err) {
+      console.error("Failed to save the symptom:", err);
+      // Undo only this toggle (a concurrent one keeps its own outcome), and
+      // only on the same day's log.
+      setActiveLog((cur) =>
+        cur.date !== next.date
+          ? cur
+          : {
+              ...cur,
+              symptoms: has
+                ? cur.symptoms.includes(s) ? cur.symptoms : [...cur.symptoms, s]
+                : cur.symptoms.filter((x) => x !== s),
+            }
+      );
+      setSymptomError(saveErrorMessage(err));
+    }
   };
 
   const handleCycleLengthOverrideChange = useCallback(
@@ -339,6 +364,7 @@ export default function App() {
                 state={state}
                 symptoms={new Set(activeLog.symptoms)}
                 toggleSymptom={toggleSymptom}
+                symptomError={symptomError}
                 today={today}
               />
             )}

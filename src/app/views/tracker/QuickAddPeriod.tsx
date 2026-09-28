@@ -21,11 +21,22 @@ export function QuickAddPeriod({ onClose, saveLogs, phaseData }: QuickAddPeriodP
   });
   const [duration, setDuration] = useState(5);
   const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   const handleSave = async () => {
     setSaving(true);
-    await saveLogs(buildPeriodLogs(startDate, duration), { mode: "merge-defined" });
-    onClose();
+    setError(null);
+    try {
+      await saveLogs(buildPeriodLogs(startDate, duration), { mode: "merge-defined" });
+    } catch (err) {
+      // The batch is one transaction, so a failed write leaves nothing
+      // half-saved. Stay open so the user can retry.
+      console.error("Failed to add the period:", err);
+      setError("Couldn't add this period. Please try again.");
+      setSaving(false);
+      return;
+    }
+    onClose(); // only once the logs are persisted
   };
 
   return (
@@ -100,7 +111,12 @@ export function QuickAddPeriod({ onClose, saveLogs, phaseData }: QuickAddPeriodP
           </p>
         </div>
 
-        <div className="sticky bottom-0 bg-card/95 backdrop-blur-sm border-t border-border px-6 py-4">
+        <div className="sticky bottom-0 bg-card/95 backdrop-blur-sm border-t border-border px-6 py-4 space-y-3">
+          {error && (
+            <p role="alert" className="text-xs text-red-600 text-center">
+              {error}
+            </p>
+          )}
           <button
             onClick={handleSave}
             disabled={saving}
