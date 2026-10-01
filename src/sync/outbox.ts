@@ -23,7 +23,7 @@ export function makeOutboxId(nowMs: number): string {
 }
 
 /**
- * The compare-and-swap token for settling a claimed entry (P0-02).
+ * The compare-and-swap token for settling a claimed entry (P0-02, P0-03).
  *
  * claimDue hands out snapshots; a save during the push replaces the entry's
  * record under the same id. Every such replacement bumps `revision` (lease and
@@ -86,6 +86,7 @@ export class Outbox {
           ...existing,
           record,
           revision: revisionOf(existing) + 1, // in-flight settles of the old record now miss
+          attempts: 0, // fresh content never inherits the old content's failures
           nextAttemptAt: now, // fresh content → due immediately
           leaseUntil: undefined,
           lastError: undefined,
@@ -155,30 +156,43 @@ export class Outbox {
 
   /**
    * Compare-and-delete on delivery (P0-02): deletes the entry only if it
-   * still holds `expectedRevision`, the claimed snapshot's revision (absent =
-   * 0, as for a stored entry). A newer save that replaced it is kept.
+   * still holds `expectedRevision`, the claimed snapshot's revision. Absent, it
+   * is 0: the revision of an entry no save has replaced (and of one stored
+   * before the field existed). A newer save that replaced it is kept.
    */
   async ack(id: string, expectedRevision = 0): Promise<void> {
     await this.settle(id, expectedRevision, (tx) => tx.delete("outbox", id));
   }
 
-  /** Record a failure and schedule the retry. */
-  async fail(id: string, err: string, nextAttemptAt: number): Promise<void> {
-    const entry = await this.driver.get<OutboxEntry>("outbox", id);
-    if (!entry) return;
-    await this.driver.put("outbox", {
-      ...entry,
-      attempts: entry.attempts + 1,
-      lastError: err,
-      nextAttemptAt,
-      leaseUntil: undefined,
-    });
+  /**
+   * Compare-and-swap failure (P0-03): records the failure and schedules the
+   * retry only if the entry still holds `expectedRevision`. If a save replaced
+   * it, the failure belonged to the old content: no attempt is counted, no
+   * backoff or lastError set, and the newer content is left claimable now.
+   */
+  async fail(
+    id: string,
+    err: string,
+    nextAttemptAt: number,
+    expectedRevision = 0
+  ): Promise<void> {
+    await this.settle(id, expectedRevision, (tx, current) =>
+      tx.put("outbox", {
+        ...current,
+        attempts: current.attempts + 1,
+        lastError: err,
+        nextAttemptAt,
+        leaseUntil: undefined,
+      })
+    );
   }
 
+  /** Make an entry claimable again — in one transaction, so it never writes back a stale record. */
   async releaseLease(id: string): Promise<void> {
-    const entry = await this.driver.get<OutboxEntry>("outbox", id);
-    if (!entry) return;
-    await this.driver.put("outbox", { ...entry, leaseUntil: undefined });
+    await this.driver.transaction({ mode: "readwrite", stores: ["outbox"] }, async (tx) => {
+      const current = await tx.get<OutboxEntry>("outbox", id);
+      if (current) await tx.put("outbox", { ...current, leaseUntil: undefined });
+    });
   }
 
   async depth(): Promise<number> {

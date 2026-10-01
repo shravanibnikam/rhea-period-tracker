@@ -148,9 +148,9 @@ export class SyncEngine {
         const rejected = new Map(outcome.rejected.map((r) => [r.key, r.reason]));
 
         // The outcome is about the claimed SNAPSHOT. A save during the push may
-        // have replaced the entry's record (same id, same key), so every ack is
-        // a compare-and-delete on the snapshot's revision (P0-02): a replaced
-        // entry is kept, and the next round of this loop sends the newer record.
+        // have replaced the entry's record (same id, same key), so ack and fail
+        // compare-and-swap on the snapshot's revision (P0-02, P0-03): a replaced
+        // entry is kept unpenalised, and the next round of this loop sends it.
         for (const entry of due) {
           if (accepted.has(entry.record.key)) {
             await this.outbox.ack(entry.id, entry.revision);
@@ -167,7 +167,8 @@ export class SyncEngine {
               await this.outbox.fail(
                 entry.id,
                 reason,
-                this.now() + nextBackoffDelay(this.backoff, entry.attempts)
+                this.now() + nextBackoffDelay(this.backoff, entry.attempts),
+                entry.revision
               );
             }
           }
@@ -175,13 +176,15 @@ export class SyncEngine {
         this.online = true;
         this.lastError = null;
       } catch (e) {
-        // Whole-batch transport failure (offline etc.): back off every entry.
+        // Whole-batch transport failure (offline etc.): back off every entry
+        // that still holds the content that failed (compare-and-swap, P0-03).
         for (const entry of due) {
           failed++;
           await this.outbox.fail(
             entry.id,
             e instanceof Error ? e.message : "push failed",
-            this.now() + nextBackoffDelay(this.backoff, entry.attempts)
+            this.now() + nextBackoffDelay(this.backoff, entry.attempts),
+            entry.revision
           );
         }
         this.online = false;
