@@ -62,6 +62,7 @@ export class LatchedTransport implements Transport {
   readonly calls: PushCall[] = [];
 
   private latches: Array<(parked: ParkedPush) => void> = [];
+  private closed = false;
 
   /**
    * Park the next push() call that no earlier latch has claimed. Resolves once
@@ -76,7 +77,19 @@ export class LatchedTransport implements Transport {
     this.latches = [];
   }
 
+  /**
+   * End of test: disarm latches, and make every later push() throw. A flush
+   * loop that a failing test left running (say, a regression that re-pushes
+   * forever) then stops at its next push instead of outliving the test and
+   * starving the tests after it.
+   */
+  close(): void {
+    this.closed = true;
+    this.latches = [];
+  }
+
   async push(rows: SyncRecord[], ctx: PushCtx): Promise<PushOutcome> {
+    if (this.closed) throw new Error("LatchedTransport: closed");
     const latch = this.latches.shift();
     const call: PushCall = {
       rows: structuredClone(rows),

@@ -32,6 +32,7 @@ afterEach(async () => {
 
 const queuedNotes = async (r: IdbSyncRig) => (await r.entries()).map((e) => notesOf(e.record));
 const serverNotes = (r: IdbSyncRig) => r.serverRows().map(notesOf);
+const pushedNotes = (r: IdbSyncRig) => r.transport.calls.map((c) => c.rows.map(notesOf));
 
 /** Another device's edit of the same day, at physical time `pt`. */
 function theirEdit(pt: number): SyncRecord {
@@ -84,6 +85,7 @@ describe("P0-02 — a save made while its entry is on the wire survives the ack"
     second!.release();
     await expect(flush).resolves.toMatchObject({ failed: 0, remaining: 0 });
     expect(serverNotes(r)).toEqual(["v2"]);
+    expect(pushedNotes(r), "v2 is sent exactly once").toEqual([["v1"], ["v2"]]);
     expect(await r.entries()).toEqual([]);
   });
 
@@ -104,6 +106,7 @@ describe("P0-02 — a save made while its entry is on the wire survives the ack"
     second!.release(); // server: v2 is newer than theirs
     await expect(flush).resolves.toMatchObject({ remaining: 0 });
     expect(serverNotes(r)).toEqual(["v2"]);
+    expect(pushedNotes(r), "v2 is sent exactly once").toEqual([["v1"], ["v2"]]);
   });
 
   it("a save from ANOTHER TAB (its own connection to the same database) survives the ack", async () => {
@@ -118,6 +121,7 @@ describe("P0-02 — a save made while its entry is on the wire survives the ack"
     second!.release();
     await expect(flush).resolves.toMatchObject({ remaining: 0 });
     expect(serverNotes(r)).toEqual(["v2"]);
+    expect(pushedNotes(r), "v2 is sent exactly once").toEqual([["v1"], ["v2"]]);
   });
 
   it("the ack is ONE transaction: a save landing inside the ack (between its read and its delete) is kept", async () => {
@@ -143,6 +147,7 @@ describe("P0-02 — a save made while its entry is on the wire survives the ack"
     second!.release();
     await expect(flush).resolves.toMatchObject({ remaining: 0 });
     expect(serverNotes(r)).toEqual(["v2"]);
+    expect(pushedNotes(r), "v2 is sent exactly once").toEqual([["v1"], ["v2"]]);
   });
 
   it("an entry stored before the revision field existed is protected too", async () => {
@@ -164,6 +169,7 @@ describe("P0-02 — a save made while its entry is on the wire survives the ack"
     second!.release();
     await expect(flush).resolves.toMatchObject({ remaining: 0 });
     expect(serverNotes(r)).toEqual(["v2"]);
+    expect(pushedNotes(r), "v2 is sent exactly once").toEqual([["v1"], ["v2"]]);
   });
 });
 
@@ -191,6 +197,40 @@ describe("P0-02 — entries nothing touched are still settled by the ack (happy 
       failed: 0,
       remaining: 0,
     });
+    expect(await r.entries()).toEqual([]);
+    expect(serverNotes(r)).toEqual(["theirs"]);
+  });
+
+  it("accepted: an entry replaced BEFORE its claim is deleted, and not pushed again", async () => {
+    const r = (rig = makeIdbSyncRig());
+    await r.repo.save(logWithNotes("v1"));
+    r.clock.advance(10);
+    await r.repo.save(logWithNotes("v2")); // coalesced before any push: a non-zero revision
+    const parked = r.transport.latchNextPush();
+    const flush = r.engine.flush("manual");
+    const first = await parked;
+    expect(first.rows.map(notesOf)).toEqual(["v2"]);
+
+    const again = await releaseThenNextRound(r, first, flush);
+
+    expect(again?.rows.map(notesOf), "settled content is not pushed again").toBeUndefined();
+    expect(await r.entries()).toEqual([]);
+    expect(serverNotes(r)).toEqual(["v2"]);
+  });
+
+  it("stale-write: an entry replaced BEFORE its claim is dropped, and not pushed again", async () => {
+    const r = (rig = makeIdbSyncRig());
+    await r.repo.save(logWithNotes("v1"));
+    r.clock.advance(10);
+    await r.repo.save(logWithNotes("v2"));
+    await r.transport.server.push([theirEdit(r.clock.now() + 5)], { peerId: OWNER, deviceId: "dev-b" });
+    const parked = r.transport.latchNextPush();
+    const flush = r.engine.flush("manual");
+    const first = await parked;
+
+    const again = await releaseThenNextRound(r, first, flush); // server: v2 is a stale write
+
+    expect(again?.rows.map(notesOf), "settled content is not pushed again").toBeUndefined();
     expect(await r.entries()).toEqual([]);
     expect(serverNotes(r)).toEqual(["theirs"]);
   });

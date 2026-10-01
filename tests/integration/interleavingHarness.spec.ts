@@ -124,6 +124,10 @@ describe("LatchedTransport", () => {
       ["log:b", true],
       ["log:c", false],
     ]);
+
+    t.close(); // end of test: a runaway flush must stop at its next push
+    await expect(t.push([rec("log:d", "d")], ctx)).rejects.toThrow(/closed/);
+    expect(t.calls).toHaveLength(3);
   });
 });
 

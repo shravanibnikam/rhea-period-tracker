@@ -66,7 +66,7 @@ export function makeIdbSyncRig() {
     /** What the server holds for this owner. */
     serverRows: () => transport.server.rows(OWNER, "owner"),
     async dispose(): Promise<void> {
-      transport.clearLatches();
+      transport.close(); // a runaway flush stops at its next push
       for (const tab of tabs) await tab.close();
       await idb.destroy();
     },

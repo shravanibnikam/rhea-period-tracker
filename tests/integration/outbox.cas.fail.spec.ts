@@ -236,6 +236,39 @@ describe("P0-03 — an unchanged entry's failure still counts and backs off (hap
     expect(entries.every((e) => e.nextAttemptAt === r.clock.now() + 1_000)).toBe(true);
   });
 
+  it("per-entry rejection: an entry replaced BEFORE its claim counts the failure and backs off", async () => {
+    const r = (rig = makeIdbSyncRig());
+    await r.repo.save(logWithNotes("v1"));
+    r.clock.advance(10);
+    await r.repo.save(logWithNotes("v2")); // coalesced before any push: a non-zero revision
+    const parked = r.transport.latchNextPush();
+    const flush = r.engine.flush("manual");
+    const first = await parked;
+    const malformed: PushVerdict = { kind: "reject", reason: "malformed" };
+
+    const again = await releaseThenNextRound(r, first, flush, malformed);
+
+    expect(again?.rows.map(notesOf), "a counted failure is not retried at once").toBeUndefined();
+    expect(await queueState(r)).toEqual([
+      { notes: "v2", attempts: 1, lastError: "malformed", leased: false, due: false },
+    ]);
+  });
+
+  it("whole-batch failure: an entry replaced BEFORE its claim counts the failure and backs off", async () => {
+    const r = (rig = makeIdbSyncRig());
+    await r.repo.save(logWithNotes("v1"));
+    r.clock.advance(10);
+    await r.repo.save(logWithNotes("v2"));
+    const parked = r.transport.latchNextPush();
+    const flush = r.engine.flush("manual");
+    (await parked).release({ kind: "throw", message: "offline" });
+
+    await expect(flush).resolves.toMatchObject({ pushed: 0, failed: 1, remaining: 1 });
+    expect(await queueState(r)).toEqual([
+      { notes: "v2", attempts: 1, lastError: "offline", leased: false, due: false },
+    ]);
+  });
+
   it("releaseLease: a claimed entry becomes claimable again at once", async () => {
     const r = (rig = makeIdbSyncRig());
     const { outbox } = r.engine;
