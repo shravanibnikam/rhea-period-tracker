@@ -199,6 +199,24 @@ describe("useLogger.reload / revert (P0-N2)", () => {
     expect(getLog).toHaveBeenCalledTimes(2);
   });
 
+  it("a failed reload() keeps the shown record and exists, and sets no loadError (review mutant M18)", async () => {
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    const { c, result } = await setup(SEEDED);
+    await waitFor(() => expect(result.current.log.notes).toBe("KEEP"));
+    const getLog = vi.spyOn(c, "getLog").mockRejectedValueOnce(new Error("read failed"));
+
+    act(() => result.current.reload()); // e.g. after a sync, with the Log sheet closed
+    expect(getLog).toHaveBeenCalledTimes(1);
+    await act(async () => {
+      await getLog.mock.results[0].value.catch(() => {}); // the failure has been handled
+    });
+
+    expect(result.current.log).toMatchObject(SEEDED);
+    expect(result.current.exists).toBe(true);
+    expect(result.current.loadError).toBeNull();
+    expect(result.current.loading).toBe(false);
+  });
+
   it("revert() drops an unsaved draft back to the stored record", async () => {
     const { result } = await setup(SEEDED);
     await waitFor(() => expect(result.current.log.notes).toBe("KEEP"));

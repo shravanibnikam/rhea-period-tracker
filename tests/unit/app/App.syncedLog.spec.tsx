@@ -314,4 +314,26 @@ describe("App: the active log stays in step with synced data (P0-N2)", () => {
     await waitFor(() => expect(screen.queryByRole("dialog", { name: "Log your day" })).toBeNull());
     expect(await storedNotes(c)).toBe("TYPED-WHILE-SYNCING");
   });
+
+  // Review mutant M18: a failed re-read after a sync (sheet closed) is a
+  // background read of a day already shown — keep it, and report nothing.
+  it("a sync refresh whose re-read of the day fails keeps the Overview's day, with no load error", async () => {
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    const uid = `n2-bgfail-${++seq}-${Date.now()}`;
+    const server = freshServer();
+    const phone = phoneFor(uid, server);
+    await phone.repo.save(REMOTE);
+    await phone.engine.flush("manual");
+    const { c, engine } = await startLaptopListening(uid);
+    await screen.findByText(/1 tracked today/);
+    const reads = watchTodayReads(c);
+    reads.fail = true;
+
+    await pullAndRefresh(engine);
+    await reads.settle();
+
+    expect(reads.failed).toBeGreaterThan(0); // the refresh did re-read the day, and that read failed
+    expect(screen.getByText(/1 tracked today/)).toBeTruthy();
+    expect(screen.queryByRole("alert")).toBeNull();
+  });
 });
