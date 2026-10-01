@@ -20,6 +20,8 @@ import {
   withSymptoms,
   TODAY,
 } from "../../fixtures/logs";
+import { EXTENDED_SCENARIOS } from "../../fixtures/scenarios";
+import { evaluateScenario } from "../../helpers/evaluateScenario";
 
 // Golden-master ("characterization") tests: they lock the CURRENT observable
 // behavior of the cycle/phase engine so the Phase-1 refactor (M1.2/M1.3) can
@@ -109,6 +111,21 @@ describe("deriveCycleState (full golden master)", () => {
     // current period started 2026-01-01; by TODAY it is far overdue
     expect(deriveCycleState(singlePeriod, null, TODAY).isLate).toBe(true);
   });
+});
+
+// ── E-19 EXTENDED FIXTURES ─────────────────────────────────────────────────
+// The original fixtures contain no spotting day, no gap under 21 days, no
+// future-dated log and no degenerate anchor, so fixes to those paths moved no
+// snapshot entry. These entries pin what main computes for each case, bugs
+// included: a golden master, not a spec. A domain fix that changes a result
+// must move its entry (and enumerate it in review); see
+// tests/fixtures/scenarios.ts for what each scenario covers.
+describe("extended fixtures (E-19)", () => {
+  for (const s of EXTENDED_SCENARIOS) {
+    it(`${s.id}: ${s.title}`, () => {
+      expect(evaluateScenario(s)).toMatchSnapshot();
+    });
+  }
 });
 
 describe("symptom patterns + variability label", () => {
