@@ -22,6 +22,28 @@ export function makeOutboxId(nowMs: number): string {
     .padStart(4, "0")}-${rand}`;
 }
 
+/**
+ * The compare-and-swap token for settling a claimed entry (P0-02).
+ *
+ * claimDue hands out snapshots; a save during the push replaces the entry's
+ * record under the same id. Every such replacement bumps `revision` (lease and
+ * backoff bookkeeping never do), so settling against the claimed snapshot's
+ * revision detects it however the two records' HLCs compare.
+ *
+ * Why a counter rather than `record.updatedAt`: coalescing also replaces on an
+ * EQUAL HLC (`>= 0`), and an updatedAt token is sound only while hlcNow stays
+ * strictly monotonic — an invariant kept by other layers (domain/hlc,
+ * data/syncStamp and the persisted HLC state that tabs sharing one deviceId
+ * all advance) and enforced by nothing here. The counter depends on nothing
+ * but this file. Entries stored before the field existed read as revision 0,
+ * so no IndexedDB migration is needed. Limitation: a writer that replaces a
+ * record without bumping it (a pre-fix build still open in another tab, or a
+ * raw put()) is invisible to the token.
+ */
+function revisionOf(entry: OutboxEntry): number {
+  return entry.revision ?? 0;
+}
+
 export class Outbox {
   constructor(
     private readonly driver: StorageDriver,
@@ -63,6 +85,7 @@ export class Outbox {
         await tx.put("outbox", {
           ...existing,
           record,
+          revision: revisionOf(existing) + 1, // in-flight settles of the old record now miss
           nextAttemptAt: now, // fresh content → due immediately
           leaseUntil: undefined,
           lastError: undefined,
@@ -77,6 +100,7 @@ export class Outbox {
       attempts: 0,
       nextAttemptAt: now,
       enqueuedAt: now,
+      revision: 0,
     };
     await tx.put("outbox", entry);
   }
@@ -106,9 +130,36 @@ export class Outbox {
     );
   }
 
-  /** Delete on delivery success. */
-  async ack(id: string): Promise<void> {
-    await this.driver.delete("outbox", id);
+  /**
+   * Settle a claimed entry against the revision that was pushed, in ONE
+   * readwrite transaction. While the entry still holds `expectedRevision`,
+   * `onMatch` writes the outcome. Otherwise a save replaced it while the push
+   * was in flight: keep the newer content and clear the lease explicitly, so
+   * the next round sends it now rather than after a lease runs out.
+   */
+  private settle(
+    id: string,
+    expectedRevision: number,
+    onMatch: (tx: StorageTx, current: OutboxEntry) => Promise<void>
+  ): Promise<void> {
+    return this.driver.transaction({ mode: "readwrite", stores: ["outbox"] }, async (tx) => {
+      const current = await tx.get<OutboxEntry>("outbox", id);
+      if (!current) return; // already settled elsewhere (another tab) or cleared
+      if (revisionOf(current) !== expectedRevision) {
+        await tx.put("outbox", { ...current, leaseUntil: undefined });
+        return;
+      }
+      await onMatch(tx, current);
+    });
+  }
+
+  /**
+   * Compare-and-delete on delivery (P0-02): deletes the entry only if it
+   * still holds `expectedRevision`, the claimed snapshot's revision (absent =
+   * 0, as for a stored entry). A newer save that replaced it is kept.
+   */
+  async ack(id: string, expectedRevision = 0): Promise<void> {
+    await this.settle(id, expectedRevision, (tx) => tx.delete("outbox", id));
   }
 
   /** Record a failure and schedule the retry. */

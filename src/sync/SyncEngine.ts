@@ -147,16 +147,21 @@ export class SyncEngine {
         const accepted = new Set(outcome.accepted);
         const rejected = new Map(outcome.rejected.map((r) => [r.key, r.reason]));
 
+        // The outcome is about the claimed SNAPSHOT. A save during the push may
+        // have replaced the entry's record (same id, same key), so every ack is
+        // a compare-and-delete on the snapshot's revision (P0-02): a replaced
+        // entry is kept, and the next round of this loop sends the newer record.
         for (const entry of due) {
           if (accepted.has(entry.record.key)) {
-            await this.outbox.ack(entry.id);
+            await this.outbox.ack(entry.id, entry.revision);
             pushed++;
           } else {
             const reason = rejected.get(entry.record.key) ?? "unknown";
             if (reason === "stale-write") {
               // The server already holds a newer row — our write lost LWW.
-              // Drop it; the newer content arrives on the next pull.
-              await this.outbox.ack(entry.id);
+              // Drop it; the newer content arrives on the next pull. (Unless a
+              // newer local save replaced it meanwhile: the ack keeps that one.)
+              await this.outbox.ack(entry.id, entry.revision);
             } else {
               failed++;
               await this.outbox.fail(
