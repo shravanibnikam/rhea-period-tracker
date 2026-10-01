@@ -12,10 +12,15 @@
  * A POSITIVE partner answer drops what was queued: those entries are edits to
  * the owner's cached rows and must never be uploaded (e.g. after an unlink).
  * Real Container over fake-indexeddb; the engine's NullTransport push is spied.
+ *
+ * Every save here first waits for the day's stored record to load in the sheet,
+ * then edits it, and the test asserts the edit WAS stored. useLogger refuses a
+ * whole-record save while the day's read is pending ("still loading"), and a
+ * refused save would make "nothing queued / nothing pushed" pass vacuously.
  */
 import "fake-indexeddb/auto";
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { render, screen, fireEvent, act, waitFor, cleanup } from "@testing-library/react";
+import { render, screen, fireEvent, act, waitFor, cleanup, within } from "@testing-library/react";
 import { ContainerProvider } from "@/app/di/context";
 import { Container } from "@/app/di/Container";
 import { NullTransport, type SyncEngine, type OutboxEntry } from "@/sync";
@@ -93,7 +98,11 @@ class TestContainer extends Container {
 
 let n = 0;
 const fresh = (p: string) => `${p}-${Date.now()}-${n++}`;
-const TODAY_KEY = logKey(toDateKey(new Date()));
+const TODAY = toDateKey(new Date());
+const TODAY_KEY = logKey(TODAY);
+/** Today's stored note — its appearance in the sheet proves the day's read landed. */
+const TODAY_NOTE = "today, before the edit";
+const TODAY_EDIT = "today, edited offline";
 
 async function seedStore(
   uid: string,
@@ -151,20 +160,50 @@ async function outboxKeys(c: Container): Promise<string[]> {
   return (await (await c.driver()).getAll<OutboxEntry>("outbox")).map((e) => e.record.key);
 }
 
-/** Offline cold start: a stored session, the role lookup fails; the user logs today. */
+/**
+ * In the open log sheet: wait until the day's STORED record has loaded (its
+ * note shows), replace the note, save, and wait for the sheet to close — it
+ * closes only once the save has persisted, so a refused ("still loading") or
+ * failed save fails here instead of passing vacuously.
+ */
+async function editLoadedDayAndSave(loadedNote: string, newNote: string) {
+  const notes = (await screen.findByPlaceholderText(
+    "How are you feeling today?"
+  )) as HTMLTextAreaElement;
+  await waitFor(() => expect(notes.value).toBe(loadedNote));
+  fireEvent.change(notes, { target: { value: newNote } });
+  fireEvent.click(screen.getByRole("button", { name: /save log/i }));
+  await waitFor(() => expect(screen.queryByRole("dialog", { name: "Log your day" })).toBeNull());
+  expect(screen.queryByText(/still loading/i)).toBeNull();
+  await settle(50);
+}
+
+/**
+ * The calendar cell for `date`. Scoped to the day grid under the weekday header,
+ * so no other button with the same number can match; the grid shows only the
+ * displayed month's own days, so the number is unique there.
+ */
+function calendarDayButton(date: Date): HTMLElement {
+  const grid = screen.getByText("Su").parentElement?.nextElementSibling;
+  if (!(grid instanceof HTMLElement)) throw new Error("calendar day grid not found");
+  return within(grid).getByRole("button", { name: String(date.getDate()) });
+}
+
+/** Offline cold start: a stored session, the role lookup fails; the user edits today. */
 async function offlineStartAndSaveToday(uid: string) {
-  await seedStore(uid);
+  await seedStore(uid, [
+    { date: "2026-06-01", flow: "heavy" },
+    { date: TODAY, flow: "light", notes: TODAY_NOTE },
+  ]);
   h.links[`partner_id=${uid}`] = "error";
   const c = renderApp();
   await settle();
   await emit("INITIAL_SESSION", uid);
   await settle(50);
   fireEvent.click(await screen.findByRole("button", { name: "Log today" }));
-  fireEvent.click(await screen.findByRole("button", { name: /save log/i }));
-  await waitFor(async () =>
-    expect((await c.getAllLogs()).map((l) => l.date)).toContain(toDateKey(new Date()))
-  );
-  await settle(50);
+  await editLoadedDayAndSave(TODAY_NOTE, TODAY_EDIT);
+  // The save really happened: the stored row carries the edit.
+  expect((await c.getLog(TODAY))?.notes).toBe(TODAY_EDIT);
   return c;
 }
 
@@ -244,8 +283,12 @@ describe("a store that has served a partner session (lastKnownRole=partner)", ()
 
   it("an unresolved role never queues an edit of the owner's cached row, so a later owner answer uploads nothing (probe Q2b)", async () => {
     const uid = fresh("expartner");
+    // The owner's cached row sits on TODAY: the only date that is never in the
+    // future and always in the month the calendar opens on, whatever the date
+    // (a fixed day number is in the future on the 1st, and yesterday is in the
+    // previous month then).
     const now = new Date();
-    const cachedDate = toDateKey(new Date(now.getFullYear(), now.getMonth(), 2));
+    const cachedDate = toDateKey(now);
     await seedStore(uid, [{ date: cachedDate, flow: "heavy", notes: OWNER_NOTE }], {
       lastKnownRole: "partner",
     });
@@ -255,11 +298,15 @@ describe("a store that has served a partner session (lastKnownRole=partner)", ()
     await emit("INITIAL_SESSION", uid);
     await settle(50);
 
-    // Open the owner's cached day from the calendar and save it.
+    // Open the owner's cached day from the calendar, wait for her row to load,
+    // edit it (keeping her note in the text) and save.
+    const edited = `${OWNER_NOTE} (edited offline)`;
     fireEvent.click(await screen.findByRole("tab", { name: /calendar/i }));
-    fireEvent.click(await screen.findByRole("button", { name: "2" }));
-    fireEvent.click(await screen.findByRole("button", { name: /save log/i }));
-    await settle(80);
+    fireEvent.click(calendarDayButton(now));
+    await editLoadedDayAndSave(OWNER_NOTE, edited);
+
+    // The edit WAS stored locally (not refused) — and nothing was queued.
+    expect((await c.getLog(cachedDate))?.notes).toBe(edited);
     expect(await outboxKeys(c)).toEqual([]);
 
     // The owner unlinks him; the next lookup answers "owner" and starts the engine.
