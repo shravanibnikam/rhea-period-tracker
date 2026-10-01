@@ -8,6 +8,7 @@ import { toDateKey } from "@/domain/dates";
 import { emptyLog, type DailyLog } from "@/domain/types";
 import { MemoryDriver } from "@/data/drivers/MemoryDriver";
 import { LogRepository } from "@/data/repositories";
+import type { StoredLog } from "@/data/repositories/LogRepository";
 import { SyncEngine } from "@/sync/SyncEngine";
 import { FakeTransport } from "../../helpers/fakeTransport";
 
@@ -133,6 +134,73 @@ function freshServer(): FakeTransport {
 
 const notesField = () => screen.findByPlaceholderText("How are you feeling today?");
 
+/**
+ * Start this device, then wait until the App listens to its engine's status:
+ * every status the engine emits runs the App's sync refresh (refreshAfterSync).
+ */
+async function startLaptopListening(uid: string): Promise<{ c: Container; engine: SyncEngine }> {
+  const listen = vi.spyOn(SyncEngine.prototype, "onStatus");
+  const c = await startLaptop(uid);
+  await waitFor(() => expect(listen.mock.contexts).toContain(c.syncEngine()));
+  return { c, engine: c.syncEngine() as SyncEngine };
+}
+
+/**
+ * Deliver a sync refresh: pull on this device, then wait until the engine has
+ * emitted a status since (a pull always ends with one). The App's listener was
+ * registered before ours, so by then its sync refresh has run.
+ */
+async function pullAndRefresh(engine: SyncEngine): Promise<void> {
+  let statuses = 0;
+  const off = engine.onStatus(() => {
+    statuses++;
+  });
+  try {
+    await act(async () => {
+      await engine.pull();
+    });
+    await waitFor(() => expect(statuses).toBeGreaterThan(0));
+  } finally {
+    off();
+  }
+}
+
+/**
+ * Record the App's reads of today's log (useLogger reads only through
+ * getLog), so a test can let the ones it caused settle; `fail` rejects them.
+ */
+function watchTodayReads(c: Container) {
+  const real = c.getLog.bind(c);
+  const ctl = {
+    fail: false,
+    failed: 0,
+    reads: [] as Promise<unknown>[],
+    /** Let every recorded read settle, and React apply what it led to. */
+    settle: () =>
+      act(async () => {
+        await Promise.allSettled(ctl.reads.splice(0));
+      }),
+  };
+  vi.spyOn(c, "getLog").mockImplementation((date) => {
+    if (date !== TODAY) return real(date);
+    let read: Promise<DailyLog | undefined>;
+    if (ctl.fail) {
+      ctl.failed++;
+      read = Promise.reject(new Error("read failed"));
+    } else {
+      read = real(date);
+    }
+    ctl.reads.push(read);
+    return read;
+  });
+  return ctl;
+}
+
+/** Today's stored notes, read past the App (and past any getLog spy). */
+async function storedNotes(c: Container): Promise<string | undefined> {
+  return (await (await c.driver()).get<StoredLog>("logs", TODAY))?.notes;
+}
+
 describe("App: the active log stays in step with synced data (P0-N2)", () => {
   it("after a pull lands, the Overview shows the synced day and a tap keeps it on every device", async () => {
     const uid = `n2-pull-${++seq}-${Date.now()}`;
@@ -213,5 +281,37 @@ describe("App: the active log stays in step with synced data (P0-N2)", () => {
     fireEvent.click(screen.getByRole("button", { name: "Log today" }));
     const notes = (await notesField()) as HTMLTextAreaElement;
     await waitFor(() => expect(notes.value).toBe("REMOTE-KEEP"));
+  });
+
+  // Review mutant M4: a sync refresh must not re-read the day while the sheet
+  // is open — the re-read would replace what the user is typing.
+  it("a pull while the Log sheet is open keeps what the user typed, and Save stores it", async () => {
+    const uid = `n2-typing-${++seq}-${Date.now()}`;
+    const server = freshServer();
+    const phone = phoneFor(uid, server);
+    await phone.repo.save(REMOTE);
+    await phone.engine.flush("manual");
+    const { c, engine } = await startLaptopListening(uid);
+    await screen.findByText(/1 tracked today/);
+    const reads = watchTodayReads(c);
+
+    fireEvent.click(screen.getByRole("button", { name: "Log today" }));
+    const notes = (await notesField()) as HTMLTextAreaElement;
+    expect(reads.reads).not.toHaveLength(0); // the sheet re-reads the day when it opens...
+    await reads.settle(); // ...and that read has landed, so it cannot replace the typing below
+    expect(notes.value).toBe("REMOTE-KEEP");
+    fireEvent.change(notes, { target: { value: "TYPED-WHILE-SYNCING" } });
+
+    // The phone edits the day; this device pulls that while the sheet is open.
+    await phone.repo.save({ ...REMOTE, notes: "PHONE-LATER" });
+    await phone.engine.flush("manual");
+    await pullAndRefresh(engine);
+    await reads.settle();
+    expect(await storedNotes(c)).toBe("PHONE-LATER"); // the pull reached the store
+
+    expect(notes.value).toBe("TYPED-WHILE-SYNCING"); // before Save
+    fireEvent.click(screen.getByRole("button", { name: "Save Log" }));
+    await waitFor(() => expect(screen.queryByRole("dialog", { name: "Log your day" })).toBeNull());
+    expect(await storedNotes(c)).toBe("TYPED-WHILE-SYNCING");
   });
 });
