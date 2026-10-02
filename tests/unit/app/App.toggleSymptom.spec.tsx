@@ -8,6 +8,10 @@ import { ContainerProvider } from "@/app/di/context";
 import { toDateKey } from "@/domain/dates";
 import { emptyLog, type DailyLog } from "@/domain/types";
 
+// Local mode regardless of the ambient environment: CI also runs this suite
+// with VITE_SUPABASE_* set, where the real client would show the sign-in screen.
+vi.mock("@/app/lib/supabase", () => ({ supabase: null, isSupabaseConfigured: () => false }));
+
 // INV-WRITE-ACK (P0-04), App call site: the Overview symptom toggles update the
 // UI optimistically, so a failed save must revert the toggle and say so, never
 // leave a symptom on screen that was not stored. Real App over a real
