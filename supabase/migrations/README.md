@@ -20,7 +20,22 @@ on 2026-09-15, in the same transaction as its migration-history entry.
 | `0006_keepalive.sql` | hosting | ✅ prod | One boolean liveness row; RLS permits anonymous SELECT only, with no account or health data. |
 | `0007_harden_definer_functions.sql` | SEC-14 | not yet (maintainer: `supabase db push`) | **Grants and settings only; no body, signature or data change.** The four `SECURITY DEFINER` functions (`handle_new_user`, `ensure_share_settings`, `create_invite`, `redeem_invite`) get `search_path = public, pg_temp` (`pg_temp` last); `EXECUTE` is revoked from `PUBLIC` and `anon` and restated for `authenticated` on the three client RPCs. Graded by `supabase/tests/rls_coverage.sql`. Before/after `db push`: see "Deploying 0007" below. |
 
-### Deploying 0007
+> **Migration-numbering note:** the earlier planning docs reserved `0004`+ for
+> Phase-2 E2EE migrations. The shipped `0004` is the pairing pgcrypto fix and
+> `0005` is the partner calendar/symptom share keys, so the planned E2EE sequence
+> now follows the hosting keep-alive at `0006` and the SEC-14 hardening at `0007`:
+> the next migration uses `0008` or the next available number. Planning documents
+> that name later migrations `0007`–`0011` predate this, so each of those shifts
+> by one. The older partner E2EE roadmap is
+> superseded by the scoped plan in `docs/EXECUTION_PLAN.md`.
+> **Applied migrations are never renamed or rewritten.**
+
+The legacy hand-run `supabase/migration*.sql` scripts have been removed. Each was a
+byte-identical copy of one marked section of `0001_baseline.sql` (`===== migration.sql =====`,
+`===== migration-phase-c.sql =====`, `===== migration-phase-e.sql =====`), so nothing was lost;
+running them by hand would have re-created the invite policy that `0002` removed.
+
+## Deploying 0007
 
 `ALTER FUNCTION` needs the function's owner, and `handle_new_user()` in production
 dates from the hand-run baseline. Before `supabase db push`, confirm against
@@ -42,26 +57,12 @@ rows:
 select p.oid::regprocedure from pg_proc p
  where p.pronamespace = 'public'::regnamespace and p.prosecdef
    and not exists (select 1 from unnest(p.proconfig) s
-                    where s ~ '^search_path=(.*, )?pg_temp$');
+                    where s ~ '^search_path=(.*, )?pg_temp$'
+                      and s !~ '(=|, )pg_temp, ');
 select p.oid::regprocedure from pg_proc p
  where p.pronamespace = 'public'::regnamespace and p.prosecdef
    and has_function_privilege('anon', p.oid, 'EXECUTE');
 ```
-
-> **Migration-numbering note:** the earlier planning docs reserved `0004`+ for
-> Phase-2 E2EE migrations. The shipped `0004` is the pairing pgcrypto fix and
-> `0005` is the partner calendar/symptom share keys, so the planned E2EE sequence
-> now follows the hosting keep-alive at `0006` and the SEC-14 hardening at `0007`:
-> the next migration uses `0008` or the next available number. Planning documents
-> that name later migrations `0007`–`0011` predate this, so each of those shifts
-> by one. The older partner E2EE roadmap is
-> superseded by the scoped plan in `docs/EXECUTION_PLAN.md`.
-> **Applied migrations are never renamed or rewritten.**
-
-The legacy hand-run `supabase/migration*.sql` scripts have been removed. Each was a
-byte-identical copy of one marked section of `0001_baseline.sql` (`===== migration.sql =====`,
-`===== migration-phase-c.sql =====`, `===== migration-phase-e.sql =====`), so nothing was lost;
-running them by hand would have re-created the invite policy that `0002` removed.
 
 ## Applying
 

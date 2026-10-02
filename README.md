@@ -89,13 +89,13 @@ The backend is a Supabase project (`daily_logs`, `partner_links`, `invites`, `pr
 | `0005` | partner share defaults | Seeds calendar and symptom share keys, default off |
 | `0006` | keep-alive | Anonymous read of one liveness row |
 
-Apply to a linked project with `supabase db push`. Details and the applied/verification status: [`supabase/migrations/README.md`](supabase/migrations/README.md). All four pgTAP suites pass locally (37 assertions) and run in CI; see [testing](docs/TESTING.md).
+Apply to a linked project with `supabase db push`. Details and the applied/verification status: [`supabase/migrations/README.md`](supabase/migrations/README.md). All five pgTAP suites pass locally (48 assertions) and run in CI; see [testing](docs/TESTING.md).
 
 ---
 
 ## Testing & deployment
 
-- **Tests:** Vitest unit and IndexedDB integration coverage, 37 pgTAP assertions, and four browser tests. Transport fixtures are independent of ambient `.env` configuration. See [testing instructions](docs/TESTING.md).
+- **Tests:** Vitest unit and IndexedDB integration coverage, 48 pgTAP assertions, and four browser tests. Transport fixtures are independent of ambient `.env` configuration. See [testing instructions](docs/TESTING.md).
 - **CI:** [`.github/workflows/ci.yml`](.github/workflows/ci.yml) runs typecheck, coverage, configured-environment tests, lint, build, and local Supabase security/browser tests on pushes to main and pull requests.
 - **Production verification:** UI save/delete, newer tombstone, two-session reload, unlinked-account isolation and pairing/unlink passed on Pages with synthetic accounts.
 - **Deploy:** GitHub Actions builds and deploys Pages from `main` using public repository variables `VITE_SUPABASE_URL` and `VITE_SUPABASE_PUBLISHABLE_KEY`. Daily Supabase keep-alive is enabled.
