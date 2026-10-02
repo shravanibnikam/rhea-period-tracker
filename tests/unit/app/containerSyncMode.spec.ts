@@ -9,10 +9,11 @@
  */
 import "fake-indexeddb/auto";
 import { describe, it, expect, afterEach, vi } from "vitest";
-import { Container } from "@/app/di/Container";
+import { Container, type OutboxMode } from "@/app/di/Container";
 import { flags, isOwnerEngineSync, ownerOutboxMode } from "@/app/lib/flags";
-import { emptyLog } from "@/domain/types";
-import { logKey } from "@/data/envelope";
+import { emptyLog, type DailyLog } from "@/domain/types";
+import { logKey, openPlain } from "@/data/envelope";
+import { META_LAST_KNOWN_ROLE } from "@/data/schema";
 import type { OutboxEntry } from "@/sync";
 import { SyncEngine } from "@/sync";
 import type { StorageDriver } from "@/data/drivers/StorageDriver";
@@ -145,4 +146,40 @@ describe("Container durable-outbox mode gating", () => {
     expect(await c.getLog(DATE)).toBeUndefined(); // still applied locally
     expect(await tombstoneOf(c)).toBeDefined();
   });
+});
+
+// The Overview symptom toggle (P0-N2) writes through Container.setSymptom: it
+// must queue exactly as a save does in each OutboxMode (P0-06), including the
+// partner-marked store an unresolved role must never queue from.
+describe("Container.setSymptom queues like a save in every OutboxMode (P0-06 × P0-N2)", () => {
+  const rows: Array<{ mode: OutboxMode; marked: boolean; queued: number }> = [
+    { mode: "owner", marked: false, queued: 1 },
+    { mode: "owner", marked: true, queued: 1 },
+    { mode: "unresolved", marked: false, queued: 1 },
+    { mode: "unresolved", marked: true, queued: 0 },
+    { mode: "off", marked: false, queued: 0 },
+  ];
+
+  it.each(rows.map((r) => ({ ...r, outcome: r.queued ? "queues it" : "queues nothing" })))(
+    "mode $mode, partner-marked store: $marked → $outcome",
+    async ({ mode, marked, queued }) => {
+      const c = freshContainer(`setsymptom-${mode}-${marked ? "marked" : "unmarked"}`);
+      if (marked) await (await c.driver()).put("meta", "partner", META_LAST_KNOWN_ROLE);
+      c.setOwnerSyncMode(mode);
+
+      await c.setSymptom(DATE, "Cramps", true);
+
+      // Stored in every mode; only the queueing differs.
+      expect((await c.getLog(DATE))?.symptoms).toEqual(["Cramps"]);
+      const q = await outboxOf(c);
+      expect(q).toHaveLength(queued);
+      for (const entry of q) {
+        expect(entry.record.key).toBe(logKey(DATE));
+        expect(entry.record.payload && openPlain<DailyLog>(entry.record.payload)).toMatchObject({
+          date: DATE,
+          symptoms: ["Cramps"],
+        });
+      }
+    }
+  );
 });

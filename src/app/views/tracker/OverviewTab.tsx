@@ -10,7 +10,10 @@ interface OverviewTabProps {
   state: CycleState;
   symptoms: Set<string>;
   toggleSymptom: (s: string) => void;
-  /** Shown when a symptom toggle could not be saved (the toggle is reverted). */
+  /**
+   * Shown under the symptom toggles: a toggle that could not be saved (it is
+   * undone), or today's saved log that could not be read.
+   */
   symptomError?: string | null;
   today: Date;
 }

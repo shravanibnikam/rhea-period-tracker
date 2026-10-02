@@ -3,7 +3,7 @@ import type { DailyLog } from "@/domain/types";
 import { PHASES } from "@/domain/phases";
 import { useCycleData } from "@/app/hooks/useCycleData";
 import { useAuth } from "@/app/hooks/useAuth";
-import { useLogger, saveErrorMessage } from "@/app/hooks/useLogger";
+import { useLogger, LOAD_FAILED_MESSAGE } from "@/app/hooks/useLogger";
 import { initialSync, pushLog, subscribeToLogs, unsubscribe } from "@/app/lib/sync";
 import { supabase } from "@/app/lib/supabase";
 import { isOwnerEngineSync, ownerOutboxMode } from "@/app/lib/flags";
@@ -74,8 +74,12 @@ export default function App() {
     setLog: setActiveLog,
     save: saveActiveLog,
     saveMany: saveActiveLogs,
+    setSymptom: setActiveSymptom,
+    reload: reloadActiveLog,
+    revert: revertActiveLog,
     remove: removeActiveLog,
     exists: activeLogExists,
+    loadError: activeLogLoadError,
   } = useLogger(
     activeLogDate,
     // Single write path (M1.3): every save flows through here. The saved logs
@@ -104,6 +108,33 @@ export default function App() {
     // always names the store the container reads at this render.
     accountId
   );
+
+  // Keep the active log in step with the store (P0-N2). After a sync (or an
+  // import / erase) re-read cycle data AND the active day, so the Overview never
+  // shows a stale record — but not while the Log sheet is open: it holds the
+  // user's unsaved edits (the sheet re-reads when it opens and when it closes).
+  // Stable identity: the sync effect below depends on it, and must not restart.
+  const liveLog = useRef({ sheetOpen: false, reload: reloadActiveLog });
+  liveLog.current = { sheetOpen: logSheetDate !== null, reload: reloadActiveLog };
+  const refreshAfterSync = useCallback(() => {
+    void refresh();
+    if (!liveLog.current.sheetOpen) liveLog.current.reload();
+  }, [refresh]);
+
+  // The sheet and the Overview share the active log. When the sheet opens,
+  // re-read the day so it never renders a stale record; when it closes, drop
+  // whatever was not saved (Escape, X, a failed Save), so an abandoned draft
+  // can never reach the Overview or a later save.
+  const sheetEffectRan = useRef(false);
+  useEffect(() => {
+    if (!sheetEffectRan.current) {
+      sheetEffectRan.current = true; // mount: useLogger is already reading
+      return;
+    }
+    if (logSheetDate === null) revertActiveLog();
+    reloadActiveLog();
+    // Runs only on open/close; reload/revert are this render's (the new date's).
+  }, [logSheetDate]);
 
   // Delete the active log through the sync-engine tombstone path. Rejects on
   // failure so DailyLogSheet keeps the modal open + shows the error; only on
@@ -148,8 +179,8 @@ export default function App() {
           // resolution changed while startOwnerSync was awaiting its pull.
           return;
         }
-        unsubStatus = started.onStatus(() => refresh());
-        refresh();
+        unsubStatus = started.onStatus(() => refreshAfterSync());
+        refreshAfterSync();
       })();
       return () => {
         cancelled = true;
@@ -168,16 +199,16 @@ export default function App() {
     // nothing.
     const ownerId = auth.role === "owner" ? auth.user.id : auth.linkedOwnerId;
     if (!ownerId) return;
-    initialSync(ownerId).then(() => refresh()).catch(console.error);
+    initialSync(ownerId).then(() => refreshAfterSync()).catch(console.error);
 
-    const channel = subscribeToLogs(ownerId, refresh);
+    const channel = subscribeToLogs(ownerId, refreshAfterSync);
     channelRef.current = channel;
 
     return () => {
       unsubscribe(channelRef.current);
       channelRef.current = null;
     };
-  }, [auth.user, auth.loading, auth.role, auth.linkedOwnerId, refresh, container]);
+  }, [auth.user, auth.loading, auth.role, auth.linkedOwnerId, refresh, refreshAfterSync, container]);
 
   // Partner should always see partner view
   useEffect(() => {
@@ -189,38 +220,30 @@ export default function App() {
   const phaseData = PHASES[phase];
 
   // Overview symptom toggles persist to today's DailyLog via the single write
-  // path (M1.3) — they were previously ephemeral React state that vanished on
-  // reload and never synced. The toggle shows at once; if the save fails it is
-  // reverted and the reason shown, never left on screen unsaved (P0-04).
+  // path (M1.3). Each tap is ONE atomic change of that symptom on the STORED
+  // row (P0-N2): never the whole record rebuilt from the view, which may lag a
+  // sync or hold an abandoned sheet draft. The toggle shows at once; the view
+  // then follows the stored record — also on failure, with the reason shown
+  // (P0-04).
   const toggleSymptom = async (s: string) => {
-    const has = activeLog.symptoms.includes(s);
-    const next = {
-      ...activeLog,
-      symptoms: has
-        ? activeLog.symptoms.filter((x) => x !== s)
-        : [...activeLog.symptoms, s],
-    };
+    const present = !activeLog.symptoms.includes(s);
     setSymptomError(null);
-    setActiveLog(next);
+    setActiveLog((cur) => ({
+      ...cur,
+      symptoms: present
+        ? cur.symptoms.includes(s) ? cur.symptoms : [...cur.symptoms, s]
+        : cur.symptoms.filter((x) => x !== s),
+    }));
     try {
-      await saveActiveLogs([next]);
+      await setActiveSymptom(s, present);
     } catch (err) {
       console.error("Failed to save the symptom:", err);
-      // Undo only this toggle (a concurrent one keeps its own outcome), and
-      // only on the same day's log.
-      setActiveLog((cur) =>
-        cur.date !== next.date
-          ? cur
-          : {
-              ...cur,
-              symptoms: has
-                ? cur.symptoms.includes(s) ? cur.symptoms : [...cur.symptoms, s]
-                : cur.symptoms.filter((x) => x !== s),
-            }
-      );
-      setSymptomError(saveErrorMessage(err));
+      // The toggle has been undone on screen (useLogger went back to the
+      // stored record), so say exactly that.
+      setSymptomError("Couldn't save that symptom. It's back to what was saved — please try again.");
     }
   };
+  const activeLogLoadMessage = activeLogLoadError ? LOAD_FAILED_MESSAGE : null;
 
   const handleCycleLengthOverrideChange = useCallback(
     async (value: number | null) => {
@@ -364,7 +387,7 @@ export default function App() {
                 state={state}
                 symptoms={new Set(activeLog.symptoms)}
                 toggleSymptom={toggleSymptom}
-                symptomError={symptomError}
+                symptomError={symptomError ?? activeLogLoadMessage}
                 today={today}
               />
             )}
@@ -433,6 +456,7 @@ export default function App() {
           date={activeLogDate}
           onDelete={handleDeleteActiveLog}
           canDelete={activeLogExists}
+          loadError={activeLogLoadMessage}
         />
       )}
 
@@ -447,7 +471,7 @@ export default function App() {
       {showSettings && (
         <SettingsView
           onClose={() => setShowSettings(false)}
-          onDataChanged={refresh}
+          onDataChanged={refreshAfterSync}
           cycleLengthOverride={cycleLengthOverride}
           onCycleLengthOverrideChange={handleCycleLengthOverrideChange}
           onSourcesClick={() => {

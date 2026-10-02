@@ -23,6 +23,22 @@ interface UseLoggerReturn {
    * terms as save(); merge-defined batches and other dates are never refused.
    */
   saveMany: (...args: SaveLogsArgs) => Promise<void>;
+  /**
+   * The Overview symptom toggle (P0-N2): add or remove ONE symptom on the
+   * stored row in one transaction, then show the stored record. Never builds
+   * the record from the view, so a view that has not caught up with a sync (or
+   * holds an unsaved draft) cannot clobber the row. Never refused while the day
+   * loads. On failure the view goes back to the last stored record and it rejects.
+   */
+  setSymptom: (symptom: string, present: boolean) => Promise<void>;
+  /**
+   * Re-read the day in the background — after a sync lands, or when the Log
+   * sheet opens (P0-N2). The current view stays up and saves are not refused
+   * meanwhile; a save that lands first wins over the late read.
+   */
+  reload: () => void;
+  /** Drop an unsaved draft: show the last stored record again (P0-N2). */
+  revert: () => void;
   remove: () => Promise<void>;
   /**
    * True only when a persisted, non-deleted log exists for this date — drives
@@ -60,6 +76,9 @@ const NOT_LOADED_PENDING = "This day's log is still loading. Please try again in
 const NOT_LOADED_FAILED =
   "Couldn't load this day's saved log, so saving now could overwrite it. Nothing was saved — reload the app and try again.";
 
+/** User-facing text for `loadError` (shown on the Overview and in the Log sheet). */
+export const LOAD_FAILED_MESSAGE = "Couldn't load this day's saved log. Reload the app and try again.";
+
 /**
  * User-facing text for a rejected save(): the refusal's own reason, else a
  * generic retry prompt (raw storage errors are not shown to the user).
@@ -91,46 +110,106 @@ export function useLogger(
   // Each read owns its object: replacing it (a newer read, or a save that
   // returned the persisted record) makes that read's late result stale.
   const status = useRef<LoadStatus>({ scope, state: "pending" });
-
-  // Re-read on a date OR account change. Until the read lands, show an empty
-  // draft rather than the previous date's or account's log (and no Delete);
-  // whole-record saves are refused meanwhile (assertActiveLoaded).
+  // The last record known to be stored for `scope` (undefined: no row) — what
+  // revert() and a failed toggle go back to (P0-N2).
+  const persisted = useRef<{ scope: string; log: DailyLog | undefined } | null>(null);
+  // A reload asked for while a read of this day is still pending runs after it.
+  const rereadWanted = useRef(false);
+  const readRef = useRef<(reset: boolean) => void>(() => {});
+  const mounted = useRef(true);
   useEffect(() => {
-    let cancelled = false;
-    const read: LoadStatus = { scope, state: "pending" };
-    status.current = read;
-    setExists(false);
-    setLog(emptyLog(dateKey));
-    setLoading(true);
-    setLoadError(null);
-    const stale = () => cancelled || status.current !== read;
-    container.getLog(dateKey).then(
-      (existing) => {
-        if (stale()) return;
-        status.current = { scope, state: "loaded" };
-        // A returned row is persisted; a locally-deleted log is removed from the
-        // store, so `existing == null` there. Guard `deleted` defensively in case
-        // a soft-deleted row is ever surfaced by a driver.
-        setExists(existing != null && (existing as { deleted?: boolean }).deleted !== true);
-        setLog(existing ?? emptyLog(dateKey));
-        setLoading(false);
-      },
-      (err: unknown) => {
-        if (stale()) return;
-        status.current = { scope, state: "failed" };
-        console.error("Failed to load the daily log:", err);
-        // Nothing is known about the stored record: never present another
-        // date's (or a stale) log as this date's, and don't offer Delete.
+    mounted.current = true;
+    return () => {
+      mounted.current = false;
+    };
+  }, []);
+
+  /** The stored record is now known: show it, and let whole-record saves through. */
+  const applyStored = useCallback(
+    (stored: DailyLog | undefined) => {
+      status.current = { scope, state: "loaded" };
+      persisted.current = { scope, log: stored };
+      // A returned row is persisted; a locally-deleted log is removed from the
+      // store, so `stored == null` there. Guard `deleted` defensively in case a
+      // soft-deleted row is ever surfaced by a driver.
+      setExists(stored != null && (stored as { deleted?: boolean }).deleted !== true);
+      setLog(stored ?? emptyLog(dateKey));
+      setLoadError(null);
+      setLoading(false);
+    },
+    [scope, dateKey]
+  );
+
+  /**
+   * Read the active day's stored record. `reset` (a date or account change)
+   * first shows an empty draft rather than the previous date's or account's log
+   * (and no Delete), and refuses whole-record saves until the read lands. A
+   * plain reload keeps the current view and load state meanwhile.
+   */
+  const read = useCallback(
+    (reset: boolean) => {
+      if (!reset) {
+        // A reload from an earlier render's scope must not take over this one.
+        if (status.current.scope !== scope) return;
+        // A read of this day is already on its way: let it land (so saves are
+        // not refused any longer than they must be), then read again.
+        if (status.current.state === "pending") {
+          rereadWanted.current = true;
+          return;
+        }
+      }
+      const before = status.current.state;
+      const mine: LoadStatus = { scope, state: reset ? "pending" : before };
+      status.current = mine;
+      if (reset) {
+        rereadWanted.current = false;
+        persisted.current = null;
         setExists(false);
         setLog(emptyLog(dateKey));
-        setLoadError(err instanceof Error ? err : new Error(String(err)));
-        setLoading(false);
+        setLoading(true);
+        setLoadError(null);
       }
-    );
-    return () => {
-      cancelled = true;
-    };
-  }, [scope, dateKey, container]);
+      const stale = () => !mounted.current || status.current !== mine;
+      const rereadIfWanted = () => {
+        if (!rereadWanted.current) return;
+        rereadWanted.current = false;
+        readRef.current(false);
+      };
+      container.getLog(dateKey).then(
+        (existing) => {
+          if (stale()) return;
+          applyStored(existing);
+          rereadIfWanted();
+        },
+        (err: unknown) => {
+          if (stale()) return;
+          console.error("Failed to load the daily log:", err);
+          if (!reset && before === "loaded") {
+            // A background re-read of a loaded day failed: keep what is shown.
+            status.current = { scope, state: "loaded" };
+          } else {
+            status.current = { scope, state: "failed" };
+            // Nothing is known about the stored record: never present another
+            // date's (or a stale) log as this date's, and don't offer Delete.
+            setExists(false);
+            setLog(emptyLog(dateKey));
+            setLoadError(err instanceof Error ? err : new Error(String(err)));
+            setLoading(false);
+          }
+          rereadIfWanted();
+        }
+      );
+    },
+    [scope, dateKey, container, applyStored]
+  );
+  readRef.current = read;
+
+  // Re-read on a date OR account change.
+  useEffect(() => {
+    read(true);
+  }, [read]);
+
+  const reload = useCallback(() => read(false), [read]);
 
   /** Refuse a whole-record write of the active date unless its record loaded. */
   const assertActiveLoaded = useCallback(() => {
@@ -145,12 +224,20 @@ export function useLogger(
   // are still active: the user may have switched either during the write.
   const stillActive = useCallback(() => status.current.scope === scope, [scope]);
 
+  /** Back to the last stored record (an empty draft if none is known). */
+  const revert = useCallback(() => {
+    if (!stillActive()) return;
+    const known = persisted.current?.scope === scope ? persisted.current.log : undefined;
+    setLog(known ?? emptyLog(dateKey));
+  }, [scope, dateKey, stillActive]);
+
   const save = useCallback(async () => {
     assertActiveLoaded();
     await container.saveLog(log);
-    if (stillActive()) setExists(true);
+    // Stored: it supersedes any read still in flight (e.g. a reload).
+    if (stillActive()) applyStored(log);
     onSaved?.([log]);
-  }, [log, onSaved, container, assertActiveLoaded, stillActive]);
+  }, [log, onSaved, container, assertActiveLoaded, stillActive, applyStored]);
 
   const saveMany = useCallback(
     async (...args: SaveLogsArgs) => {
@@ -164,30 +251,48 @@ export function useLogger(
       // input: a merge-defined patch is partial, and onSaved may push them.
       const saved = await container.saveLogs(...args);
       const active = saved.find((l) => l.date === dateKey);
-      if (active && stillActive()) {
-        // The persisted record is now known: it supersedes a pending or failed
-        // read, and keeps the active view in step.
-        status.current = { scope, state: "loaded" };
-        setLog(active);
-        setExists(true);
-        setLoadError(null);
-        setLoading(false);
-      }
+      // The persisted record is now known: it supersedes a pending or failed
+      // read, and keeps the active view in step.
+      if (active && stillActive()) applyStored(active);
       onSaved?.(saved);
     },
-    [dateKey, scope, onSaved, container, assertActiveLoaded, stillActive]
+    [dateKey, onSaved, container, assertActiveLoaded, stillActive, applyStored]
+  );
+
+  const setSymptom = useCallback(
+    async (symptom: string, present: boolean) => {
+      let stored: DailyLog | undefined;
+      try {
+        stored = await container.setSymptom(dateKey, symptom, present);
+      } catch (err) {
+        revert(); // whatever the caller showed optimistically, show the store again
+        throw err;
+      }
+      if (stillActive()) applyStored(stored);
+      onSaved?.(stored ? [stored] : []);
+    },
+    [dateKey, onSaved, container, stillActive, applyStored, revert]
   );
 
   const remove = useCallback(async () => {
     // Throws if the local tombstone write fails — the caller keeps the modal
     // open and surfaces the error; the log row is untouched (tx rolls back).
     await container.deleteLog(dateKey);
-    if (stillActive()) {
-      setLog(emptyLog(dateKey));
-      setExists(false);
-    }
+    if (stillActive()) applyStored(undefined);
     onSaved?.([]);
-  }, [dateKey, onSaved, container, stillActive]);
+  }, [dateKey, onSaved, container, stillActive, applyStored]);
 
-  return { log, setLog, save, saveMany, remove, exists, loading, loadError };
+  return {
+    log,
+    setLog,
+    save,
+    saveMany,
+    setSymptom,
+    reload,
+    revert,
+    remove,
+    exists,
+    loading,
+    loadError,
+  };
 }

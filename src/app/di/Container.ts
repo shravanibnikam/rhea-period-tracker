@@ -160,6 +160,17 @@ export class Container {
     return saved;
   }
 
+  /**
+   * Add or remove one symptom on a day's stored log in ONE transaction; no
+   * other field changes (P0-N2 — the Overview toggle). Resolves to the stored
+   * record, or undefined if the day has no log and there was nothing to remove.
+   */
+  async setSymptom(date: string, symptom: string, present: boolean): Promise<DailyLog | undefined> {
+    const stored = await (await this.logs()).setSymptom(date, symptom, present);
+    void this.engine?.flush("enqueue").catch(() => {});
+    return stored;
+  }
+
   async getLog(date: string): Promise<DailyLog | undefined> {
     return (await this.logs()).get(date);
   }
