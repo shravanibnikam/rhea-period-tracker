@@ -23,6 +23,13 @@ export interface OutboxEntry {
   lastError?: string; // last transport error message
   enqueuedAt: number; // epoch ms
   leaseUntil?: number; // epoch ms; in-flight lock (§1.5)
+  /**
+   * Compare-and-swap token (P0-02): bumped by every coalescing replacement of
+   * `record`, never by lease or backoff bookkeeping; settling a claimed
+   * snapshot applies only while it is unchanged (see outbox.ts). Absent on
+   * entries stored before the field existed, which read as 0 (no migration).
+   */
+  revision?: number;
 }
 
 /**

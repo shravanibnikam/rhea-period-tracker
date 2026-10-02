@@ -22,6 +22,42 @@ export function makeOutboxId(nowMs: number): string {
     .padStart(4, "0")}-${rand}`;
 }
 
+/** What claimDue handed out and the engine pushed: the snapshot a settle compares against. */
+type Claimed = Pick<OutboxEntry, "id" | "revision" | "record">;
+
+/**
+ * The compare-and-swap token for settling a claimed entry (P0-02, P0-03): the
+ * claimed snapshot's `revision` AND its `record.updatedAt`. claimDue hands out
+ * snapshots; a save during the push replaces the entry's record under the same
+ * id, and the entry may be settled (deleted, or charged a failure) only while
+ * it still holds the snapshot's content.
+ *
+ * - `revision` is bumped by every coalescing replacement this build makes
+ *   (lease and backoff bookkeeping never touch it). It also catches an
+ *   EQUAL-HLC replacement (coalescing replaces on `>= 0`) and relies on no
+ *   clock invariant, whereas an updatedAt-only token is sound only while
+ *   hlcNow stays strictly monotonic: an invariant kept by other layers
+ *   (domain/hlc, data/syncStamp, the persisted HLC state that tabs sharing one
+ *   deviceId all advance) and enforced by nothing here.
+ * - `record.updatedAt` catches a replacement by a writer that does not bump the
+ *   revision: a pre-fix build still open in another tab during an update (its
+ *   coalescing only ever installs a newer-or-equal HLC), or a raw put().
+ *
+ * Residual gap: an EQUAL-HLC replacement by such a writer, i.e. content the
+ * server's stale-write guard (`<=`) would reject anyway. Entries stored before
+ * the field existed read as revision 0, so no IndexedDB migration is needed.
+ */
+function unchangedSince(current: OutboxEntry, claimed: Claimed): boolean {
+  return (
+    revisionOf(current) === revisionOf(claimed) &&
+    current.record.updatedAt === claimed.record.updatedAt
+  );
+}
+
+function revisionOf(entry: Pick<OutboxEntry, "revision">): number {
+  return entry.revision ?? 0;
+}
+
 export class Outbox {
   constructor(
     private readonly driver: StorageDriver,
@@ -63,6 +99,8 @@ export class Outbox {
         await tx.put("outbox", {
           ...existing,
           record,
+          revision: revisionOf(existing) + 1, // in-flight settles of the old record now miss
+          attempts: 0, // fresh content never inherits the old content's failures
           nextAttemptAt: now, // fresh content → due immediately
           leaseUntil: undefined,
           lastError: undefined,
@@ -77,6 +115,7 @@ export class Outbox {
       attempts: 0,
       nextAttemptAt: now,
       enqueuedAt: now,
+      revision: 0,
     };
     await tx.put("outbox", entry);
   }
@@ -106,28 +145,67 @@ export class Outbox {
     );
   }
 
-  /** Delete on delivery success. */
-  async ack(id: string): Promise<void> {
-    await this.driver.delete("outbox", id);
-  }
-
-  /** Record a failure and schedule the retry. */
-  async fail(id: string, err: string, nextAttemptAt: number): Promise<void> {
-    const entry = await this.driver.get<OutboxEntry>("outbox", id);
-    if (!entry) return;
-    await this.driver.put("outbox", {
-      ...entry,
-      attempts: entry.attempts + 1,
-      lastError: err,
-      nextAttemptAt,
-      leaseUntil: undefined,
+  /**
+   * Settle a claimed entry against `claimed`, in ONE readwrite transaction.
+   * While the stored entry still holds the claimed content (unchangedSince),
+   * `onMatch` writes the outcome and settle returns true. Otherwise a save
+   * replaced it while the push was in flight: keep the newer content and clear
+   * the lease explicitly, so the next round sends it now rather than after a
+   * lease runs out, and return false. (If another tab re-claimed it meanwhile,
+   * clearing that lease costs at most one duplicate push, which upsert-by-key
+   * and LWW make harmless.)
+   */
+  private settle(
+    claimed: Claimed,
+    onMatch: (tx: StorageTx, current: OutboxEntry) => Promise<void>
+  ): Promise<boolean> {
+    return this.driver.transaction({ mode: "readwrite", stores: ["outbox"] }, async (tx) => {
+      const current = await tx.get<OutboxEntry>("outbox", claimed.id);
+      if (!current) return false; // already settled elsewhere (another tab) or cleared
+      if (!unchangedSince(current, claimed)) {
+        await tx.put("outbox", { ...current, leaseUntil: undefined });
+        return false;
+      }
+      await onMatch(tx, current);
+      return true;
     });
   }
 
+  /**
+   * Compare-and-delete on delivery (P0-02): deletes the entry only if it still
+   * holds the content of `claimed`, the snapshot claimDue returned and the
+   * engine pushed. A newer save that replaced it is kept. Returns whether the
+   * entry was deleted.
+   */
+  async ack(claimed: Claimed): Promise<boolean> {
+    return this.settle(claimed, (tx) => tx.delete("outbox", claimed.id));
+  }
+
+  /**
+   * Compare-and-swap failure (P0-03): records the failure and schedules the
+   * retry only if the entry still holds the content of `claimed` (as for ack).
+   * If a save replaced it, the failure belonged to the old content: no attempt
+   * is counted, no backoff or lastError set, and the newer content is left
+   * claimable now. Returns whether the failure was recorded.
+   */
+  async fail(claimed: Claimed, err: string, nextAttemptAt: number): Promise<boolean> {
+    return this.settle(claimed, (tx, current) =>
+      tx.put("outbox", {
+        ...current,
+        attempts: current.attempts + 1,
+        lastError: err,
+        nextAttemptAt,
+        leaseUntil: undefined,
+      })
+    );
+  }
+
+  /** Make an entry claimable again — in one transaction, so it never writes back a stale record. */
   async releaseLease(id: string): Promise<void> {
-    const entry = await this.driver.get<OutboxEntry>("outbox", id);
-    if (!entry) return;
-    await this.driver.put("outbox", { ...entry, leaseUntil: undefined });
+    await this.driver.transaction({ mode: "readwrite", stores: ["outbox"] }, async (tx) => {
+      const current = await tx.get<OutboxEntry>("outbox", id);
+      if (current) await tx.put("outbox", { ...current, leaseUntil: undefined });
+    });
   }
 
   async depth(): Promise<number> {
