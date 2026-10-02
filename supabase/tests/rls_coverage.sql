@@ -1,13 +1,16 @@
 -- SEC-14: schema-wide RLS and SECURITY DEFINER coverage for `public`.
--- Catalog checks only, no fixtures. They grade every current AND future object:
--- a new table without RLS, or a DEFINER function that anon can call or that
--- lacks a pinned search_path, fails here and is named in the output ("have:").
+-- Catalog checks only, no fixtures. They grade every current AND future table,
+-- view, materialized view, foreign table and SECURITY DEFINER function in
+-- `public`: a table without RLS or a policy, a view that runs as its owner, a
+-- client-readable materialized/foreign table, or a DEFINER function that anon
+-- can call or that lacks a pinned search_path fails here and is named in the
+-- output ("have:").
 -- Run: supabase test db
 
 begin;
 create extension if not exists pgtap with schema extensions;
 set local search_path = public, extensions;
-select plan(9);
+select plan(11);
 
 -- 1. Every table has RLS enabled and at least one policy.
 select is(
@@ -24,16 +27,40 @@ select is(
          order by 1),
   '{}'::text[], 'every table in public has at least one RLS policy');
 
+-- 1b. Views and materialized/foreign tables bypass table RLS in other ways: a
+--     view without security_invoker runs as its owner (postgres bypasses RLS),
+--     and materialized/foreign tables cannot have RLS at all, so clients must
+--     not be able to read them.
+select is(
+  array(select c.oid::regclass::text from pg_class c
+         where c.relnamespace = 'public'::regnamespace and c.relkind = 'v'
+           and not coalesce(c.reloptions @> array['security_invoker=true']
+                            or c.reloptions @> array['security_invoker=on'], false)
+         order by 1),
+  '{}'::text[], 'every view in public is security_invoker');
+
+select is(
+  array(select c.oid::regclass::text from pg_class c
+         where c.relnamespace = 'public'::regnamespace and c.relkind in ('m', 'f')
+           and (has_table_privilege('anon', c.oid, 'SELECT')
+                or has_table_privilege('authenticated', c.oid, 'SELECT'))
+         order by 1),
+  '{}'::text[], 'no materialized view or foreign table in public is client-readable');
+
 -- 2. Every SECURITY DEFINER function pins search_path with pg_temp LAST. An
 --    unlisted pg_temp is searched FIRST for table and type names, so a temporary
 --    object could shadow a name the function trusts. proconfig holds the
 --    canonical form ('search_path=public, pg_temp'); it is matched per entry so a
---    function with no SET at all (NULL proconfig) is reported, not skipped.
+--    function with no SET at all (NULL proconfig) is reported, not skipped. A
+--    repeated pg_temp is rejected (PostgreSQL keeps the FIRST occurrence), and
+--    `search_path = ''` is rejected by design (its effective path puts pg_temp
+--    first).
 select is(
   array(select p.oid::regprocedure::text from pg_proc p
          where p.pronamespace = 'public'::regnamespace and p.prosecdef
            and not exists (select 1 from unnest(p.proconfig) as cfg(setting)
-                            where cfg.setting ~ '^search_path=(.*, )?pg_temp$')
+                            where cfg.setting ~ '^search_path=(.*, )?pg_temp$'
+                              and cfg.setting !~ '(=|, )pg_temp, ')
          order by 1),
   '{}'::text[], 'every SECURITY DEFINER function in public sets search_path with pg_temp last');
 
