@@ -8,8 +8,10 @@ import {
   formatShift,
   measureOffsets,
   projectScenario,
+  projectValue,
   shiftProjection,
   shiftScenario,
+  type Projection,
   type SweepZone,
   type ZoneSweepPayload,
 } from "../../helpers/invariance";
@@ -25,9 +27,11 @@ import { runZoneSweep } from "../../helpers/zoneSweep";
 // - Translation invariance: moving every log date and `today` by k days moves
 //   every derived date by exactly k days and changes no scalar.
 //
-// Each zone is evaluated in its own Node process (tests/helpers/zoneSweep.ts);
-// the harness block proves each zone took effect. Everything is computed in
-// beforeAll, so a test body can only fail on a property mismatch.
+// Each zone is evaluated in its own Node process (tests/helpers/zoneSweep.ts).
+// The harness block proves each zone took effect, and that the comparison
+// sees every derived date and scalar, so the properties cannot pass vacuously
+// once the ledgers below are empty. Everything is computed in beforeAll, so a
+// property test body can only fail on a property mismatch.
 
 type NonUtcZone = Exclude<SweepZone, "UTC">;
 const NON_UTC_ZONES = SWEEP_ZONES.filter((z): z is NonUtcZone => z !== "UTC");
@@ -196,6 +200,55 @@ describe("zone sweep harness", () => {
         );
       }
     }
+  });
+
+  // The guards below keep the properties meaningful once E-01 empties the
+  // ledgers: a comparator or projection that saw nothing would otherwise turn
+  // every property case green.
+  it("the comparison sees every derived date: a one-day shift changes each date leaf", () => {
+    for (const s of DOMAIN_SCENARIOS) {
+      const base = projectScenario(s);
+      const dateLeaves = Object.values(base).filter((leaf) => "date" in leaf).length;
+      expect(diffProjections(base, base), s.id).toEqual([]);
+      expect(diffProjections(base, shiftProjection(base, 1)), s.id).toHaveLength(dateLeaves);
+    }
+    const regular = DOMAIN_SCENARIOS.find((s) => s.id === "regularCycles");
+    if (!regular) throw new Error("the regularCycles scenario is missing");
+    const base = projectScenario(regular);
+    expect(Object.keys(base)).toContain("state.nextPeriodDate");
+    const lines = diffProjections(base, shiftProjection(base, 1));
+    expect(lines.filter((line) => line.startsWith("state.nextPeriodDate: "))).toHaveLength(1);
+  });
+
+  it("the comparator reports a changed scalar, a date that became a scalar, and a missing field", () => {
+    const p: Projection = {
+      "state.cycleDay": { scalar: 5 },
+      "state.phase": { scalar: "menstrual" },
+      "state.nextPeriodDate": { date: "2026-04-23" },
+    };
+    expect(diffProjections(p, { ...p, "state.cycleDay": { scalar: 4 } })).toEqual([
+      "state.cycleDay: expected 5, got 4",
+    ]);
+    expect(diffProjections(p, { ...p, "state.phase": { scalar: "luteal" } })).toEqual([
+      'state.phase: expected "menstrual", got "luteal"',
+    ]);
+    expect(diffProjections(p, { ...p, "state.nextPeriodDate": { scalar: null } })).toEqual([
+      "state.nextPeriodDate: expected 2026-04-23, got null",
+    ]);
+    const { "state.cycleDay": _dropped, ...withoutCycleDay } = p;
+    expect(diffProjections(p, withoutCycleDay)).toEqual(["state.cycleDay: expected 5, got (absent)"]);
+    expect(diffProjections(withoutCycleDay, p)).toEqual(["state.cycleDay: expected (absent), got 5"]);
+  });
+
+  it("the projection refuses a Map or a Set instead of flattening it to nothing", () => {
+    expect(() => projectValue({ starts: new Set(["2026-01-01"]) })).toThrow("cannot project a Set at starts");
+    expect(() => projectValue({ byDay: new Map([["2026-01-01", 1]]) })).toThrow("cannot project a Map at byDay");
+    expect(projectValue({ day: new Date(2026, 2, 30), n: 1, keys: ["2026-03-31"] })).toEqual({
+      day: { date: "2026-03-30" },
+      n: { scalar: 1 },
+      "keys.length": { scalar: 1 },
+      "keys[0]": { date: "2026-03-31" },
+    });
   });
 });
 

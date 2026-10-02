@@ -7,11 +7,12 @@ import { ZONE_SWEEP_MARKER, type SweepZone, type ZoneSweepPayload } from "./inva
 
 // Runs the domain in other timezones. Vitest pins TZ=UTC for every spec
 // (vitest.config.ts sets process.env.TZ and test.env.TZ, tests/setup.ts
-// re-sets it), and assigning process.env.TZ inside a test is not a reliable
-// way to change zone: Node ignores the assignment in worker threads, and
-// Dates built at import time (fixtures) keep the instants of the zone they
-// were built in. So each zone gets its own Node process, whose environment is
-// set before it starts.
+// re-sets it). The TZ property compares results from several zones in one
+// place, and a zone is only trustworthy if it is fixed before Node starts.
+// Assigning process.env.TZ inside a test does switch zone in Vitest's default
+// forks pool (not under --pool=threads), but Dates built before the switch,
+// such as module-level fixtures, keep the old zone's instants. So each zone
+// gets its own Node process, whose environment is set before it starts.
 //
 // The child entry (./zoneSweepChild.ts: domain + fixtures + projection) is
 // bundled in memory with esbuild, which resolves "@/..." through
@@ -62,7 +63,14 @@ function runChild(code: string, zone: SweepZone): Promise<ZoneSweepPayload> {
         );
         return;
       }
-      resolve(JSON.parse(line.slice(ZONE_SWEEP_MARKER.length)) as ZoneSweepPayload);
+      // This listener runs outside the promise executor: a throw here would
+      // be an unhandled error and leave the promise pending until the hook
+      // times out.
+      try {
+        resolve(JSON.parse(line.slice(ZONE_SWEEP_MARKER.length)) as ZoneSweepPayload);
+      } catch (error) {
+        reject(new Error(`zone-sweep child for ${zone} wrote a malformed payload: ${String(error)}`));
+      }
     });
     child.stdin.end(code);
   });

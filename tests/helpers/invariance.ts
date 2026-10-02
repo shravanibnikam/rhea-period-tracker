@@ -70,9 +70,20 @@ const DATE_KEY = /^\d{4}-\d{2}-\d{2}$/;
  * every other value is a scalar.
  */
 export function projectScenario(s: DomainScenario): Projection {
+  return projectValue(evaluateScenario(s));
+}
+
+/** Flattens any derived value; throws on a value the comparison could not see. */
+export function projectValue(value: unknown): Projection {
   const out: Projection = {};
-  flatten(evaluateScenario(s), "", out);
+  flatten(value, "", out);
   return out;
+}
+
+function isPlainObject(value: unknown): value is Record<string, unknown> {
+  if (typeof value !== "object" || value === null) return false;
+  const proto: unknown = Object.getPrototypeOf(value);
+  return proto === Object.prototype || proto === null;
 }
 
 function flatten(value: unknown, path: string, out: Projection): void {
@@ -90,12 +101,17 @@ function flatten(value: unknown, path: string, out: Projection): void {
   } else if (Array.isArray(value)) {
     out[`${path}.length`] = { scalar: value.length };
     value.forEach((item, i) => flatten(item, `${path}[${i}]`, out));
-  } else if (typeof value === "object") {
+  } else if (isPlainObject(value)) {
     for (const [key, item] of Object.entries(value)) {
       flatten(item, path ? `${path}.${key}` : key, out);
     }
   } else {
-    throw new Error(`cannot project a ${typeof value} at ${path}`);
+    // Object.entries sees nothing inside a Map or Set, so walking one would
+    // project nothing and hide every difference in it. Refuse it, and any
+    // other non-plain object, instead.
+    const kind =
+      typeof value === "object" ? (Object.getPrototypeOf(value)?.constructor?.name ?? "object") : typeof value;
+    throw new Error(`cannot project a ${kind} at ${path || "(root)"}`);
   }
 }
 
