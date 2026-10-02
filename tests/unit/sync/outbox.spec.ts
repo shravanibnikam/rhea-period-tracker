@@ -65,7 +65,7 @@ describe("Outbox (M1.8 / RHEA-047)", () => {
     await outbox.enqueueCoalesced(record("log:2026-01-01", T), "owner");
     const [entry] = await outbox.claimDue(clock.now(), 10, 1000);
 
-    await outbox.fail(entry.id, "offline", clock.now() + 5000);
+    await outbox.fail(entry.id, "offline", clock.now() + 5000, entry.revision);
     const failed = await outbox.peekOldest();
     expect(failed!.attempts).toBe(1);
     expect(failed!.lastError).toBe("offline");
@@ -74,7 +74,7 @@ describe("Outbox (M1.8 / RHEA-047)", () => {
     expect(await outbox.claimDue(clock.now(), 10, 1000)).toHaveLength(0);
     clock.advance(5000);
     const [again] = await outbox.claimDue(clock.now(), 10, 1000);
-    await outbox.ack(again.id);
+    await outbox.ack(again.id, again.revision);
     expect(await outbox.depth()).toBe(0);
   });
 

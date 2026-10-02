@@ -140,13 +140,13 @@ export class Outbox {
    */
   private settle(
     id: string,
-    expectedRevision: number,
+    expectedRevision: OutboxEntry["revision"],
     onMatch: (tx: StorageTx, current: OutboxEntry) => Promise<void>
   ): Promise<void> {
     return this.driver.transaction({ mode: "readwrite", stores: ["outbox"] }, async (tx) => {
       const current = await tx.get<OutboxEntry>("outbox", id);
       if (!current) return; // already settled elsewhere (another tab) or cleared
-      if (revisionOf(current) !== expectedRevision) {
+      if (revisionOf(current) !== (expectedRevision ?? 0)) {
         await tx.put("outbox", { ...current, leaseUntil: undefined });
         return;
       }
@@ -156,25 +156,27 @@ export class Outbox {
 
   /**
    * Compare-and-delete on delivery (P0-02): deletes the entry only if it
-   * still holds `expectedRevision`, the claimed snapshot's revision. Absent, it
-   * is 0: the revision of an entry no save has replaced (and of one stored
-   * before the field existed). A newer save that replaced it is kept.
+   * still holds `expectedRevision`, the claimed snapshot's `revision` passed
+   * as-is (undefined, for a snapshot of an entry stored before the field
+   * existed, reads as 0). A newer save that replaced it is kept. Required on
+   * purpose: a call that omitted it could never settle a replaced entry.
    */
-  async ack(id: string, expectedRevision = 0): Promise<void> {
+  async ack(id: string, expectedRevision: OutboxEntry["revision"]): Promise<void> {
     await this.settle(id, expectedRevision, (tx) => tx.delete("outbox", id));
   }
 
   /**
    * Compare-and-swap failure (P0-03): records the failure and schedules the
-   * retry only if the entry still holds `expectedRevision`. If a save replaced
-   * it, the failure belonged to the old content: no attempt is counted, no
-   * backoff or lastError set, and the newer content is left claimable now.
+   * retry only if the entry still holds `expectedRevision` (as for ack). If a
+   * save replaced it, the failure belonged to the old content: no attempt is
+   * counted, no backoff or lastError set, and the newer content is left
+   * claimable now.
    */
   async fail(
     id: string,
     err: string,
     nextAttemptAt: number,
-    expectedRevision = 0
+    expectedRevision: OutboxEntry["revision"]
   ): Promise<void> {
     await this.settle(id, expectedRevision, (tx, current) =>
       tx.put("outbox", {
