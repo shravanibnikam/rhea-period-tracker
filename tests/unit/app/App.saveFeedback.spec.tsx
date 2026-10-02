@@ -8,6 +8,10 @@ import { ContainerProvider } from "@/app/di/context";
 import { toDateKey } from "@/domain/dates";
 import { emptyLog, type DailyLog } from "@/domain/types";
 
+// Local mode regardless of the ambient environment: CI also runs this suite
+// with VITE_SUPABASE_* set, where the real client would show the sign-in screen.
+vi.mock("@/app/lib/supabase", () => ({ supabase: null, isSupabaseConfigured: () => false }));
+
 // P0-04 review follow-ups, App level (local mode, real Container on fake-indexeddb).
 //   (3) A failed symptom toggle is undone on screen, so its message must not
 //       claim "your changes are still here".

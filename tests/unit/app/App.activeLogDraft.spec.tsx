@@ -8,6 +8,10 @@ import { ContainerProvider } from "@/app/di/context";
 import { toDateKey } from "@/domain/dates";
 import { emptyLog, type DailyLog } from "@/domain/types";
 
+// Local mode regardless of the ambient environment: CI also runs this suite
+// with VITE_SUPABASE_* set, where the real client would show the sign-in screen.
+vi.mock("@/app/lib/supabase", () => ({ supabase: null, isSupabaseConfigured: () => false }));
+
 // P0-N2 (ports of reviewer probes zzProbeDraft, zzProbeDraft2, zzProbeDoubleTap).
 // The Log sheet and the Overview share the active log. A draft the user
 // abandons (Escape, or a failed Save then close) must be discarded, never saved
