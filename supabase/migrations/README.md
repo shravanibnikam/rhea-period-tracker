@@ -18,13 +18,43 @@ on 2026-09-15, in the same transaction as its migration-history entry.
 | `0004_fix_invite_pgcrypto_schema.sql` | pairing hotfix | ✅ prod | **Invite pgcrypto fix (pairing release blocker).** `create_invite()`/`redeem_invite()` ran with `search_path = public` but Supabase installs `pgcrypto` in the `extensions` schema, so both RPCs errored `function gen_random_bytes does not exist` — no invite could be minted or redeemed. Schema-qualifies the pgcrypto calls (`extensions.gen_random_bytes`/`extensions.digest`); behaviour otherwise identical to `0002`. Pairing is now verified end-to-end (create → redeem → `partner_links`). |
 | `0005_partner_calendar_symptom_shares.sql` | partner visibility | ✅ prod | **Additive, function-only.** Extends `ensure_share_settings()` to seed two new keys — `calendar_view` (partner sees the month view) and `symptom_details` (partner sees logged symptoms) — both defaulting to `false`. No table or RLS change: `share_settings.share_key` is free-form text and already carries owner-rw / partner-read policies. Existing owners backfill on their next `getShareSettings()` call; `on conflict do nothing` preserves toggles already set. |
 | `0006_keepalive.sql` | hosting | ✅ prod | One boolean liveness row; RLS permits anonymous SELECT only, with no account or health data. |
-| `0007_harden_definer_functions.sql` | SEC-14 | not yet (maintainer: `supabase db push`) | **Grants and settings only; no body, signature or data change.** The four `SECURITY DEFINER` functions (`handle_new_user`, `ensure_share_settings`, `create_invite`, `redeem_invite`) get `search_path = public, pg_temp` (`pg_temp` last); `EXECUTE` is revoked from `PUBLIC` and `anon` and restated for `authenticated` on the three client RPCs. Graded by `supabase/tests/rls_coverage.sql`. |
+| `0007_harden_definer_functions.sql` | SEC-14 | not yet (maintainer: `supabase db push`) | **Grants and settings only; no body, signature or data change.** The four `SECURITY DEFINER` functions (`handle_new_user`, `ensure_share_settings`, `create_invite`, `redeem_invite`) get `search_path = public, pg_temp` (`pg_temp` last); `EXECUTE` is revoked from `PUBLIC` and `anon` and restated for `authenticated` on the three client RPCs. Graded by `supabase/tests/rls_coverage.sql`. Before/after `db push`: see "Deploying 0007" below. |
+
+### Deploying 0007
+
+`ALTER FUNCTION` needs the function's owner, and `handle_new_user()` in production
+dates from the hand-run baseline. Before `supabase db push`, confirm against
+production (read-only) that all four functions are owned by the role `db push`
+connects as (`postgres`):
+
+```sql
+select p.oid::regprocedure, pg_get_userbyid(p.proowner) as owner
+  from pg_proc p
+ where p.pronamespace = 'public'::regnamespace and p.prosecdef;
+```
+
+If an `ALTER` fails with "must be owner", stop. Do not delete the `ALTER`, and
+do not apply the `REVOKE` on its own: a non-owner's `REVOKE` only warns and
+leaves `anon` able to execute. After the push, both of these must return no
+rows:
+
+```sql
+select p.oid::regprocedure from pg_proc p
+ where p.pronamespace = 'public'::regnamespace and p.prosecdef
+   and not exists (select 1 from unnest(p.proconfig) s
+                    where s ~ '^search_path=(.*, )?pg_temp$');
+select p.oid::regprocedure from pg_proc p
+ where p.pronamespace = 'public'::regnamespace and p.prosecdef
+   and has_function_privilege('anon', p.oid, 'EXECUTE');
+```
 
 > **Migration-numbering note:** the earlier planning docs reserved `0004`+ for
 > Phase-2 E2EE migrations. The shipped `0004` is the pairing pgcrypto fix and
 > `0005` is the partner calendar/symptom share keys, so the planned E2EE sequence
-> now follows the hosting keep-alive at `0006`: owner ciphertext columns must
-> use `0007` or the next available number. The older partner E2EE roadmap is
+> now follows the hosting keep-alive at `0006` and the SEC-14 hardening at `0007`:
+> the next migration uses `0008` or the next available number. Planning documents
+> that name later migrations `0007`–`0011` predate this, so each of those shifts
+> by one. The older partner E2EE roadmap is
 > superseded by the scoped plan in `docs/EXECUTION_PLAN.md`.
 > **Applied migrations are never renamed or rewritten.**
 
@@ -55,9 +85,11 @@ supabase test db          # runs supabase/tests/*.sql (pgTAP)
   end-to-end after `0004`. `0005` seeds the `calendar_view` / `symptom_details`
   share keys; because `setShareSetting` upserts, the toggles also function
   without it — the migration makes the default-off rows explicit.
-- **pgTAP:** all four suites (`rls_invite.sql`, `rls_isolation.sql`,
-  `rls_owner_sync.sql`, `rls_keepalive.sql`) passed locally on 2026-09-15: 37 assertions against
-  Supabase CLI 2.117.0 / Postgres 15 after applying migrations 0001–0006.
+- **pgTAP:** all five suites (`rls_invite.sql`, `rls_isolation.sql`,
+  `rls_owner_sync.sql`, `rls_keepalive.sql`, `rls_coverage.sql`) passed locally on
+  2026-10-01 against Supabase CLI 2.117.0 / Postgres 15 after applying migrations
+  0001–0007. The first four (37 assertions) also passed on 2026-09-15 against
+  0001–0006; `rls_coverage.sql` fails against 0001–0006 by design.
   CI now starts the local stack, resets it, runs the SQL suites and runs browser
   save/delete tests. This checks current plaintext RLS semantics, including
   linked-partner access; it does not claim encrypted partner isolation.
