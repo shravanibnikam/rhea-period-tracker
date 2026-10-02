@@ -22,25 +22,39 @@ export function makeOutboxId(nowMs: number): string {
     .padStart(4, "0")}-${rand}`;
 }
 
+/** What claimDue handed out and the engine pushed: the snapshot a settle compares against. */
+type Claimed = Pick<OutboxEntry, "id" | "revision" | "record">;
+
 /**
- * The compare-and-swap token for settling a claimed entry (P0-02, P0-03).
+ * The compare-and-swap token for settling a claimed entry (P0-02, P0-03): the
+ * claimed snapshot's `revision` AND its `record.updatedAt`. claimDue hands out
+ * snapshots; a save during the push replaces the entry's record under the same
+ * id, and the entry may be settled (deleted, or charged a failure) only while
+ * it still holds the snapshot's content.
  *
- * claimDue hands out snapshots; a save during the push replaces the entry's
- * record under the same id. Every such replacement bumps `revision` (lease and
- * backoff bookkeeping never do), so settling against the claimed snapshot's
- * revision detects it however the two records' HLCs compare.
+ * - `revision` is bumped by every coalescing replacement this build makes
+ *   (lease and backoff bookkeeping never touch it). It also catches an
+ *   EQUAL-HLC replacement (coalescing replaces on `>= 0`) and relies on no
+ *   clock invariant, whereas an updatedAt-only token is sound only while
+ *   hlcNow stays strictly monotonic: an invariant kept by other layers
+ *   (domain/hlc, data/syncStamp, the persisted HLC state that tabs sharing one
+ *   deviceId all advance) and enforced by nothing here.
+ * - `record.updatedAt` catches a replacement by a writer that does not bump the
+ *   revision: a pre-fix build still open in another tab during an update (its
+ *   coalescing only ever installs a newer-or-equal HLC), or a raw put().
  *
- * Why a counter rather than `record.updatedAt`: coalescing also replaces on an
- * EQUAL HLC (`>= 0`), and an updatedAt token is sound only while hlcNow stays
- * strictly monotonic — an invariant kept by other layers (domain/hlc,
- * data/syncStamp and the persisted HLC state that tabs sharing one deviceId
- * all advance) and enforced by nothing here. The counter depends on nothing
- * but this file. Entries stored before the field existed read as revision 0,
- * so no IndexedDB migration is needed. Limitation: a writer that replaces a
- * record without bumping it (a pre-fix build still open in another tab, or a
- * raw put()) is invisible to the token.
+ * Residual gap: an EQUAL-HLC replacement by such a writer, i.e. content the
+ * server's stale-write guard (`<=`) would reject anyway. Entries stored before
+ * the field existed read as revision 0, so no IndexedDB migration is needed.
  */
-function revisionOf(entry: OutboxEntry): number {
+function unchangedSince(current: OutboxEntry, claimed: Claimed): boolean {
+  return (
+    revisionOf(current) === revisionOf(claimed) &&
+    current.record.updatedAt === claimed.record.updatedAt
+  );
+}
+
+function revisionOf(entry: Pick<OutboxEntry, "revision">): number {
   return entry.revision ?? 0;
 }
 
@@ -132,21 +146,22 @@ export class Outbox {
   }
 
   /**
-   * Settle a claimed entry against the revision that was pushed, in ONE
-   * readwrite transaction. While the entry still holds `expectedRevision`,
+   * Settle a claimed entry against `claimed`, in ONE readwrite transaction.
+   * While the stored entry still holds the claimed content (unchangedSince),
    * `onMatch` writes the outcome. Otherwise a save replaced it while the push
    * was in flight: keep the newer content and clear the lease explicitly, so
-   * the next round sends it now rather than after a lease runs out.
+   * the next round sends it now rather than after a lease runs out. (If another
+   * tab re-claimed it meanwhile, clearing that lease costs at most one
+   * duplicate push, which upsert-by-key and LWW make harmless.)
    */
   private settle(
-    id: string,
-    expectedRevision: OutboxEntry["revision"],
+    claimed: Claimed,
     onMatch: (tx: StorageTx, current: OutboxEntry) => Promise<void>
   ): Promise<void> {
     return this.driver.transaction({ mode: "readwrite", stores: ["outbox"] }, async (tx) => {
-      const current = await tx.get<OutboxEntry>("outbox", id);
+      const current = await tx.get<OutboxEntry>("outbox", claimed.id);
       if (!current) return; // already settled elsewhere (another tab) or cleared
-      if (revisionOf(current) !== (expectedRevision ?? 0)) {
+      if (!unchangedSince(current, claimed)) {
         await tx.put("outbox", { ...current, leaseUntil: undefined });
         return;
       }
@@ -155,30 +170,23 @@ export class Outbox {
   }
 
   /**
-   * Compare-and-delete on delivery (P0-02): deletes the entry only if it
-   * still holds `expectedRevision`, the claimed snapshot's `revision` passed
-   * as-is (undefined, for a snapshot of an entry stored before the field
-   * existed, reads as 0). A newer save that replaced it is kept. Required on
-   * purpose: a call that omitted it could never settle a replaced entry.
+   * Compare-and-delete on delivery (P0-02): deletes the entry only if it still
+   * holds the content of `claimed`, the snapshot claimDue returned and the
+   * engine pushed. A newer save that replaced it is kept.
    */
-  async ack(id: string, expectedRevision: OutboxEntry["revision"]): Promise<void> {
-    await this.settle(id, expectedRevision, (tx) => tx.delete("outbox", id));
+  async ack(claimed: Claimed): Promise<void> {
+    await this.settle(claimed, (tx) => tx.delete("outbox", claimed.id));
   }
 
   /**
    * Compare-and-swap failure (P0-03): records the failure and schedules the
-   * retry only if the entry still holds `expectedRevision` (as for ack). If a
-   * save replaced it, the failure belonged to the old content: no attempt is
-   * counted, no backoff or lastError set, and the newer content is left
+   * retry only if the entry still holds the content of `claimed` (as for ack).
+   * If a save replaced it, the failure belonged to the old content: no attempt
+   * is counted, no backoff or lastError set, and the newer content is left
    * claimable now.
    */
-  async fail(
-    id: string,
-    err: string,
-    nextAttemptAt: number,
-    expectedRevision: OutboxEntry["revision"]
-  ): Promise<void> {
-    await this.settle(id, expectedRevision, (tx, current) =>
+  async fail(claimed: Claimed, err: string, nextAttemptAt: number): Promise<void> {
+    await this.settle(claimed, (tx, current) =>
       tx.put("outbox", {
         ...current,
         attempts: current.attempts + 1,

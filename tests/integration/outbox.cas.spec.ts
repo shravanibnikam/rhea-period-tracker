@@ -13,7 +13,11 @@
  */
 import { afterEach, describe, expect, it } from "vitest";
 import { logKey, sealPlain, type SyncRecord } from "@/data/envelope";
+import type { StorageTx } from "@/data/drivers/StorageDriver";
+import type { TxEnqueuer } from "@/data/repositories/LogRepository";
 import { compareHlc, encodeHlc } from "@/domain/hlc";
+import { makeOutboxId } from "@/sync/outbox";
+import type { OutboxEntry } from "@/sync/types";
 import type { ParkedPush, PushVerdict } from "../helpers/latchedTransport";
 import {
   DATE,
@@ -43,6 +47,45 @@ function theirEdit(pt: number): SyncRecord {
     updatedAt: encodeHlc(pt, 0, "dev-b"),
     deviceId: "dev-b",
     deleted: false,
+  };
+}
+
+/**
+ * A PRE-FIX build still open in another tab during an update: the outbox
+ * coalescing exactly as it was before P0-02 (Outbox.enqueueCoalescedTx at
+ * 0d7da7d, verbatim). It replaces the record but knows nothing of `revision`,
+ * so it never bumps it.
+ */
+function preFixEnqueuer(now: () => number): TxEnqueuer {
+  return {
+    async enqueueCoalescedTx(tx: StorageTx, record: SyncRecord, dest: SyncRecord["scope"]) {
+      const t = now();
+      const all = await tx.getAll<OutboxEntry>("outbox");
+      const existing = all.find(
+        (e) => e.record.key === record.key && e.record.scope === record.scope
+      );
+      if (existing) {
+        if (compareHlc(record.updatedAt, existing.record.updatedAt) >= 0) {
+          await tx.put("outbox", {
+            ...existing,
+            record,
+            nextAttemptAt: t, // fresh content → due immediately
+            leaseUntil: undefined,
+            lastError: undefined,
+          });
+        }
+        return; // older content never replaces newer pending content
+      }
+      const entry: OutboxEntry = {
+        id: makeOutboxId(t),
+        record,
+        destination: dest,
+        attempts: 0,
+        nextAttemptAt: t,
+        enqueuedAt: t,
+      };
+      await tx.put("outbox", entry);
+    },
   };
 }
 
@@ -150,6 +193,26 @@ describe("P0-02 — a save made while its entry is on the wire survives the ack"
     expect(pushedNotes(r), "v2 is sent exactly once").toEqual([["v1"], ["v2"]]);
   });
 
+  it("a save from a PRE-FIX build in another tab (it replaces the record, not the revision) survives the ack", async () => {
+    const r = (rig = makeIdbSyncRig());
+    const oldBuild = r.openTab(() => preFixEnqueuer(r.clock.now));
+    const { first, flush } = await saveDuringPush(r, () => oldBuild.save(logWithNotes("v2")));
+    const [queued] = await r.entries();
+    expect([notesOf(queued.record), queued.revision], "the old build replaced v1, revision untouched").toEqual([
+      "v2",
+      0,
+    ]);
+
+    const second = await releaseThenNextRound(r, first, flush); // the server accepts v1
+
+    expect(await queuedNotes(r), "the old build's save is still queued").toEqual(["v2"]);
+    expect(second?.rows.map(notesOf), "the next push round transmits it").toEqual(["v2"]);
+    second!.release();
+    await expect(flush).resolves.toMatchObject({ remaining: 0 });
+    expect(serverNotes(r)).toEqual(["v2"]);
+    expect(pushedNotes(r), "v2 is sent exactly once").toEqual([["v1"], ["v2"]]);
+  });
+
   it("an entry stored before the revision field existed is protected too", async () => {
     const r = (rig = makeIdbSyncRig());
     await r.repo.save(logWithNotes("v1"));
@@ -248,7 +311,7 @@ describe("P0-02 — entries nothing touched are still settled by the ack (happy 
   });
 });
 
-describe("P0-02 — Outbox.ack(id, expectedRevision)", () => {
+describe("P0-02 — Outbox.ack(claimed)", () => {
   it("deletes only while the entry holds the claimed revision; a stale ack leaves the newer content claimable", async () => {
     const r = (rig = makeIdbSyncRig());
     const { outbox } = r.engine;
@@ -259,12 +322,12 @@ describe("P0-02 — Outbox.ack(id, expectedRevision)", () => {
     const [again] = await outbox.claimDue(r.clock.now(), 10, 30_000); // e.g. another tab's flush
     expect(again.id).toBe(mine.id);
 
-    await outbox.ack(mine.id, mine.revision); // stale: v1 was pushed, v2 is queued
+    await outbox.ack(mine); // stale: v1 was pushed, v2 is queued
     const kept = await r.entries();
     expect(kept.map((e) => notesOf(e.record)), "a stale ack keeps the newer content").toEqual(["v2"]);
     expect(kept.map((e) => e.leaseUntil), "and leaves it immediately claimable").toEqual([undefined]);
 
-    await outbox.ack(again.id, again.revision); // current
+    await outbox.ack(again); // current
     expect(await r.entries()).toEqual([]);
   });
 });

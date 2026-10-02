@@ -149,11 +149,11 @@ export class SyncEngine {
 
         // The outcome is about the claimed SNAPSHOT. A save during the push may
         // have replaced the entry's record (same id, same key), so ack and fail
-        // compare-and-swap on the snapshot's revision (P0-02, P0-03): a replaced
+        // compare-and-swap against that snapshot (P0-02, P0-03): a replaced
         // entry is kept unpenalised, and the next round of this loop sends it.
         for (const entry of due) {
           if (accepted.has(entry.record.key)) {
-            await this.outbox.ack(entry.id, entry.revision);
+            await this.outbox.ack(entry);
             pushed++;
           } else {
             const reason = rejected.get(entry.record.key) ?? "unknown";
@@ -161,14 +161,13 @@ export class SyncEngine {
               // The server already holds a newer row — our write lost LWW.
               // Drop it; the newer content arrives on the next pull. (Unless a
               // newer local save replaced it meanwhile: the ack keeps that one.)
-              await this.outbox.ack(entry.id, entry.revision);
+              await this.outbox.ack(entry);
             } else {
               failed++;
               await this.outbox.fail(
-                entry.id,
+                entry,
                 reason,
-                this.now() + nextBackoffDelay(this.backoff, entry.attempts),
-                entry.revision
+                this.now() + nextBackoffDelay(this.backoff, entry.attempts)
               );
             }
           }
@@ -181,10 +180,9 @@ export class SyncEngine {
         for (const entry of due) {
           failed++;
           await this.outbox.fail(
-            entry.id,
+            entry,
             e instanceof Error ? e.message : "push failed",
-            this.now() + nextBackoffDelay(this.backoff, entry.attempts),
-            entry.revision
+            this.now() + nextBackoffDelay(this.backoff, entry.attempts)
           );
         }
         this.online = false;

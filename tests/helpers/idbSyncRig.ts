@@ -13,6 +13,8 @@
 import "fake-indexeddb/auto";
 import { IndexedDbDriver } from "@/data/drivers/IndexedDbDriver";
 import { LogRepository } from "@/data/repositories";
+import type { TxEnqueuer } from "@/data/repositories/LogRepository";
+import type { StorageDriver } from "@/data/drivers/StorageDriver";
 import { openPlain, type SyncRecord } from "@/data/envelope";
 import { emptyLog, type DailyLog } from "@/domain/types";
 import { Outbox } from "@/sync/outbox";
@@ -54,12 +56,15 @@ export function makeIdbSyncRig() {
     repo,
     /**
      * A second tab: its own connection to the SAME database, writing through
-     * its own Outbox (as Container.logs() does while its engine is not running).
+     * its own Outbox (as Container.logs() does while its engine is not running)
+     * — or through `enqueuer`, e.g. the coalescing of an older build.
      */
-    openTab(): LogRepository {
+    openTab(
+      enqueuer: (tab: StorageDriver) => TxEnqueuer = (tab) => new Outbox(tab, clock.now)
+    ): LogRepository {
       const tab = new IndexedDbDriver({ dbName, accountId: OWNER, role: "owner" });
       tabs.push(tab);
-      return new LogRepository(tab, { outbox: new Outbox(tab, clock.now), now: clock.now });
+      return new LogRepository(tab, { outbox: enqueuer(tab), now: clock.now });
     },
     /** The outbox as stored (read past the decorator: never trips an armed interleave). */
     entries: (): Promise<OutboxEntry[]> => idb.getAll<OutboxEntry>("outbox"),
