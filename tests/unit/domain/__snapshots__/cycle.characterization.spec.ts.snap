@@ -269,6 +269,934 @@ exports[`deriveCycleState (full golden master) > single period (no completed cyc
 }
 `;
 
+exports[`extended fixtures (E-19) > degenerateAnchor: cycle-length override 18 with a 20-day bleed 1`] = `
+{
+  "phaseBoundaries": {
+    "follicular": {
+      "endDay": 20,
+      "startDay": 21,
+    },
+    "luteal": {
+      "endDay": 18,
+      "startDay": 21,
+    },
+    "menstrual": {
+      "endDay": 20,
+      "startDay": 1,
+    },
+    "ovulation": {
+      "endDay": 20,
+      "startDay": 21,
+    },
+  },
+  "phaseLengths": {
+    "follicular": 0,
+    "luteal": -2,
+    "menstrual": 20,
+    "ovulation": 0,
+  },
+  "state": {
+    "avgCycleLength": 18,
+    "avgPeriodLength": 20,
+    "confidence": "early",
+    "currentCycleStart": "2026-03-01",
+    "cycleDay": 20,
+    "cycles": [
+      {
+        "cycleLength": null,
+        "excluded": false,
+        "periodEnd": "2026-03-20",
+        "periodLength": 20,
+        "periodStart": "2026-03-01",
+      },
+    ],
+    "daysUntilPeriod": -2,
+    "fertileWindow": null,
+    "isLate": true,
+    "nextPeriodDate": 2026-03-19T00:00:00.000Z,
+    "phase": "menstrual",
+    "predictions": [
+      {
+        "cycleNumber": 2,
+        "end": 2026-04-05T00:00:00.000Z,
+        "start": 2026-03-19T00:00:00.000Z,
+        "uncertainty": 0,
+      },
+      {
+        "cycleNumber": 3,
+        "end": 2026-04-23T00:00:00.000Z,
+        "start": 2026-04-06T00:00:00.000Z,
+        "uncertainty": 0,
+      },
+      {
+        "cycleNumber": 4,
+        "end": 2026-05-11T00:00:00.000Z,
+        "start": 2026-04-24T00:00:00.000Z,
+        "uncertainty": 0,
+      },
+      {
+        "cycleNumber": 5,
+        "end": 2026-05-29T00:00:00.000Z,
+        "start": 2026-05-12T00:00:00.000Z,
+        "uncertainty": 0,
+      },
+    ],
+    "stdDev": 0,
+  },
+  "symptomPatterns": [],
+  "variabilityLabel": "Very regular",
+}
+`;
+
+exports[`extended fixtures (E-19) > futureDatedLog: a bleed log dated after today 1`] = `
+{
+  "phaseBoundaries": {
+    "follicular": {
+      "endDay": 8,
+      "startDay": 5,
+    },
+    "luteal": {
+      "endDay": 27,
+      "startDay": 15,
+    },
+    "menstrual": {
+      "endDay": 4,
+      "startDay": 1,
+    },
+    "ovulation": {
+      "endDay": 14,
+      "startDay": 9,
+    },
+  },
+  "phaseLengths": {
+    "follicular": 4,
+    "luteal": 13,
+    "menstrual": 4,
+    "ovulation": 6,
+  },
+  "state": {
+    "avgCycleLength": 27,
+    "avgPeriodLength": 4,
+    "confidence": "good",
+    "currentCycleStart": "2026-04-20",
+    "cycleDay": -20,
+    "cycles": [
+      {
+        "cycleLength": 28,
+        "excluded": false,
+        "periodEnd": "2026-01-05",
+        "periodLength": 5,
+        "periodStart": "2026-01-01",
+      },
+      {
+        "cycleLength": 28,
+        "excluded": false,
+        "periodEnd": "2026-02-02",
+        "periodLength": 5,
+        "periodStart": "2026-01-29",
+      },
+      {
+        "cycleLength": 28,
+        "excluded": false,
+        "periodEnd": "2026-03-02",
+        "periodLength": 5,
+        "periodStart": "2026-02-26",
+      },
+      {
+        "cycleLength": 25,
+        "excluded": false,
+        "periodEnd": "2026-03-30",
+        "periodLength": 5,
+        "periodStart": "2026-03-26",
+      },
+      {
+        "cycleLength": null,
+        "excluded": false,
+        "periodEnd": "2026-04-20",
+        "periodLength": 1,
+        "periodStart": "2026-04-20",
+      },
+    ],
+    "daysUntilPeriod": 47,
+    "fertileWindow": {
+      "confidence": 0.6,
+      "end": 2026-05-04T00:00:00.000Z,
+      "ovulationDate": 2026-05-03T00:00:00.000Z,
+      "start": 2026-04-28T00:00:00.000Z,
+    },
+    "isLate": false,
+    "nextPeriodDate": 2026-05-17T00:00:00.000Z,
+    "phase": "menstrual",
+    "predictions": [
+      {
+        "cycleNumber": 6,
+        "end": 2026-06-12T00:00:00.000Z,
+        "start": 2026-05-17T00:00:00.000Z,
+        "uncertainty": 2,
+      },
+      {
+        "cycleNumber": 7,
+        "end": 2026-07-09T00:00:00.000Z,
+        "start": 2026-06-13T00:00:00.000Z,
+        "uncertainty": 2,
+      },
+      {
+        "cycleNumber": 8,
+        "end": 2026-08-05T00:00:00.000Z,
+        "start": 2026-07-10T00:00:00.000Z,
+        "uncertainty": 3,
+      },
+      {
+        "cycleNumber": 9,
+        "end": 2026-09-01T00:00:00.000Z,
+        "start": 2026-08-06T00:00:00.000Z,
+        "uncertainty": 4,
+      },
+    ],
+    "stdDev": 1.5,
+  },
+  "symptomPatterns": [],
+  "variabilityLabel": "Very regular",
+}
+`;
+
+exports[`extended fixtures (E-19) > gap300Days: a 300-day gap between two period starts 1`] = `
+{
+  "phaseBoundaries": {
+    "follicular": {
+      "endDay": 190,
+      "startDay": 6,
+    },
+    "luteal": {
+      "endDay": 209,
+      "startDay": 197,
+    },
+    "menstrual": {
+      "endDay": 5,
+      "startDay": 1,
+    },
+    "ovulation": {
+      "endDay": 196,
+      "startDay": 191,
+    },
+  },
+  "phaseLengths": {
+    "follicular": 185,
+    "luteal": 13,
+    "menstrual": 5,
+    "ovulation": 6,
+  },
+  "state": {
+    "avgCycleLength": 209,
+    "avgPeriodLength": 5,
+    "confidence": "building",
+    "currentCycleStart": "2025-11-30",
+    "cycleDay": 11,
+    "cycles": [
+      {
+        "cycleLength": 28,
+        "excluded": false,
+        "periodEnd": "2025-01-10",
+        "periodLength": 5,
+        "periodStart": "2025-01-06",
+      },
+      {
+        "cycleLength": 300,
+        "excluded": false,
+        "periodEnd": "2025-02-07",
+        "periodLength": 5,
+        "periodStart": "2025-02-03",
+      },
+      {
+        "cycleLength": null,
+        "excluded": false,
+        "periodEnd": "2025-12-04",
+        "periodLength": 5,
+        "periodStart": "2025-11-30",
+      },
+    ],
+    "daysUntilPeriod": 198,
+    "fertileWindow": {
+      "confidence": 0.14,
+      "end": 2026-12-21T00:00:00.000Z,
+      "ovulationDate": 2026-06-13T00:00:00.000Z,
+      "start": 2025-11-30T00:00:00.000Z,
+    },
+    "isLate": false,
+    "nextPeriodDate": 2026-06-27T00:00:00.000Z,
+    "phase": "follicular",
+    "predictions": [
+      {
+        "cycleNumber": 4,
+        "end": 2027-01-21T00:00:00.000Z,
+        "start": 2026-06-27T00:00:00.000Z,
+        "uncertainty": 192,
+      },
+      {
+        "cycleNumber": 5,
+        "end": 2027-08-18T00:00:00.000Z,
+        "start": 2027-01-22T00:00:00.000Z,
+        "uncertainty": 288,
+      },
+      {
+        "cycleNumber": 6,
+        "end": 2028-03-14T00:00:00.000Z,
+        "start": 2027-08-19T00:00:00.000Z,
+        "uncertainty": 385,
+      },
+      {
+        "cycleNumber": 7,
+        "end": 2028-10-09T00:00:00.000Z,
+        "start": 2028-03-15T00:00:00.000Z,
+        "uncertainty": 481,
+      },
+    ],
+    "stdDev": 192.33304448274092,
+  },
+  "symptomPatterns": [],
+  "variabilityLabel": "Irregular",
+}
+`;
+
+exports[`extended fixtures (E-19) > octoberSouthernDst: 28-day cycles across October (Southern-Hemisphere DST) 1`] = `
+{
+  "phaseBoundaries": {
+    "follicular": {
+      "endDay": 9,
+      "startDay": 6,
+    },
+    "luteal": {
+      "endDay": 28,
+      "startDay": 16,
+    },
+    "menstrual": {
+      "endDay": 5,
+      "startDay": 1,
+    },
+    "ovulation": {
+      "endDay": 15,
+      "startDay": 10,
+    },
+  },
+  "phaseLengths": {
+    "follicular": 4,
+    "luteal": 13,
+    "menstrual": 5,
+    "ovulation": 6,
+  },
+  "state": {
+    "avgCycleLength": 28,
+    "avgPeriodLength": 5,
+    "confidence": "building",
+    "currentCycleStart": "2026-10-19",
+    "cycleDay": 10,
+    "cycles": [
+      {
+        "cycleLength": 28,
+        "excluded": false,
+        "periodEnd": "2026-07-31",
+        "periodLength": 5,
+        "periodStart": "2026-07-27",
+      },
+      {
+        "cycleLength": 28,
+        "excluded": false,
+        "periodEnd": "2026-08-28",
+        "periodLength": 5,
+        "periodStart": "2026-08-24",
+      },
+      {
+        "cycleLength": 28,
+        "excluded": false,
+        "periodEnd": "2026-09-25",
+        "periodLength": 5,
+        "periodStart": "2026-09-21",
+      },
+      {
+        "cycleLength": null,
+        "excluded": false,
+        "periodEnd": "2026-10-23",
+        "periodLength": 5,
+        "periodStart": "2026-10-19",
+      },
+    ],
+    "daysUntilPeriod": 18,
+    "fertileWindow": {
+      "confidence": 0.6,
+      "end": 2026-11-03T00:00:00.000Z,
+      "ovulationDate": 2026-11-02T00:00:00.000Z,
+      "start": 2026-10-28T00:00:00.000Z,
+    },
+    "isLate": false,
+    "nextPeriodDate": 2026-11-16T00:00:00.000Z,
+    "phase": "ovulation",
+    "predictions": [
+      {
+        "cycleNumber": 5,
+        "end": 2026-12-13T00:00:00.000Z,
+        "start": 2026-11-16T00:00:00.000Z,
+        "uncertainty": 0,
+      },
+      {
+        "cycleNumber": 6,
+        "end": 2027-01-10T00:00:00.000Z,
+        "start": 2026-12-14T00:00:00.000Z,
+        "uncertainty": 0,
+      },
+      {
+        "cycleNumber": 7,
+        "end": 2027-02-07T00:00:00.000Z,
+        "start": 2027-01-11T00:00:00.000Z,
+        "uncertainty": 0,
+      },
+      {
+        "cycleNumber": 8,
+        "end": 2027-03-07T00:00:00.000Z,
+        "start": 2027-02-08T00:00:00.000Z,
+        "uncertainty": 0,
+      },
+    ],
+    "stdDev": 0,
+  },
+  "symptomPatterns": [],
+  "variabilityLabel": "Very regular",
+}
+`;
+
+exports[`extended fixtures (E-19) > oneCompletedCycle: exactly one completed cycle 1`] = `
+{
+  "phaseBoundaries": {
+    "follicular": {
+      "endDay": 9,
+      "startDay": 6,
+    },
+    "luteal": {
+      "endDay": 28,
+      "startDay": 16,
+    },
+    "menstrual": {
+      "endDay": 5,
+      "startDay": 1,
+    },
+    "ovulation": {
+      "endDay": 15,
+      "startDay": 10,
+    },
+  },
+  "phaseLengths": {
+    "follicular": 4,
+    "luteal": 13,
+    "menstrual": 5,
+    "ovulation": 6,
+  },
+  "state": {
+    "avgCycleLength": 28,
+    "avgPeriodLength": 5,
+    "confidence": "early",
+    "currentCycleStart": "2026-03-02",
+    "cycleDay": 15,
+    "cycles": [
+      {
+        "cycleLength": 28,
+        "excluded": false,
+        "periodEnd": "2026-02-06",
+        "periodLength": 5,
+        "periodStart": "2026-02-02",
+      },
+      {
+        "cycleLength": null,
+        "excluded": false,
+        "periodEnd": "2026-03-06",
+        "periodLength": 5,
+        "periodStart": "2026-03-02",
+      },
+    ],
+    "daysUntilPeriod": 13,
+    "fertileWindow": {
+      "confidence": 0.4,
+      "end": 2026-03-17T00:00:00.000Z,
+      "ovulationDate": 2026-03-16T00:00:00.000Z,
+      "start": 2026-03-11T00:00:00.000Z,
+    },
+    "isLate": false,
+    "nextPeriodDate": 2026-03-30T00:00:00.000Z,
+    "phase": "ovulation",
+    "predictions": [
+      {
+        "cycleNumber": 3,
+        "end": 2026-04-26T00:00:00.000Z,
+        "start": 2026-03-30T00:00:00.000Z,
+        "uncertainty": 0,
+      },
+      {
+        "cycleNumber": 4,
+        "end": 2026-05-24T00:00:00.000Z,
+        "start": 2026-04-27T00:00:00.000Z,
+        "uncertainty": 0,
+      },
+      {
+        "cycleNumber": 5,
+        "end": 2026-06-21T00:00:00.000Z,
+        "start": 2026-05-25T00:00:00.000Z,
+        "uncertainty": 0,
+      },
+      {
+        "cycleNumber": 6,
+        "end": 2026-07-19T00:00:00.000Z,
+        "start": 2026-06-22T00:00:00.000Z,
+        "uncertainty": 0,
+      },
+    ],
+    "stdDev": 0,
+  },
+  "symptomPatterns": [],
+  "variabilityLabel": "Very regular",
+}
+`;
+
+exports[`extended fixtures (E-19) > shortGapEpisodes: two bleed episodes under 21 days apart 1`] = `
+{
+  "phaseBoundaries": {
+    "follicular": {
+      "endDay": 7,
+      "startDay": 6,
+    },
+    "luteal": {
+      "endDay": 26,
+      "startDay": 14,
+    },
+    "menstrual": {
+      "endDay": 5,
+      "startDay": 1,
+    },
+    "ovulation": {
+      "endDay": 13,
+      "startDay": 8,
+    },
+  },
+  "phaseLengths": {
+    "follicular": 2,
+    "luteal": 13,
+    "menstrual": 5,
+    "ovulation": 6,
+  },
+  "state": {
+    "avgCycleLength": 26,
+    "avgPeriodLength": 5,
+    "confidence": "building",
+    "currentCycleStart": "2026-03-16",
+    "cycleDay": 15,
+    "cycles": [
+      {
+        "cycleLength": 18,
+        "excluded": false,
+        "periodEnd": "2026-01-05",
+        "periodLength": 5,
+        "periodStart": "2026-01-01",
+      },
+      {
+        "cycleLength": 28,
+        "excluded": false,
+        "periodEnd": "2026-01-22",
+        "periodLength": 4,
+        "periodStart": "2026-01-19",
+      },
+      {
+        "cycleLength": 28,
+        "excluded": false,
+        "periodEnd": "2026-02-20",
+        "periodLength": 5,
+        "periodStart": "2026-02-16",
+      },
+      {
+        "cycleLength": null,
+        "excluded": false,
+        "periodEnd": "2026-03-20",
+        "periodLength": 5,
+        "periodStart": "2026-03-16",
+      },
+    ],
+    "daysUntilPeriod": 11,
+    "fertileWindow": {
+      "confidence": 0.21,
+      "end": 2026-04-02T00:00:00.000Z,
+      "ovulationDate": 2026-03-28T00:00:00.000Z,
+      "start": 2026-03-19T00:00:00.000Z,
+    },
+    "isLate": false,
+    "nextPeriodDate": 2026-04-11T00:00:00.000Z,
+    "phase": "luteal",
+    "predictions": [
+      {
+        "cycleNumber": 5,
+        "end": 2026-05-06T00:00:00.000Z,
+        "start": 2026-04-11T00:00:00.000Z,
+        "uncertainty": 6,
+      },
+      {
+        "cycleNumber": 6,
+        "end": 2026-06-01T00:00:00.000Z,
+        "start": 2026-05-07T00:00:00.000Z,
+        "uncertainty": 9,
+      },
+      {
+        "cycleNumber": 7,
+        "end": 2026-06-27T00:00:00.000Z,
+        "start": 2026-06-02T00:00:00.000Z,
+        "uncertainty": 12,
+      },
+      {
+        "cycleNumber": 8,
+        "end": 2026-07-23T00:00:00.000Z,
+        "start": 2026-06-28T00:00:00.000Z,
+        "uncertainty": 14,
+      },
+    ],
+    "stdDev": 5.773502691896257,
+  },
+  "symptomPatterns": [],
+  "variabilityLabel": "Irregular",
+}
+`;
+
+exports[`extended fixtures (E-19) > straySpotting: a stray spotting day in the middle of a regular history 1`] = `
+{
+  "phaseBoundaries": {
+    "follicular": {
+      "endDay": 4,
+      "startDay": 5,
+    },
+    "luteal": {
+      "endDay": 21,
+      "startDay": 9,
+    },
+    "menstrual": {
+      "endDay": 4,
+      "startDay": 1,
+    },
+    "ovulation": {
+      "endDay": 8,
+      "startDay": 5,
+    },
+  },
+  "phaseLengths": {
+    "follicular": 0,
+    "luteal": 13,
+    "menstrual": 4,
+    "ovulation": 4,
+  },
+  "state": {
+    "avgCycleLength": 21,
+    "avgPeriodLength": 4,
+    "confidence": "building",
+    "currentCycleStart": "2026-03-26",
+    "cycleDay": 5,
+    "cycles": [
+      {
+        "cycleLength": 28,
+        "excluded": false,
+        "periodEnd": "2026-01-05",
+        "periodLength": 5,
+        "periodStart": "2026-01-01",
+      },
+      {
+        "cycleLength": 11,
+        "excluded": false,
+        "periodEnd": "2026-02-02",
+        "periodLength": 5,
+        "periodStart": "2026-01-29",
+      },
+      {
+        "cycleLength": 17,
+        "excluded": false,
+        "periodEnd": "2026-02-09",
+        "periodLength": 1,
+        "periodStart": "2026-02-09",
+      },
+      {
+        "cycleLength": 28,
+        "excluded": false,
+        "periodEnd": "2026-03-02",
+        "periodLength": 5,
+        "periodStart": "2026-02-26",
+      },
+      {
+        "cycleLength": null,
+        "excluded": false,
+        "periodEnd": "2026-03-30",
+        "periodLength": 5,
+        "periodStart": "2026-03-26",
+      },
+    ],
+    "daysUntilPeriod": 16,
+    "fertileWindow": {
+      "confidence": 0.21,
+      "end": 2026-04-09T00:00:00.000Z,
+      "ovulationDate": 2026-04-02T00:00:00.000Z,
+      "start": 2026-03-22T00:00:00.000Z,
+    },
+    "isLate": false,
+    "nextPeriodDate": 2026-04-16T00:00:00.000Z,
+    "phase": "ovulation",
+    "predictions": [
+      {
+        "cycleNumber": 6,
+        "end": 2026-05-06T00:00:00.000Z,
+        "start": 2026-04-16T00:00:00.000Z,
+        "uncertainty": 8,
+      },
+      {
+        "cycleNumber": 7,
+        "end": 2026-05-27T00:00:00.000Z,
+        "start": 2026-05-07T00:00:00.000Z,
+        "uncertainty": 13,
+      },
+      {
+        "cycleNumber": 8,
+        "end": 2026-06-17T00:00:00.000Z,
+        "start": 2026-05-28T00:00:00.000Z,
+        "uncertainty": 17,
+      },
+      {
+        "cycleNumber": 9,
+        "end": 2026-07-08T00:00:00.000Z,
+        "start": 2026-06-18T00:00:00.000Z,
+        "uncertainty": 21,
+      },
+    ],
+    "stdDev": 8.445906306213285,
+  },
+  "symptomPatterns": [],
+  "variabilityLabel": "Irregular",
+}
+`;
+
+exports[`extended fixtures (E-19) > twoCompletedCycles: exactly two completed cycles, now overdue with symptoms 1`] = `
+{
+  "phaseBoundaries": {
+    "follicular": {
+      "endDay": 10,
+      "startDay": 6,
+    },
+    "luteal": {
+      "endDay": 29,
+      "startDay": 17,
+    },
+    "menstrual": {
+      "endDay": 5,
+      "startDay": 1,
+    },
+    "ovulation": {
+      "endDay": 16,
+      "startDay": 11,
+    },
+  },
+  "phaseLengths": {
+    "follicular": 5,
+    "luteal": 13,
+    "menstrual": 5,
+    "ovulation": 6,
+  },
+  "state": {
+    "avgCycleLength": 29,
+    "avgPeriodLength": 5,
+    "confidence": "building",
+    "currentCycleStart": "2026-03-03",
+    "cycleDay": 35,
+    "cycles": [
+      {
+        "cycleLength": 28,
+        "excluded": false,
+        "periodEnd": "2026-01-08",
+        "periodLength": 4,
+        "periodStart": "2026-01-05",
+      },
+      {
+        "cycleLength": 29,
+        "excluded": false,
+        "periodEnd": "2026-02-07",
+        "periodLength": 6,
+        "periodStart": "2026-02-02",
+      },
+      {
+        "cycleLength": null,
+        "excluded": false,
+        "periodEnd": "2026-03-07",
+        "periodLength": 5,
+        "periodStart": "2026-03-03",
+      },
+    ],
+    "daysUntilPeriod": -6,
+    "fertileWindow": {
+      "confidence": 0.4,
+      "end": 2026-03-19T00:00:00.000Z,
+      "ovulationDate": 2026-03-18T00:00:00.000Z,
+      "start": 2026-03-13T00:00:00.000Z,
+    },
+    "isLate": true,
+    "nextPeriodDate": 2026-04-01T00:00:00.000Z,
+    "phase": "luteal",
+    "predictions": [
+      {
+        "cycleNumber": 4,
+        "end": 2026-04-29T00:00:00.000Z,
+        "start": 2026-04-01T00:00:00.000Z,
+        "uncertainty": 1,
+      },
+      {
+        "cycleNumber": 5,
+        "end": 2026-05-28T00:00:00.000Z,
+        "start": 2026-04-30T00:00:00.000Z,
+        "uncertainty": 1,
+      },
+      {
+        "cycleNumber": 6,
+        "end": 2026-06-26T00:00:00.000Z,
+        "start": 2026-05-29T00:00:00.000Z,
+        "uncertainty": 1,
+      },
+      {
+        "cycleNumber": 7,
+        "end": 2026-07-25T00:00:00.000Z,
+        "start": 2026-06-27T00:00:00.000Z,
+        "uncertainty": 2,
+      },
+    ],
+    "stdDev": 0.7071067811865476,
+  },
+  "symptomPatterns": [
+    {
+      "byPhase": {
+        "follicular": 0,
+        "luteal": 0,
+        "menstrual": 2,
+        "ovulation": 0,
+      },
+      "peakPhase": "menstrual",
+      "symptom": "Cramps",
+      "totalCount": 2,
+    },
+    {
+      "byPhase": {
+        "follicular": 0,
+        "luteal": 1,
+        "menstrual": 0,
+        "ovulation": 0,
+      },
+      "peakPhase": "luteal",
+      "symptom": "Bloating",
+      "totalCount": 1,
+    },
+  ],
+  "variabilityLabel": "Very regular",
+}
+`;
+
+exports[`extended fixtures (E-19) > yearBoundary: a period in progress across the year boundary 1`] = `
+{
+  "phaseBoundaries": {
+    "follicular": {
+      "endDay": 9,
+      "startDay": 5,
+    },
+    "luteal": {
+      "endDay": 28,
+      "startDay": 16,
+    },
+    "menstrual": {
+      "endDay": 4,
+      "startDay": 1,
+    },
+    "ovulation": {
+      "endDay": 15,
+      "startDay": 10,
+    },
+  },
+  "phaseLengths": {
+    "follicular": 5,
+    "luteal": 13,
+    "menstrual": 4,
+    "ovulation": 6,
+  },
+  "state": {
+    "avgCycleLength": 28,
+    "avgPeriodLength": 4,
+    "confidence": "building",
+    "currentCycleStart": "2025-12-31",
+    "cycleDay": 2,
+    "cycles": [
+      {
+        "cycleLength": 28,
+        "excluded": false,
+        "periodEnd": "2025-10-12",
+        "periodLength": 5,
+        "periodStart": "2025-10-08",
+      },
+      {
+        "cycleLength": 28,
+        "excluded": false,
+        "periodEnd": "2025-11-09",
+        "periodLength": 5,
+        "periodStart": "2025-11-05",
+      },
+      {
+        "cycleLength": 28,
+        "excluded": false,
+        "periodEnd": "2025-12-07",
+        "periodLength": 5,
+        "periodStart": "2025-12-03",
+      },
+      {
+        "cycleLength": null,
+        "excluded": false,
+        "periodEnd": "2026-01-01",
+        "periodLength": 2,
+        "periodStart": "2025-12-31",
+      },
+    ],
+    "daysUntilPeriod": 26,
+    "fertileWindow": {
+      "confidence": 0.6,
+      "end": 2026-01-15T00:00:00.000Z,
+      "ovulationDate": 2026-01-14T00:00:00.000Z,
+      "start": 2026-01-09T00:00:00.000Z,
+    },
+    "isLate": false,
+    "nextPeriodDate": 2026-01-28T00:00:00.000Z,
+    "phase": "menstrual",
+    "predictions": [
+      {
+        "cycleNumber": 5,
+        "end": 2026-02-24T00:00:00.000Z,
+        "start": 2026-01-28T00:00:00.000Z,
+        "uncertainty": 0,
+      },
+      {
+        "cycleNumber": 6,
+        "end": 2026-03-24T00:00:00.000Z,
+        "start": 2026-02-25T00:00:00.000Z,
+        "uncertainty": 0,
+      },
+      {
+        "cycleNumber": 7,
+        "end": 2026-04-21T00:00:00.000Z,
+        "start": 2026-03-25T00:00:00.000Z,
+        "uncertainty": 0,
+      },
+      {
+        "cycleNumber": 8,
+        "end": 2026-05-19T00:00:00.000Z,
+        "start": 2026-04-22T00:00:00.000Z,
+        "uncertainty": 0,
+      },
+    ],
+    "stdDev": 0,
+  },
+  "symptomPatterns": [],
+  "variabilityLabel": "Very regular",
+}
+`;
+
 exports[`fertile window + predictions > computes the fertile window (regular) 1`] = `
 {
   "confidence": 0.6,
