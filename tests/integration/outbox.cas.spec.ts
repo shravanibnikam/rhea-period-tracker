@@ -167,7 +167,7 @@ describe("P0-02 — a save made while its entry is on the wire survives the ack"
     expect(pushedNotes(r), "v2 is sent exactly once").toEqual([["v1"], ["v2"]]);
   });
 
-  it("the ack is ONE transaction: a save landing inside the ack (between its read and its delete) is kept", async () => {
+  it("the ack is ONE transaction: a save requested between its read and its delete commits after it and is kept", async () => {
     const r = (rig = makeIdbSyncRig());
     await r.repo.save(logWithNotes("v1"));
     const parked = r.transport.latchNextPush();
@@ -175,15 +175,15 @@ describe("P0-02 — a save made while its entry is on the wire survives the ack"
     const first = await parked;
     const [claimed] = await r.entries();
     r.clock.advance(10);
-    const inside = r.driver.interleaveAt("outbox", claimed.id, () =>
+    const racing = r.driver.interleaveAt("outbox", claimed.id, () =>
       r.repo.save(logWithNotes("v2"))
     );
 
-    const second = await releaseThenNextRound(r, first, flush); // accepted → ack(v1), v2 lands inside
-    await inside.done;
+    const second = await releaseThenNextRound(r, first, flush); // accepted → ack(v1); v2 is requested inside it
+    await racing.done;
 
-    expect(inside.hit, "the save landed inside the ack").not.toBeNull();
-    expect(await queuedNotes(r), "the save that landed inside the ack is still queued").toEqual([
+    expect(racing.hit, "the save was requested inside the ack's read→delete window").not.toBeNull();
+    expect(await queuedNotes(r), "the racing save is still queued").toEqual([
       "v2",
     ]);
     expect(second?.rows.map(notesOf), "the next push round transmits it").toEqual(["v2"]);
@@ -211,6 +211,32 @@ describe("P0-02 — a save made while its entry is on the wire survives the ack"
     await expect(flush).resolves.toMatchObject({ remaining: 0 });
     expect(serverNotes(r)).toEqual(["v2"]);
     expect(pushedNotes(r), "v2 is sent exactly once").toEqual([["v1"], ["v2"]]);
+  });
+
+  it("an EQUAL-HLC replacement made during the push (same updatedAt, new payload) is kept and transmitted", async () => {
+    const r = (rig = makeIdbSyncRig());
+    await r.repo.save(logWithNotes("v1"));
+    const parked = r.transport.latchNextPush();
+    const flush = r.engine.flush("manual");
+    const first = await parked;
+    const [v1] = first.rows;
+    // Coalescing replaces on an EQUAL HLC too (e.g. the same edit re-sealed).
+    await r.engine.outbox.enqueueCoalesced(
+      { ...v1, payload: sealPlain(logWithNotes("v1-resealed")) },
+      "owner"
+    );
+    const [queued] = await r.entries();
+    expect([notesOf(queued.record), queued.record.updatedAt]).toEqual(["v1-resealed", v1.updatedAt]);
+
+    const second = await releaseThenNextRound(r, first, flush); // the server accepts v1
+
+    expect(await queuedNotes(r), "the equal-HLC replacement is still queued").toEqual([
+      "v1-resealed",
+    ]);
+    expect(second?.rows.map(notesOf), "the next push round transmits it").toEqual(["v1-resealed"]);
+    second!.release(); // equal HLC: the server's guard answers stale-write; that ack drops it
+    await expect(flush).resolves.toMatchObject({ remaining: 0 });
+    expect(serverNotes(r)).toEqual(["v1"]);
   });
 
   it("an entry stored before the revision field existed is protected too", async () => {
@@ -312,7 +338,7 @@ describe("P0-02 — entries nothing touched are still settled by the ack (happy 
 });
 
 describe("P0-02 — Outbox.ack(claimed)", () => {
-  it("deletes only while the entry holds the claimed revision; a stale ack leaves the newer content claimable", async () => {
+  it("deletes only while the entry holds the claimed content; a stale ack leaves the newer content claimable", async () => {
     const r = (rig = makeIdbSyncRig());
     const { outbox } = r.engine;
     await r.repo.save(logWithNotes("v1"));

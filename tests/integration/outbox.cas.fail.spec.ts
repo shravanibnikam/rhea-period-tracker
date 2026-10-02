@@ -53,18 +53,21 @@ async function saveDuringPush(r: IdbSyncRig, saveV2: () => Promise<unknown>) {
   return { first, flush };
 }
 
-/** Park v1's push and arm a save of v2 to land INSIDE the engine's settle of v1. */
-async function saveInsideSettle(r: IdbSyncRig) {
+/**
+ * Park v1's push and arm a save of v2 to be requested inside the engine's settle
+ * of v1, between its read and its write (it commits after a transactional settle).
+ */
+async function saveRacingSettle(r: IdbSyncRig) {
   await r.repo.save(logWithNotes("v1"));
   const parked = r.transport.latchNextPush();
   const flush = r.engine.flush("manual");
   const first = await parked;
   const [claimed] = await r.entries();
   r.clock.advance(10);
-  const inside = r.driver.interleaveAt("outbox", claimed.id, () =>
+  const racing = r.driver.interleaveAt("outbox", claimed.id, () =>
     r.repo.save(logWithNotes("v2"))
   );
-  return { first, flush, inside };
+  return { first, flush, racing };
 }
 
 /**
@@ -103,6 +106,7 @@ describe("P0-03 — a newer save never inherits the old content's failure", () =
       remaining: 0,
     });
     expect(serverNotes(r)).toEqual(["v2"]);
+    expect(pushedNotes(r), "v2 is sent exactly once").toEqual([["v1"], ["v2"]]);
   });
 
   it("whole-batch failure: the newer save keeps attempts 0, is due now and unleased; the next flush transmits it", async () => {
@@ -162,16 +166,16 @@ describe("P0-03 — a newer save never inherits the old content's failure", () =
   });
 });
 
-describe("P0-03 — fail() is ONE transaction: a save landing inside it is never overwritten", () => {
+describe("P0-03 — fail() is ONE transaction: a save racing it is never overwritten by the old record", () => {
   it("per-entry rejection: the old record does not overwrite the newer save, nor pass its failure on", async () => {
     const r = (rig = makeIdbSyncRig());
-    const { first, flush, inside } = await saveInsideSettle(r);
+    const { first, flush, racing } = await saveRacingSettle(r);
 
     const malformed: PushVerdict = { kind: "reject", reason: "malformed" };
     const second = await releaseThenNextRound(r, first, flush, malformed);
-    await inside.done;
+    await racing.done;
 
-    expect(inside.hit, "the save landed inside fail()").not.toBeNull();
+    expect(racing.hit, "the save was requested inside fail()'s read→write window").not.toBeNull();
     const queued = await queueState(r);
     expect(queued.map((e) => e.notes), "superseded content is not restored").toEqual(["v2"]);
     expect(queued.map((e) => [e.attempts, e.lastError]), "nor its failure inherited").toEqual([
@@ -186,13 +190,13 @@ describe("P0-03 — fail() is ONE transaction: a save landing inside it is never
 
   it("whole-batch failure: the newer save survives with attempts 0, due now; the next flush transmits it", async () => {
     const r = (rig = makeIdbSyncRig());
-    const { first, flush, inside } = await saveInsideSettle(r);
+    const { first, flush, racing } = await saveRacingSettle(r);
 
     first.release({ kind: "throw", message: "offline" });
     await expect(flush).resolves.toMatchObject({ pushed: 0 });
-    await inside.done;
+    await racing.done;
 
-    expect(inside.hit, "the save landed inside fail()").not.toBeNull();
+    expect(racing.hit, "the save was requested inside fail()'s read→write window").not.toBeNull();
     const queued = await queueState(r);
     expect(queued.map((e) => e.notes), "superseded content is not restored").toEqual(["v2"]);
     expect(queued, "nor its failure inherited").toEqual([FRESH_V2]);
@@ -203,20 +207,20 @@ describe("P0-03 — fail() is ONE transaction: a save landing inside it is never
 });
 
 describe("P0-03 — releaseLease() never writes back a stale record", () => {
-  it("a save landing inside releaseLease() (between its read and its write) is kept", async () => {
+  it("a save requested between releaseLease()'s read and its write commits after it and is kept", async () => {
     const r = (rig = makeIdbSyncRig());
     const { outbox } = r.engine;
     await r.repo.save(logWithNotes("v1"));
     const [claimed] = await outbox.claimDue(r.clock.now(), 10, 30_000);
     r.clock.advance(10);
-    const inside = r.driver.interleaveAt("outbox", claimed.id, () =>
+    const racing = r.driver.interleaveAt("outbox", claimed.id, () =>
       r.repo.save(logWithNotes("v2"))
     );
 
     await outbox.releaseLease(claimed.id);
-    await inside.done;
+    await racing.done;
 
-    expect(inside.hit, "the save landed inside releaseLease()").not.toBeNull();
+    expect(racing.hit, "the save was requested inside releaseLease()'s read→write window").not.toBeNull();
     expect(await queueState(r), "the newer save is kept, unleased and due").toEqual([FRESH_V2]);
     await expect(r.engine.flush("manual")).resolves.toMatchObject({ pushed: 1, remaining: 0 });
     expect(serverNotes(r)).toEqual(["v2"]);
