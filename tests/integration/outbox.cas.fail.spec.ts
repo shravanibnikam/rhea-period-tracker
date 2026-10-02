@@ -98,7 +98,10 @@ describe("P0-03 — a newer save never inherits the old content's failure", () =
       "v2",
     ]);
     second!.release();
-    await expect(flush).resolves.toMatchObject({ remaining: 0 });
+    expect(await flush, "the old content's failure is not counted").toMatchObject({
+      failed: 0,
+      remaining: 0,
+    });
     expect(serverNotes(r)).toEqual(["v2"]);
   });
 
@@ -107,7 +110,10 @@ describe("P0-03 — a newer save never inherits the old content's failure", () =
     const { first, flush } = await saveDuringPush(r, () => r.repo.save(logWithNotes("v2")));
 
     first.release({ kind: "throw", message: "offline" });
-    await expect(flush).resolves.toMatchObject({ pushed: 0 });
+    expect(await flush, "the old content's failure is not counted").toMatchObject({
+      pushed: 0,
+      failed: 0,
+    });
 
     expect(await queueState(r), "the newer save does not inherit the batch's failure").toEqual([
       FRESH_V2,
@@ -130,6 +136,29 @@ describe("P0-03 — a newer save never inherits the old content's failure", () =
     expect(await queueState(r), "fresh content gets a fresh retry budget").toEqual([FRESH_V2]);
     await expect(r.engine.flush("manual")).resolves.toMatchObject({ pushed: 1, remaining: 0 });
     expect(serverNotes(r)).toEqual(["v2"]);
+  });
+
+  it("FlushResult.failed counts only the failures recorded, not a replaced entry's old one", async () => {
+    const r = (rig = makeIdbSyncRig());
+    await r.repo.save(logWithNotes("a", "2026-03-14"));
+    await r.repo.save(logWithNotes("b", "2026-03-15"));
+    const parked = r.transport.latchNextPush();
+    const flush = r.engine.flush("manual");
+    const first = await parked;
+    expect(first.rows.map(notesOf)).toEqual(["a", "b"]);
+    r.clock.advance(10);
+    await r.repo.save(logWithNotes("b2", "2026-03-15")); // replaces b while the batch is on the wire
+
+    first.release({ kind: "throw", message: "offline" });
+
+    expect(await flush, "a's failure is recorded; b's old one is not").toMatchObject({
+      failed: 1,
+      remaining: 2,
+    });
+    expect((await queueState(r)).map((e) => [e.notes, e.attempts, e.due])).toEqual([
+      ["a", 1, false],
+      ["b2", 0, true],
+    ]);
   });
 });
 

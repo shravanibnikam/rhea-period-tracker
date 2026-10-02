@@ -163,12 +163,9 @@ export class SyncEngine {
               // newer local save replaced it meanwhile: the ack keeps that one.)
               await this.outbox.ack(entry);
             } else {
-              failed++;
-              await this.outbox.fail(
-                entry,
-                reason,
-                this.now() + nextBackoffDelay(this.backoff, entry.attempts)
-              );
+              const retryAt = this.now() + nextBackoffDelay(this.backoff, entry.attempts);
+              // Counted only if recorded: a replaced entry's old failure is not one.
+              if (await this.outbox.fail(entry, reason, retryAt)) failed++;
             }
           }
         }
@@ -178,12 +175,9 @@ export class SyncEngine {
         // Whole-batch transport failure (offline etc.): back off every entry
         // that still holds the content that failed (compare-and-swap, P0-03).
         for (const entry of due) {
-          failed++;
-          await this.outbox.fail(
-            entry,
-            e instanceof Error ? e.message : "push failed",
-            this.now() + nextBackoffDelay(this.backoff, entry.attempts)
-          );
+          const retryAt = this.now() + nextBackoffDelay(this.backoff, entry.attempts);
+          const message = e instanceof Error ? e.message : "push failed";
+          if (await this.outbox.fail(entry, message, retryAt)) failed++; // as above
         }
         this.online = false;
         this.lastError = e instanceof Error ? e.message : "push failed";

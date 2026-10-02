@@ -148,34 +148,37 @@ export class Outbox {
   /**
    * Settle a claimed entry against `claimed`, in ONE readwrite transaction.
    * While the stored entry still holds the claimed content (unchangedSince),
-   * `onMatch` writes the outcome. Otherwise a save replaced it while the push
-   * was in flight: keep the newer content and clear the lease explicitly, so
-   * the next round sends it now rather than after a lease runs out. (If another
-   * tab re-claimed it meanwhile, clearing that lease costs at most one
-   * duplicate push, which upsert-by-key and LWW make harmless.)
+   * `onMatch` writes the outcome and settle returns true. Otherwise a save
+   * replaced it while the push was in flight: keep the newer content and clear
+   * the lease explicitly, so the next round sends it now rather than after a
+   * lease runs out, and return false. (If another tab re-claimed it meanwhile,
+   * clearing that lease costs at most one duplicate push, which upsert-by-key
+   * and LWW make harmless.)
    */
   private settle(
     claimed: Claimed,
     onMatch: (tx: StorageTx, current: OutboxEntry) => Promise<void>
-  ): Promise<void> {
+  ): Promise<boolean> {
     return this.driver.transaction({ mode: "readwrite", stores: ["outbox"] }, async (tx) => {
       const current = await tx.get<OutboxEntry>("outbox", claimed.id);
-      if (!current) return; // already settled elsewhere (another tab) or cleared
+      if (!current) return false; // already settled elsewhere (another tab) or cleared
       if (!unchangedSince(current, claimed)) {
         await tx.put("outbox", { ...current, leaseUntil: undefined });
-        return;
+        return false;
       }
       await onMatch(tx, current);
+      return true;
     });
   }
 
   /**
    * Compare-and-delete on delivery (P0-02): deletes the entry only if it still
    * holds the content of `claimed`, the snapshot claimDue returned and the
-   * engine pushed. A newer save that replaced it is kept.
+   * engine pushed. A newer save that replaced it is kept. Returns whether the
+   * entry was deleted.
    */
-  async ack(claimed: Claimed): Promise<void> {
-    await this.settle(claimed, (tx) => tx.delete("outbox", claimed.id));
+  async ack(claimed: Claimed): Promise<boolean> {
+    return this.settle(claimed, (tx) => tx.delete("outbox", claimed.id));
   }
 
   /**
@@ -183,10 +186,10 @@ export class Outbox {
    * retry only if the entry still holds the content of `claimed` (as for ack).
    * If a save replaced it, the failure belonged to the old content: no attempt
    * is counted, no backoff or lastError set, and the newer content is left
-   * claimable now.
+   * claimable now. Returns whether the failure was recorded.
    */
-  async fail(claimed: Claimed, err: string, nextAttemptAt: number): Promise<void> {
-    await this.settle(claimed, (tx, current) =>
+  async fail(claimed: Claimed, err: string, nextAttemptAt: number): Promise<boolean> {
+    return this.settle(claimed, (tx, current) =>
       tx.put("outbox", {
         ...current,
         attempts: current.attempts + 1,
