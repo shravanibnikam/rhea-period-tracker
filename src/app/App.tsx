@@ -3,10 +3,10 @@ import type { DailyLog } from "@/domain/types";
 import { PHASES } from "@/domain/phases";
 import { useCycleData } from "@/app/hooks/useCycleData";
 import { useAuth } from "@/app/hooks/useAuth";
-import { useLogger } from "@/app/hooks/useLogger";
+import { useLogger, LOAD_FAILED_MESSAGE } from "@/app/hooks/useLogger";
 import { initialSync, pushLog, subscribeToLogs, unsubscribe } from "@/app/lib/sync";
 import { supabase } from "@/app/lib/supabase";
-import { isOwnerEngineSync } from "@/app/lib/flags";
+import { isOwnerEngineSync, ownerOutboxMode } from "@/app/lib/flags";
 import { useContainer } from "@/app/di";
 import { Header } from "@/app/components/layout/Header";
 import { TabNav, type TabName } from "@/app/components/layout/TabNav";
@@ -35,6 +35,7 @@ export default function App() {
   const [showSources, setShowSources] = useState(false);
   const [showPrivacy, setShowPrivacy] = useState(false);
   const [roleChosen, setRoleChosen] = useState(false);
+  const [symptomError, setSymptomError] = useState<string | null>(null);
 
   const today = useMemo(() => new Date(), []);
 
@@ -50,14 +51,35 @@ export default function App() {
   const { logs, state, loading: dataLoading, excludedStarts, refresh } = useCycleData();
   const hasData = logs.length > 0;
 
+  // Data follows the account (P0-06): re-read the local store whenever the
+  // signed-in account changes, whatever its role — the sync paths below refresh
+  // only once a role is resolved, so a new account whose lookup fails or hangs
+  // would keep showing the previous account's rows. The main UI waits until
+  // that account's read has landed (see the loading gate).
+  const accountId = auth.user?.id ?? null;
+  const [dataAccount, setDataAccount] = useState<string | null | undefined>(undefined);
+  useEffect(() => {
+    let current = true;
+    void refresh().then(() => {
+      if (current) setDataAccount(accountId);
+    });
+    return () => {
+      current = false;
+    };
+  }, [accountId, refresh]);
+
   const activeLogDate = logSheetDate ?? today;
   const {
     log: activeLog,
     setLog: setActiveLog,
     save: saveActiveLog,
     saveMany: saveActiveLogs,
+    setSymptom: setActiveSymptom,
+    reload: reloadActiveLog,
+    revert: revertActiveLog,
     remove: removeActiveLog,
     exists: activeLogExists,
+    loadError: activeLogLoadError,
   } = useLogger(
     activeLogDate,
     // Single write path (M1.3): every save flows through here. The saved logs
@@ -67,17 +89,52 @@ export default function App() {
       async (saved: DailyLog[]) => {
         // In owner-engine mode saveLog already enqueued the write to the durable
         // outbox; the engine delivers it (possibly after it finishes starting).
-        // Only the legacy path needs an explicit push. Decide on the CONFIGURED
-        // mode, NOT on whether the engine instance exists yet — otherwise a save
-        // during the startup gap would BOTH enqueue and legacy-push (double send).
-        if (auth.user && !isOwnerEngineSync(true, auth.role)) {
+        // Only a resolved OWNER on the legacy path pushes explicitly. Decide on
+        // the CONFIGURED mode, NOT on whether the engine instance exists yet —
+        // otherwise a save during the startup gap would BOTH enqueue and
+        // legacy-push (double send). A partner or an unresolved role (P0-06:
+        // fail closed) never pushes directly; an unresolved role's saves only
+        // queue, and are delivered once the engine starts for a confirmed owner.
+        if (auth.user && auth.role === "owner" && !isOwnerEngineSync(true, auth.role)) {
           for (const l of saved) await pushLog(auth.user.id, l);
         }
         refresh();
       },
       [auth.user, auth.role, refresh, container]
-    )
+    ),
+    // Re-read the active day whenever the account changes (P0-N1): this hook
+    // mounts before auth resolves, so its first read is the local-only store.
+    // useAuth scopes the container before exposing the user, so accountId
+    // always names the store the container reads at this render.
+    accountId
   );
+
+  // Keep the active log in step with the store (P0-N2). After a sync (or an
+  // import / erase) re-read cycle data AND the active day, so the Overview never
+  // shows a stale record — but not while the Log sheet is open: it holds the
+  // user's unsaved edits (the sheet re-reads when it opens and when it closes).
+  // Stable identity: the sync effect below depends on it, and must not restart.
+  const liveLog = useRef({ sheetOpen: false, reload: reloadActiveLog });
+  liveLog.current = { sheetOpen: logSheetDate !== null, reload: reloadActiveLog };
+  const refreshAfterSync = useCallback(() => {
+    void refresh();
+    if (!liveLog.current.sheetOpen) liveLog.current.reload();
+  }, [refresh]);
+
+  // The sheet and the Overview share the active log. When the sheet opens,
+  // re-read the day so it never renders a stale record; when it closes, drop
+  // whatever was not saved (Escape, X, a failed Save), so an abandoned draft
+  // can never reach the Overview or a later save.
+  const sheetEffectRan = useRef(false);
+  useEffect(() => {
+    if (!sheetEffectRan.current) {
+      sheetEffectRan.current = true; // mount: useLogger is already reading
+      return;
+    }
+    if (logSheetDate === null) revertActiveLog();
+    reloadActiveLog();
+    // Runs only on open/close; reload/revert are this render's (the new date's).
+  }, [logSheetDate]);
 
   // Delete the active log through the sync-engine tombstone path. Rejects on
   // failure so DailyLogSheet keeps the modal open + shows the error; only on
@@ -90,13 +147,22 @@ export default function App() {
 
   // ── Sync ──
   useEffect(() => {
-    // Set the CONFIGURED sync mode first (covers unauthenticated/local too, so
-    // local-only writes never accrue undrainable outbox intents). This is what
-    // gates the durable outbox — independent of engine start state.
-    const ownerEngine = isOwnerEngineSync(!!auth.user, auth.role);
-    container.setOwnerSyncMode(ownerEngine);
+    // Two separate decisions (P0-06):
+    // (i) QUEUE writes in the durable outbox — purely local. On for a signed-in
+    //     owner OR a still-unresolved role (with the engine flag on), so an
+    //     offline start doesn't lose the owner's logging — though never, while
+    //     unresolved, in a store that has served a partner session (Container).
+    //     Off for a partner, no user, or legacy mode. Set first, independent of
+    //     engine start state.
+    container.setOwnerSyncMode(ownerOutboxMode(!!auth.user, auth.role));
 
-    if (!auth.user) return;
+    // (ii) Anything that leaves the device — owner engine, legacy pull/
+    //     subscribe/push — waits until the role is POSITIVELY resolved. Until
+    //     then the local store may hold someone else's rows (a partner's cache).
+    const roleResolved = !auth.loading && auth.role !== null;
+    const ownerEngine = roleResolved && isOwnerEngineSync(!!auth.user, auth.role);
+
+    if (!auth.user || !roleResolved) return;
 
     // Owner path (M1.9): the SyncEngine owns push/pull/realtime — outbox,
     // HLC merge, tombstones. Partners stay on the legacy read-only pull until
@@ -113,8 +179,8 @@ export default function App() {
           // resolution changed while startOwnerSync was awaiting its pull.
           return;
         }
-        unsubStatus = started.onStatus(() => refresh());
-        refresh();
+        unsubStatus = started.onStatus(() => refreshAfterSync());
+        refreshAfterSync();
       })();
       return () => {
         cancelled = true;
@@ -123,18 +189,26 @@ export default function App() {
       };
     }
 
-    // Legacy path (partner, or engine flag off).
-    const ownerId = auth.linkedOwnerId ?? auth.user.id;
-    initialSync(ownerId).then(() => refresh()).catch(console.error);
+    // A confirmed partner never pushes. Anything queued before the role resolved
+    // is an edit to the owner's cached rows: drop it, so nothing can upload it
+    // later (e.g. after an unlink). Queueing is already off (see (i)).
+    if (auth.role === "partner") void container.clearOutbox().catch(console.error);
 
-    const channel = subscribeToLogs(ownerId, refresh);
+    // Legacy path (partner, or engine flag off). A partner reads ONLY its linked
+    // owner — never its own id; a multi-link partner (no owner selected) syncs
+    // nothing.
+    const ownerId = auth.role === "owner" ? auth.user.id : auth.linkedOwnerId;
+    if (!ownerId) return;
+    initialSync(ownerId).then(() => refreshAfterSync()).catch(console.error);
+
+    const channel = subscribeToLogs(ownerId, refreshAfterSync);
     channelRef.current = channel;
 
     return () => {
       unsubscribe(channelRef.current);
       channelRef.current = null;
     };
-  }, [auth.user, auth.role, auth.linkedOwnerId, refresh, container]);
+  }, [auth.user, auth.loading, auth.role, auth.linkedOwnerId, refresh, refreshAfterSync, container]);
 
   // Partner should always see partner view
   useEffect(() => {
@@ -146,19 +220,30 @@ export default function App() {
   const phaseData = PHASES[phase];
 
   // Overview symptom toggles persist to today's DailyLog via the single write
-  // path (M1.3) — they were previously ephemeral React state that vanished on
-  // reload and never synced.
-  const toggleSymptom = (s: string) => {
-    const has = activeLog.symptoms.includes(s);
-    const next = {
-      ...activeLog,
-      symptoms: has
-        ? activeLog.symptoms.filter((x) => x !== s)
-        : [...activeLog.symptoms, s],
-    };
-    setActiveLog(next);
-    void saveActiveLogs([next]);
+  // path (M1.3). Each tap is ONE atomic change of that symptom on the STORED
+  // row (P0-N2): never the whole record rebuilt from the view, which may lag a
+  // sync or hold an abandoned sheet draft. The toggle shows at once; the view
+  // then follows the stored record — also on failure, with the reason shown
+  // (P0-04).
+  const toggleSymptom = async (s: string) => {
+    const present = !activeLog.symptoms.includes(s);
+    setSymptomError(null);
+    setActiveLog((cur) => ({
+      ...cur,
+      symptoms: present
+        ? cur.symptoms.includes(s) ? cur.symptoms : [...cur.symptoms, s]
+        : cur.symptoms.filter((x) => x !== s),
+    }));
+    try {
+      await setActiveSymptom(s, present);
+    } catch (err) {
+      console.error("Failed to save the symptom:", err);
+      // The toggle has been undone on screen (useLogger went back to the
+      // stored record), so say exactly that.
+      setSymptomError("Couldn't save that symptom. It's back to what was saved — please try again.");
+    }
   };
+  const activeLogLoadMessage = activeLogLoadError ? LOAD_FAILED_MESSAGE : null;
 
   const handleCycleLengthOverrideChange = useCallback(
     async (value: number | null) => {
@@ -188,7 +273,7 @@ export default function App() {
   );
 
   // ── Loading ──
-  if (auth.loading || dataLoading) {
+  if (auth.loading || dataLoading || dataAccount !== accountId) {
     return (
       <div className="min-h-screen bg-background font-sans flex items-center justify-center">
         <div className="text-center">
@@ -237,7 +322,20 @@ export default function App() {
       />
 
       <main id="main-content" role="main" className="max-w-4xl mx-auto px-4 sm:px-6 py-8 pb-24">
-        {isPartner ? (
+        {isPartner && auth.linkedOwnerId === null ? (
+          /* ── Partner linked to several owners: no owner is chosen, and
+                PartnerView treats a null owner as local demo mode (the cache,
+                ungated by share settings) — so show a notice instead. ── */
+          <div
+            role="status"
+            className="rounded-3xl p-8 sm:p-10 border text-center bg-card border-border"
+          >
+            <p className="text-sm text-foreground">
+              This account is linked to more than one person, so the partner
+              view is unavailable. Ask them to unlink the extra link.
+            </p>
+          </div>
+        ) : isPartner ? (
           /* ── Partner: only sees partner view ── */
           <PartnerView
             phaseData={phaseData}
@@ -289,6 +387,7 @@ export default function App() {
                 state={state}
                 symptoms={new Set(activeLog.symptoms)}
                 toggleSymptom={toggleSymptom}
+                symptomError={symptomError ?? activeLogLoadMessage}
                 today={today}
               />
             )}
@@ -357,6 +456,7 @@ export default function App() {
           date={activeLogDate}
           onDelete={handleDeleteActiveLog}
           canDelete={activeLogExists}
+          loadError={activeLogLoadMessage}
         />
       )}
 
@@ -371,7 +471,7 @@ export default function App() {
       {showSettings && (
         <SettingsView
           onClose={() => setShowSettings(false)}
-          onDataChanged={refresh}
+          onDataChanged={refreshAfterSync}
           cycleLengthOverride={cycleLengthOverride}
           onCycleLengthOverrideChange={handleCycleLengthOverrideChange}
           onSourcesClick={() => {

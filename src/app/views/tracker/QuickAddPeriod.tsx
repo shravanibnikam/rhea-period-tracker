@@ -1,14 +1,16 @@
 import { useState } from "react";
 import { X, CalendarPlus } from "lucide-react";
-import type { DailyLog, PhaseData } from "@/domain/types";
+import type { PhaseData } from "@/domain/types";
+import type { DailyLogPatch } from "@/data/repositories/LogRepository";
 import { buildPeriodLogs } from "@/domain/cycle";
 import { toDateKey } from "@/domain/dates";
 
 interface QuickAddPeriodProps {
   onClose: () => void;
   /** The single write path (useLogger.saveMany) — QuickAdd no longer writes
-   *  to the database directly, so its logs sync like any other save (M1.3). */
-  saveLogs: (logs: DailyLog[]) => Promise<void>;
+   *  to the database directly, so its logs sync like any other save (M1.3).
+   *  Merge-defined: only flow is set; existing day content is kept (P0-01). */
+  saveLogs: (logs: DailyLogPatch[], opts: { mode: "merge-defined" }) => Promise<void>;
   phaseData: PhaseData;
 }
 
@@ -19,11 +21,22 @@ export function QuickAddPeriod({ onClose, saveLogs, phaseData }: QuickAddPeriodP
   });
   const [duration, setDuration] = useState(5);
   const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   const handleSave = async () => {
     setSaving(true);
-    await saveLogs(buildPeriodLogs(startDate, duration));
-    onClose();
+    setError(null);
+    try {
+      await saveLogs(buildPeriodLogs(startDate, duration), { mode: "merge-defined" });
+    } catch (err) {
+      // The batch is one transaction, so a failed write leaves nothing
+      // half-saved. Stay open so the user can retry.
+      console.error("Failed to add the period:", err);
+      setError("Couldn't add this period. Please try again.");
+      setSaving(false);
+      return;
+    }
+    onClose(); // only once the logs are persisted
   };
 
   return (
@@ -98,7 +111,12 @@ export function QuickAddPeriod({ onClose, saveLogs, phaseData }: QuickAddPeriodP
           </p>
         </div>
 
-        <div className="sticky bottom-0 bg-card/95 backdrop-blur-sm border-t border-border px-6 py-4">
+        <div className="sticky bottom-0 bg-card/95 backdrop-blur-sm border-t border-border px-6 py-4 space-y-3">
+          {error && (
+            <p role="alert" className="text-xs text-red-600 text-center">
+              {error}
+            </p>
+          )}
           <button
             onClick={handleSave}
             disabled={saving}

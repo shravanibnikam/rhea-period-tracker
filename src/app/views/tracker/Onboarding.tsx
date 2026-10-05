@@ -20,9 +20,7 @@ export function Onboarding({ onStartLogging, onImport, onQuickAdd }: OnboardingP
           Welcome to Rhea
         </h1>
         <p className="text-sm text-muted-foreground max-w-md mx-auto leading-relaxed">
-          A private cycle tracker built for two people.
-          Track your cycle entirely on your own device &mdash; nothing uploaded,
-          no account required.
+          A local-first cycle tracker built for two people.
         </p>
       </div>
 
@@ -30,9 +28,11 @@ export function Onboarding({ onStartLogging, onImport, onQuickAdd }: OnboardingP
       <div className="grid sm:grid-cols-3 gap-3">
         <div className="bg-card rounded-2xl border border-border p-5 text-center">
           <Shield size={24} className="mx-auto mb-3 text-primary" />
-          <p className="text-sm font-semibold text-foreground mb-1">Private by design</p>
+          <p className="text-sm font-semibold text-foreground mb-1">Where your data lives</p>
           <p className="text-xs text-muted-foreground leading-relaxed">
-            Your data lives only on this device. No cloud, no account, no tracking.
+            Your logs are stored on this device. When you&apos;re signed in they
+            also sync to our server, where they are not yet end-to-end
+            encrypted. No ads, no analytics.
           </p>
         </div>
         <div className="bg-card rounded-2xl border border-border p-5 text-center">
@@ -46,7 +46,7 @@ export function Onboarding({ onStartLogging, onImport, onQuickAdd }: OnboardingP
           <Heart size={24} className="mx-auto mb-3 text-primary" />
           <p className="text-sm font-semibold text-foreground mb-1">Built for two</p>
           <p className="text-xs text-muted-foreground leading-relaxed">
-            Share exactly as much as you choose with your partner. Take it back anytime.
+            Choose what your partner&apos;s view shows, and unlink them anytime.
           </p>
         </div>
       </div>

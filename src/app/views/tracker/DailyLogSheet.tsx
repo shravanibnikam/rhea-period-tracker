@@ -1,13 +1,18 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { X, Trash2 } from "lucide-react";
 import type { DailyLog, PhaseData } from "@/domain/types";
 import { ALL_SYMPTOMS, FLOW_LEVELS, MOOD_OPTIONS, ENERGY_OPTIONS } from "@/app/lib/constants";
 import { fmt } from "@/app/lib/format";
+import { saveErrorMessage } from "@/app/hooks/useLogger";
 
 interface DailyLogSheetProps {
   log: DailyLog;
   setLog: React.Dispatch<React.SetStateAction<DailyLog>>;
-  onSave: () => void;
+  /**
+   * Persist the log. Must REJECT on failure: the sheet closes only after it
+   * resolves, and on failure stays open with the error and the user's edits.
+   */
+  onSave: () => Promise<void>;
   onClose: () => void;
   phaseData: PhaseData;
   date: Date;
@@ -19,6 +24,11 @@ interface DailyLogSheetProps {
   onDelete?: () => Promise<void>;
   /** Show the Delete action only for an existing, non-deleted persisted log. */
   canDelete?: boolean;
+  /**
+   * Set when this day's saved log could not be read: shown as an alert, and
+   * Save is disabled (it would only be refused — it could overwrite the log).
+   */
+  loadError?: string | null;
 }
 
 export function DailyLogSheet({
@@ -30,26 +40,48 @@ export function DailyLogSheet({
   date,
   onDelete,
   canDelete = false,
+  loadError = null,
 }: DailyLogSheetProps) {
   const [confirming, setConfirming] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [deleteError, setDeleteError] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
+  // While a save or delete runs the sheet cannot be closed: its late result
+  // would otherwise call onClose, which closes whatever sheet is open by then
+  // (possibly another day's). A ref, so Escape sees it at once.
+  const busy = useRef(false);
+  const mounted = useRef(true);
+  useEffect(() => {
+    mounted.current = true;
+    return () => {
+      mounted.current = false;
+    };
+  }, []);
+
+  const requestClose = useCallback(() => {
+    if (!busy.current) onClose();
+  }, [onClose]);
 
   useEffect(() => {
-    const handleKey = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
+    const handleKey = (e: KeyboardEvent) => { if (e.key === "Escape") requestClose(); };
     window.addEventListener("keydown", handleKey);
     return () => window.removeEventListener("keydown", handleKey);
-  }, [onClose]);
+  }, [requestClose]);
 
   const showDelete = canDelete && !!onDelete;
 
   const runDelete = useCallback(async () => {
     if (!onDelete) return;
+    busy.current = true;
     setDeleting(true);
     setDeleteError(null);
+    setSaveError(null);
     try {
       await onDelete(); // parent closes the sheet on success
     } catch (err) {
+      busy.current = false;
+      if (!mounted.current) return;
       // Failure: keep the modal open, surface the error, retain the log.
       setDeleteError(
         err instanceof Error ? err.message : "Couldn't delete this log. Please try again."
@@ -58,6 +90,29 @@ export function DailyLogSheet({
       setConfirming(false);
     }
   }, [onDelete]);
+
+  const runSave = useCallback(async () => {
+    busy.current = true;
+    setSaving(true);
+    setSaveError(null);
+    setDeleteError(null);
+    try {
+      await onSave();
+    } catch (err) {
+      busy.current = false;
+      console.error("Failed to save the daily log:", err);
+      if (!mounted.current) return;
+      // Failure: keep the sheet open with the user's edits and say so.
+      setSaveError(saveErrorMessage(err));
+      setSaving(false);
+      return;
+    }
+    busy.current = false;
+    // Gone already (e.g. sign-out): never close a sheet opened since.
+    if (!mounted.current) return;
+    setSaving(false);
+    onClose(); // only once the log is persisted
+  }, [onSave, onClose]);
 
   const setField = useCallback(
     <K extends keyof DailyLog>(key: K, value: DailyLog[K]) => {
@@ -83,7 +138,7 @@ export function DailyLogSheet({
       {/* Backdrop */}
       <div
         className="absolute inset-0 bg-black/40 backdrop-blur-sm"
-        onClick={onClose}
+        onClick={requestClose}
         aria-hidden="true"
       />
 
@@ -100,10 +155,12 @@ export function DailyLogSheet({
             </p>
           </div>
           <button
-            onClick={onClose}
-            className="p-2 rounded-full hover:bg-muted transition-colors"
+            onClick={requestClose}
+            disabled={saving || deleting}
+            aria-label="Close"
+            className="p-2 rounded-full hover:bg-muted transition-colors disabled:opacity-50"
           >
-            <X size={18} className="text-muted-foreground" />
+            <X size={18} className="text-muted-foreground" aria-hidden="true" />
           </button>
         </div>
 
@@ -242,7 +299,7 @@ export function DailyLogSheet({
           {/* Notes */}
           <div>
             <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-3">
-              Notes <span className="font-normal opacity-60">(private, never shared)</span>
+              Notes <span className="font-normal opacity-60">(not end-to-end encrypted; a linked partner&apos;s account can read it)</span>
             </p>
             <textarea
               value={log.notes}
@@ -256,17 +313,25 @@ export function DailyLogSheet({
 
         {/* Save + Delete */}
         <div className="sticky bottom-0 bg-card/95 backdrop-blur-sm border-t border-border px-6 py-4 space-y-3">
+          {loadError && (
+            <p role="alert" className="text-xs text-red-600 text-center">
+              {loadError}
+            </p>
+          )}
+          {saveError && (
+            <p role="alert" className="text-xs text-red-600 text-center">
+              {saveError}
+            </p>
+          )}
           {deleteError && (
             <p role="alert" className="text-xs text-red-600 text-center">
               {deleteError}
             </p>
           )}
           <button
-            onClick={() => {
-              onSave();
-              onClose();
-            }}
-            disabled={deleting}
+            onClick={runSave}
+            disabled={saving || deleting || !!loadError}
+            aria-busy={saving}
             className="w-full py-3 rounded-xl font-medium text-sm text-white transition-all duration-200 hover:opacity-90 disabled:opacity-50"
             style={{ backgroundColor: phaseData.color }}
           >
@@ -275,8 +340,9 @@ export function DailyLogSheet({
 
           {showDelete && !confirming && (
             <button
-              onClick={() => { setDeleteError(null); setConfirming(true); }}
-              className="w-full py-2.5 rounded-xl font-medium text-sm text-red-600 border border-red-200 hover:bg-red-50 transition-colors flex items-center justify-center gap-2"
+              onClick={() => { setDeleteError(null); setSaveError(null); setConfirming(true); }}
+              disabled={saving}
+              className="w-full py-2.5 rounded-xl font-medium text-sm text-red-600 border border-red-200 hover:bg-red-50 transition-colors flex items-center justify-center gap-2 disabled:opacity-50"
               aria-label="Delete this log"
             >
               <Trash2 size={15} aria-hidden="true" />
@@ -288,14 +354,14 @@ export function DailyLogSheet({
             <div className="flex gap-2" role="group" aria-label="Confirm deleting this log">
               <button
                 onClick={() => setConfirming(false)}
-                disabled={deleting}
+                disabled={deleting || saving}
                 className="flex-1 py-2.5 rounded-xl font-medium text-sm text-muted-foreground border border-border hover:bg-muted transition-colors disabled:opacity-50"
               >
                 Cancel
               </button>
               <button
                 onClick={runDelete}
-                disabled={deleting}
+                disabled={deleting || saving}
                 autoFocus
                 className="flex-1 py-2.5 rounded-xl font-medium text-sm text-white bg-red-600 hover:bg-red-700 transition-colors disabled:opacity-50"
                 aria-label="Confirm delete log"

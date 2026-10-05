@@ -1,5 +1,6 @@
 # Deploying Rhea — database, logins, and live partner sync
 
+<!-- copy-guard: historical -->
 Goal: a real database, your own login, your partner's login, and **live** updates — your partner's open app changes the moment you log something, and all your devices stay in sync. All on free tiers, reachable by opening one URL on any phone or laptop.
 
 **Stack:** Supabase (Postgres + Auth + Realtime) for the backend, a static hosting service for the site (historical; see current hosting guide). Total setup ≈ 30–45 min.

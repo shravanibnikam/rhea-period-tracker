@@ -147,37 +147,37 @@ export class SyncEngine {
         const accepted = new Set(outcome.accepted);
         const rejected = new Map(outcome.rejected.map((r) => [r.key, r.reason]));
 
+        // The outcome is about the claimed SNAPSHOT. A save during the push may
+        // have replaced the entry's record (same id, same key), so ack and fail
+        // compare-and-swap against that snapshot (P0-02, P0-03): a replaced
+        // entry is kept unpenalised, and the next round of this loop sends it.
         for (const entry of due) {
           if (accepted.has(entry.record.key)) {
-            await this.outbox.ack(entry.id);
+            await this.outbox.ack(entry);
             pushed++;
           } else {
             const reason = rejected.get(entry.record.key) ?? "unknown";
             if (reason === "stale-write") {
               // The server already holds a newer row — our write lost LWW.
-              // Drop it; the newer content arrives on the next pull.
-              await this.outbox.ack(entry.id);
+              // Drop it; the newer content arrives on the next pull. (Unless a
+              // newer local save replaced it meanwhile: the ack keeps that one.)
+              await this.outbox.ack(entry);
             } else {
-              failed++;
-              await this.outbox.fail(
-                entry.id,
-                reason,
-                this.now() + nextBackoffDelay(this.backoff, entry.attempts)
-              );
+              const retryAt = this.now() + nextBackoffDelay(this.backoff, entry.attempts);
+              // Counted only if recorded: a replaced entry's old failure is not one.
+              if (await this.outbox.fail(entry, reason, retryAt)) failed++;
             }
           }
         }
         this.online = true;
         this.lastError = null;
       } catch (e) {
-        // Whole-batch transport failure (offline etc.): back off every entry.
+        // Whole-batch transport failure (offline etc.): back off every entry
+        // that still holds the content that failed (compare-and-swap, P0-03).
         for (const entry of due) {
-          failed++;
-          await this.outbox.fail(
-            entry.id,
-            e instanceof Error ? e.message : "push failed",
-            this.now() + nextBackoffDelay(this.backoff, entry.attempts)
-          );
+          const retryAt = this.now() + nextBackoffDelay(this.backoff, entry.attempts);
+          const message = e instanceof Error ? e.message : "push failed";
+          if (await this.outbox.fail(entry, message, retryAt)) failed++; // as above
         }
         this.online = false;
         this.lastError = e instanceof Error ? e.message : "push failed";

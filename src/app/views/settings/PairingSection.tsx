@@ -62,12 +62,21 @@ export function PairingSection({ userId, role, onRoleChanged }: PairingSectionPr
   const [status, setStatus] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [loadFailed, setLoadFailed] = useState(false);
 
   useEffect(() => {
-    getPartnerLink(userId).then((link) => {
-      setPartnerLinked(link !== null);
-      setLoading(false);
-    });
+    getPartnerLink(userId)
+      .then((link) => {
+        setPartnerLinked(link !== null);
+        setLoadFailed(false);
+      })
+      .catch((err) => {
+        // Link state unknown (P0-06): offer neither invite nor redeem on a
+        // guess — a false "not linked" would invite a second partner.
+        console.error("Failed to load partner status:", err);
+        setLoadFailed(true);
+      })
+      .finally(() => setLoading(false));
   }, [userId]);
 
   const showStatus = (msg: string) => {
@@ -123,6 +132,19 @@ export function PairingSection({ userId, role, onRoleChanged }: PairingSectionPr
   };
 
   if (loading) return null;
+
+  if (loadFailed) {
+    return (
+      <div>
+        <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-3">
+          Partner
+        </p>
+        <p role="status" className="text-sm text-muted-foreground">
+          Couldn't load partner status. Check your connection and reopen Settings.
+        </p>
+      </div>
+    );
+  }
 
   return (
     <div>
@@ -203,7 +225,8 @@ export function PairingSection({ userId, role, onRoleChanged }: PairingSectionPr
                 Unlink partner
               </p>
               <p className="text-xs text-muted-foreground">
-                Immediately revokes their access
+                Ends their access on the server. Anything already on their
+                device may remain.
               </p>
             </div>
           </button>

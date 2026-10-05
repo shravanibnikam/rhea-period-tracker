@@ -8,6 +8,17 @@ import globals from "globals";
 // the layer-boundary zones (§3.1) are added as the kernel/domain/data layers
 // land in Phase 1 (RHEA-022 onward). Stylistic/type-looseness rules are kept at
 // `warn` so the current tree lints clean without a mass rewrite.
+
+// Shared by src/ and tests/ (G-01): tests get the same strictness as src.
+const baseRules = {
+  // Kept as warnings for now; tightened as the codebase is refactored.
+  "@typescript-eslint/no-explicit-any": "warn",
+  "@typescript-eslint/no-unused-vars": [
+    "warn",
+    { argsIgnorePattern: "^_", varsIgnorePattern: "^_" },
+  ],
+};
+
 export default tseslint.config(
   {
     ignores: [
@@ -15,8 +26,6 @@ export default tseslint.config(
       "coverage/**",
       "node_modules/**",
       "supabase/**",
-      "tests/**",
-      "**/*.config.{ts,js}",
     ],
   },
   {
@@ -75,12 +84,24 @@ export default tseslint.config(
           ],
         },
       ],
-      // Kept as warnings for now; tightened as the codebase is refactored.
-      "@typescript-eslint/no-explicit-any": "warn",
-      "@typescript-eslint/no-unused-vars": [
-        "warn",
-        { argsIgnorePattern: "^_", varsIgnorePattern: "^_" },
-      ],
+      ...baseRules,
     },
+  },
+  {
+    // Tests and tool configs (G-01). They run under Node (Vitest, Playwright)
+    // and, per test file, jsdom. Tests import across layers by design, so the
+    // layer-boundary zones above do not apply here.
+    files: ["tests/**/*.{ts,tsx,js,mjs}", "*.config.{ts,js}"],
+    extends: [js.configs.recommended, ...tseslint.configs.recommended],
+    languageOptions: {
+      globals: { ...globals.browser, ...globals.node, ...globals.es2021 },
+    },
+    rules: baseRules,
+  },
+  {
+    // typescript-eslint's recommended set disables core `no-undef` (tsc does
+    // that job), but these JS files are in no tsc program. Restore it for them.
+    files: ["tests/**/*.{js,mjs}", "*.config.js"],
+    rules: { "no-undef": "error" },
   },
 );

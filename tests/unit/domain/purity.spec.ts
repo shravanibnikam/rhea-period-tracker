@@ -37,8 +37,11 @@ describe("domain barrel (pure node env)", () => {
     expect(periods).toHaveLength(2);
     const cycles = buildCycles(periods);
     expect(cycles[0].cycleLength).toBe(28);
-    const state = deriveCycleState(logs, parseDate("2026-02-05"));
+    const state = deriveCycleState(logs, null, parseDate("2026-02-05"));
     expect(state.cycles.length).toBeGreaterThan(0);
+    // Pinned `today`: the result must not depend on the wall clock.
+    expect(state.avgCycleLength).toBe(28);
+    expect(state.cycleDay).toBe(8);
   });
 
   it("phase oracle is exported and consistent", () => {

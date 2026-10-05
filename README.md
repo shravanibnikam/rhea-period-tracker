@@ -89,13 +89,13 @@ The backend is a Supabase project (`daily_logs`, `partner_links`, `invites`, `pr
 | `0005` | partner share defaults | Seeds calendar and symptom share keys, default off |
 | `0006` | keep-alive | Anonymous read of one liveness row |
 
-Apply to a linked project with `supabase db push`. Details and the applied/verification status: [`supabase/migrations/README.md`](supabase/migrations/README.md). All four pgTAP suites pass locally (37 assertions) and run in CI; see [testing](docs/TESTING.md).
+Apply to a linked project with `supabase db push`. Details and the applied/verification status: [`supabase/migrations/README.md`](supabase/migrations/README.md). All five pgTAP suites pass locally (48 assertions) and run in CI; see [testing](docs/TESTING.md).
 
 ---
 
 ## Testing & deployment
 
-- **Tests:** Vitest unit and IndexedDB integration coverage, 37 pgTAP assertions, and four browser tests. Transport fixtures are independent of ambient `.env` configuration. See [testing instructions](docs/TESTING.md).
+- **Tests:** Vitest unit and IndexedDB integration coverage, 48 pgTAP assertions, and four browser tests. Transport fixtures are independent of ambient `.env` configuration. See [testing instructions](docs/TESTING.md).
 - **CI:** [`.github/workflows/ci.yml`](.github/workflows/ci.yml) runs typecheck, coverage, configured-environment tests, lint, build, and local Supabase security/browser tests on pushes to main and pull requests.
 - **Production verification:** UI save/delete, newer tombstone, two-session reload, unlinked-account isolation and pairing/unlink passed on Pages with synthetic accounts.
 - **Deploy:** GitHub Actions builds and deploys Pages from `main` using public repository variables `VITE_SUPABASE_URL` and `VITE_SUPABASE_PUBLISHABLE_KEY`. Daily Supabase keep-alive is enabled.
@@ -107,7 +107,7 @@ Apply to a linked project with `supabase db push`. Details and the applied/verif
 
 Rhea's **goal** is that detailed health data never reaches a server in readable form. That end state is **not yet in place** — be honest with yourself and any testers:
 
-- 🔴 **Cloud health data is currently PLAINTEXT.** When sync is enabled, owner `daily_logs` (flow, symptoms, mood, energy, notes, medication, intimacy) are stored **unencrypted** in Supabase. The "zero-knowledge server" model is designed (see the technical spec) but **not deployed**.
+- 🔴 **Cloud health data is currently PLAINTEXT.** When sync is enabled, owner `daily_logs` (flow, symptoms, mood, energy, notes, medication, intimacy) are stored **unencrypted** in Supabase. The "zero-knowledge server" model is designed (see the technical spec) but **not deployed**. <!-- copy-guard: allow zero-knowledge -->
 - 🔴 **Partner sharing reads the owner's plaintext rows** via RLS (legacy path); share toggles/quiet windows are currently presentation-level, not a hard data boundary.
 - 🟢 Invite secrets are stored hashed (sha256), single-use, 30-minute TTL.
 - 🟢 Shared-notes sync is **disabled** (`flags.notesSync=false`) — shared-note messages stay on-device. Daily-log notes still sync in plaintext when owner sync is enabled.

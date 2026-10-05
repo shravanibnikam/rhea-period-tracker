@@ -1,5 +1,6 @@
 # Rhea — Technical Specification & Build Plan
 
+<!-- copy-guard: historical -->
 > The engineering companion to `Rhea-spec.md`. Where that document owns the *product*,
 > this one owns the *system*: accounts, database, sync, the ML/analysis engine, data
 > import, and the medical grounding behind every prediction.

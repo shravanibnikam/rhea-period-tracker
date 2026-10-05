@@ -6,15 +6,58 @@
  */
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
-const { rpc } = vi.hoisted(() => ({ rpc: vi.fn() }));
-vi.mock("@/app/lib/supabase", () => ({ supabase: { rpc } }));
+type LinkRows = Array<Record<string, string>>;
+interface LinkResult {
+  data: unknown;
+  error: { message: string; code?: string } | null;
+}
 
-import { redeemInviteCode, createInviteCode, isValidInviteCode } from "@/app/lib/pairing";
+const { rpc, links, linkQuery } = vi.hoisted(() => {
+  /** partner_links rows (or a returned error) per filter column. */
+  const links: Record<string, LinkRows | "error"> = {};
+  const settle = (column: string, shape: (rows: LinkRows) => LinkResult) => {
+    const b = links[column] ?? [];
+    return Promise.resolve<LinkResult>(
+      b === "error" ? { data: null, error: { message: "permission denied" } } : shape(b)
+    );
+  };
+  const linkQuery = (column: string) => ({
+    // Emulates postgrest-js: >1 row is a RETURNED error (PGRST116), not a throw.
+    maybeSingle: () =>
+      settle(column, (rows) =>
+        rows.length > 1
+          ? { data: null, error: { code: "PGRST116", message: "multiple (or no) rows returned" } }
+          : { data: rows[0] ?? null, error: null }
+      ),
+    limit: (n: number) => settle(column, (rows) => ({ data: rows.slice(0, n), error: null })),
+  });
+  return { rpc: vi.fn(), links, linkQuery };
+});
+vi.mock("@/app/lib/supabase", () => ({
+  supabase: {
+    rpc,
+    from: (_table: string) => ({
+      select: (_cols: string) => ({
+        eq: (column: string, _value: string) => linkQuery(column),
+      }),
+    }),
+  },
+}));
+
+import {
+  redeemInviteCode,
+  createInviteCode,
+  isValidInviteCode,
+  getPartnerLink,
+} from "@/app/lib/pairing";
 
 // A representative real secret: 20 chars, mixed case, with '_' and '-'.
 const CODE = "aB3d_Ef-Gh1J2kL9mNp0";
 
-beforeEach(() => rpc.mockReset());
+beforeEach(() => {
+  rpc.mockReset();
+  for (const k of Object.keys(links)) delete links[k];
+});
 
 describe("isValidInviteCode — matches the create_invite() format", () => {
   it("accepts a 20-char base64url code (mixed case, _ and -)", () => {
@@ -56,5 +99,34 @@ describe("createInviteCode", () => {
     rpc.mockResolvedValue({ data: CODE, error: null });
     expect(await createInviteCode("owner-1")).toBe(CODE);
     expect(rpc).toHaveBeenCalledWith("create_invite");
+  });
+});
+
+describe("getPartnerLink — multi-link row sets (N11, P0-06)", () => {
+  it("an owner with TWO partner links is linked (so Unlink renders), no partner auto-selected", async () => {
+    links.owner_id = [{ partner_id: "p1" }, { partner_id: "p2" }];
+    expect(await getPartnerLink("owner-1")).toEqual({ ownerId: "owner-1", partnerId: null });
+  });
+
+  it("a partner linked to TWO owners is still a linked partner — never reported as an owner", async () => {
+    links.partner_id = [{ owner_id: "o1" }, { owner_id: "o2" }];
+    expect(await getPartnerLink("partner-1")).toEqual({ ownerId: null, partnerId: "partner-1" });
+  });
+
+  it("a returned lookup error rejects instead of reading as 'no link'", async () => {
+    links.owner_id = "error";
+    await expect(getPartnerLink("owner-1")).rejects.toMatchObject({ message: "permission denied" });
+  });
+
+  it("single links and no link behave as before (controls)", async () => {
+    links.owner_id = [{ partner_id: "p1" }];
+    expect(await getPartnerLink("owner-1")).toEqual({ ownerId: "owner-1", partnerId: "p1" });
+
+    delete links.owner_id;
+    links.partner_id = [{ owner_id: "o1" }];
+    expect(await getPartnerLink("partner-1")).toEqual({ ownerId: "o1", partnerId: "partner-1" });
+
+    delete links.partner_id;
+    expect(await getPartnerLink("nobody")).toBeNull();
   });
 });

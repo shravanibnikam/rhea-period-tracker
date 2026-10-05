@@ -1,5 +1,13 @@
 # Rhea — Product & Design Specification
 
+<!-- copy-guard: historical -->
+> 🕰️ **Historical vision document (v0.1): describes the original goal, not the shipped app.** Its privacy
+> stance ("your detailed data never reaches a server", "travels end-to-end encrypted", "no account
+> required", a zero-knowledge relay) is the original goal, not current behaviour. Today the hosted app requires an account,
+> synced daily logs (including notes) are stored on Supabase in plaintext, and a linked partner's account
+> can read those rows. For current state see the root `README.md` (Privacy & security) and
+> [IMPLEMENTATION_STATUS.md](IMPLEMENTATION_STATUS.md).
+
 > A private, local-first cycle tracker built for two people, not one.
 
 *Working document · v0.1 · owns the vision, the partner model, the privacy stance, and the build plan.*

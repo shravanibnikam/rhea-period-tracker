@@ -72,14 +72,16 @@ export function SharingControls({ ownerId }: SharingControlsProps) {
         Sharing Controls
       </p>
       <p className="text-xs text-muted-foreground mb-4">
-        Choose what your partner sees. Everything is off by default.
+        Choose what your partner&apos;s view shows. Everything is off by
+        default. The server does not enforce these choices yet; see the
+        privacy policy.
       </p>
 
       {currentlyQuiet && (
         <div className="flex items-center gap-2 p-3 rounded-xl bg-muted mb-4">
           <Moon size={14} className="text-muted-foreground" />
           <p className="text-xs text-muted-foreground">
-            Sharing is paused — quiet window active
+            Partner view paused — quiet window active
           </p>
         </div>
       )}
@@ -121,7 +123,7 @@ export function SharingControls({ ownerId }: SharingControlsProps) {
           Quiet Windows
         </p>
         <p className="text-xs text-muted-foreground mb-3">
-          Pause all sharing for chosen days, regardless of toggles.
+          Pause your partner&apos;s view on chosen days, regardless of toggles.
         </p>
 
         {quietWindows.length > 0 && (

@@ -146,9 +146,9 @@ export function RoleSelect({ onChooseOwner, onPaired }: RoleSelectProps) {
         </div>
 
         <p className="text-xs text-center text-muted-foreground mt-8">
-          Your data is private and secure.
+          Synced data is not yet end-to-end encrypted.
           <br />
-          You can change this later in Settings.
+          See the privacy policy in Settings for details.
         </p>
       </div>
     </div>
