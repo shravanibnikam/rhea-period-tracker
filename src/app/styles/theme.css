@@ -1,64 +1,67 @@
 @custom-variant dark (&:is(.dark *));
 
 /*
- * Rhea design tokens — see docs/DESIGN.md. Light is the default; `.dark` on
+ * Rhea design tokens — see docs/DESIGN.md. Warm and soft: a blush-white ground,
+ * deep plum ink, a deep rose for actions. Light is the default; `.dark` on
  * <html> (useTheme) switches every role. Phase colours are data colours: each
- * phase has a mark (≥3:1 on the card), a pale tint with the dark of its own
- * hue as ink, and a saturated field (the landing page's chapters).
+ * phase has a mark (≥3:1 on the card), a pale tint with the dark of its own hue
+ * as ink, and a pastel field (the landing page's chapters).
  * `[data-phase]` scopes `--phase-*` to one phase for whatever sits inside it.
  */
 :root {
-  --background: #F4F3F1;
-  --foreground: #191919;
+  --background: #FBF7F5;
+  --foreground: #2F2229;
   --card: #FFFFFF;
-  --card-foreground: #191919;
+  --card-foreground: #2F2229;
   --popover: #FFFFFF;
-  --popover-foreground: #191919;
-  --primary: #191919;
+  --popover-foreground: #2F2229;
+  --primary: #9E3F5B;
   --primary-foreground: #FFFFFF;
-  --secondary: #ECEAE6;
-  --secondary-foreground: #191919;
-  --muted: #ECEAE6;
-  --muted-foreground: #66625C;
-  --accent: #FBE6E3;
-  --accent-foreground: #7E1D17;
-  --brand: #C8322B;
-  --destructive: #B42318;
+  --secondary: #F4EDEC;
+  --secondary-foreground: #2F2229;
+  --muted: #F4EDEC;
+  --muted-foreground: #75656D;
+  --accent: #FBE8EE;
+  --accent-foreground: #7A2E45;
+  --brand: #B84A66;
+  --destructive: #B3261E;
   --destructive-foreground: #FFFFFF;
-  --border: #E6E3DE;
-  --input: #D9D5CF;
+  --border: #EEE4E3;
+  --input: #E2D6D7;
   --input-background: #FFFFFF;
-  --switch-background: #D9D5CF;
-  --ring: #191919;
+  --switch-background: #E2D6D7;
+  --ring: #9E3F5B;
+  /* Soft elevation for cards and floating surfaces (never a hard drop shadow). */
+  --elevation: 0 1px 2px rgb(47 34 41 / 0.04), 0 8px 24px rgb(47 34 41 / 0.05);
 
-  --menstrual: #C8322B;
-  --menstrual-tint: #FBE6E3;
-  --menstrual-ink: #7E1D17;
-  --follicular: #2F7A4B;
-  --follicular-tint: #E2F1E6;
-  --follicular-ink: #1B4D2E;
-  --ovulation: #B7790A;
-  --ovulation-tint: #FCF0D2;
-  --ovulation-ink: #6A4500;
-  --luteal: #7E4479;
-  --luteal-tint: #F2E6F1;
-  --luteal-ink: #4C2449;
+  --menstrual: #C04F6D;
+  --menstrual-tint: #FCE9EE;
+  --menstrual-ink: #7A2B42;
+  --follicular: #5A9271;
+  --follicular-tint: #E6F2EA;
+  --follicular-ink: #2B5139;
+  --ovulation: #C07A2C;
+  --ovulation-tint: #FCF0DE;
+  --ovulation-ink: #714611;
+  --luteal: #8266A8;
+  --luteal-tint: #F0EAF7;
+  --luteal-ink: #4A3468;
 
-  /* Saturated chapter fields — identical in both themes. */
-  --menstrual-field: #C8322B;
-  --menstrual-field-ink: #FFFFFF;
-  --follicular-field: #2F7A4B;
-  --follicular-field-ink: #FFFFFF;
-  --ovulation-field: #F2B53A;
-  --ovulation-field-ink: #111111;
-  --luteal-field: #6D3B6A;
-  --luteal-field-ink: #FFFFFF;
-  --charcoal: #191919;
+  /* Pastel chapter fields — identical in both themes (the landing page is light). */
+  --menstrual-field: #F8DFE6;
+  --menstrual-field-ink: #5C1F33;
+  --follicular-field: #DDEDE2;
+  --follicular-field-ink: #22432F;
+  --ovulation-field: #F9E7CB;
+  --ovulation-field-ink: #5B3A0D;
+  --luteal-field: #E8E0F3;
+  --luteal-field-ink: #3C2A57;
+  --charcoal: #2F2229;
 
   /* The partner's own hue: one hue per person, ≥60° from every phase hue. */
-  --partner: #2B6CA3;
-  --partner-tint: #E1EDF8;
-  --partner-ink: #163F66;
+  --partner: #4C79A8;
+  --partner-tint: #E6EEF7;
+  --partner-ink: #25405E;
 
   --chart-1: var(--menstrual);
   --chart-2: var(--follicular);
@@ -80,44 +83,45 @@
 }
 
 .dark {
-  --background: #141414;
-  --foreground: #F3F1EE;
-  --card: #1D1D1D;
-  --card-foreground: #F3F1EE;
-  --popover: #232323;
-  --popover-foreground: #F3F1EE;
-  --primary: #F3F1EE;
-  --primary-foreground: #141414;
-  --secondary: #262626;
-  --secondary-foreground: #F3F1EE;
-  --muted: #262626;
-  --muted-foreground: #A8A39C;
-  --accent: #3B1A17;
-  --accent-foreground: #F7C1BB;
-  --brand: #F0685F;
-  --destructive: #F97066;
-  --destructive-foreground: #141414;
-  --border: #2E2E2E;
-  --input: #3A3A3A;
-  --input-background: #1D1D1D;
-  --switch-background: #3A3A3A;
-  --ring: #F3F1EE;
+  --background: #1B1519;
+  --foreground: #F6EDF0;
+  --card: #251D22;
+  --card-foreground: #F6EDF0;
+  --popover: #2C2329;
+  --popover-foreground: #F6EDF0;
+  --primary: #EFA3B5;
+  --primary-foreground: #3A1424;
+  --secondary: #30262C;
+  --secondary-foreground: #F6EDF0;
+  --muted: #30262C;
+  --muted-foreground: #BBA9B2;
+  --accent: #3D2530;
+  --accent-foreground: #F7C9D5;
+  --brand: #EFA3B5;
+  --destructive: #F2867D;
+  --destructive-foreground: #2A0F0C;
+  --border: #3A2E35;
+  --input: #4A3C44;
+  --input-background: #251D22;
+  --switch-background: #4A3C44;
+  --ring: #EFA3B5;
+  --elevation: 0 1px 2px rgb(0 0 0 / 0.2), 0 8px 24px rgb(0 0 0 / 0.25);
 
-  --menstrual: #F0685F;
-  --menstrual-tint: #3B1A17;
-  --menstrual-ink: #F7C1BB;
-  --follicular: #5DBB7F;
-  --follicular-tint: #15301F;
-  --follicular-ink: #A9DDB8;
-  --ovulation: #F2B53A;
-  --ovulation-tint: #3A2C0B;
-  --ovulation-ink: #F5D78E;
-  --luteal: #C98BC4;
-  --luteal-tint: #33202F;
-  --luteal-ink: #E7C3E2;
-  --partner: #6AA6DB;
-  --partner-tint: #14283A;
-  --partner-ink: #B3D2EE;
+  --menstrual: #EC8FA6;
+  --menstrual-tint: #3B232B;
+  --menstrual-ink: #F8CCD8;
+  --follicular: #8DC7A2;
+  --follicular-tint: #1E3027;
+  --follicular-ink: #C3E6CF;
+  --ovulation: #E7B26B;
+  --ovulation-tint: #3A2B17;
+  --ovulation-ink: #F5D9AE;
+  --luteal: #B9A2DA;
+  --luteal-tint: #2D2539;
+  --luteal-ink: #DFD2F2;
+  --partner: #93B8DF;
+  --partner-tint: #1D2937;
+  --partner-ink: #CADCF0;
   color-scheme: dark;
 }
 
@@ -151,10 +155,10 @@
 }
 
 @theme inline {
-  --font-sans: "Red Hat Text", ui-sans-serif, system-ui, sans-serif;
-  --font-display: "Red Hat Display", ui-sans-serif, system-ui, sans-serif;
-  /* ponytail: transitional alias so not-yet-migrated `font-serif` reads as display; drop once unused. */
-  --font-serif: "Red Hat Display", ui-sans-serif, system-ui, sans-serif;
+  --font-sans: "Nunito Variable", ui-sans-serif, system-ui, sans-serif;
+  --font-display: "Cormorant Garamond Variable", ui-serif, Georgia, serif;
+  --font-serif: "Cormorant Garamond Variable", ui-serif, Georgia, serif;
+  --shadow-soft: var(--elevation);
   --color-background: var(--background);
   --color-foreground: var(--foreground);
   --color-card: var(--card);
@@ -207,13 +211,13 @@
   --color-partner: var(--partner);
   --color-partner-tint: var(--partner-tint);
   --color-partner-ink: var(--partner-ink);
-  /* One large radius for cards (20px), stepping down inside: 12 / 10 / 8 / 5. */
-  --radius-sm: 5px;
-  --radius-md: 8px;
-  --radius-lg: 10px;
-  --radius-xl: 12px;
-  --radius-2xl: 20px;
-  --radius-3xl: 24px;
+  /* Soft, generous corners: cards 24px, stepping down inside: 16 / 12 / 10 / 6. */
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --radius-lg: 12px;
+  --radius-xl: 16px;
+  --radius-2xl: 24px;
+  --radius-3xl: 28px;
 }
 
 @layer base {
@@ -227,13 +231,24 @@
   }
 
   body {
-    @apply bg-background text-foreground font-sans antialiased;
+    @apply bg-background text-foreground antialiased;
+    /* var(), not @apply: referencing it makes Tailwind emit --font-sans for plain CSS too. */
+    font-family: var(--font-sans);
+  }
+
+  /* Cormorant Garamond is delicate with a small x-height: match it to the text
+     face's x-height (so sizes read as intended) and use lining figures. */
+  h1, h2, h3, h4, .font-display {
+    font-size-adjust: 0.46;
+    /* Lining figures via the low-level feature: Tailwind's tabular-nums resets
+       font-variant-numeric, which would bring back Cormorant's old-style digits. */
+    font-feature-settings: "lnum" 1;
   }
 
   h1, h2, h3, h4 {
     font-family: var(--font-display);
-    font-weight: 700;
-    letter-spacing: -0.015em;
+    font-weight: 600;
+    letter-spacing: 0;
     line-height: 1.15;
     text-wrap: balance;
   }

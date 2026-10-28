@@ -1,11 +1,7 @@
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
-import "@fontsource/red-hat-display/500.css";
-import "@fontsource/red-hat-display/700.css";
-import "@fontsource/red-hat-display/900.css";
-import "@fontsource/red-hat-text/400.css";
-import "@fontsource/red-hat-text/500.css";
-import "@fontsource/red-hat-text/600.css";
+import "@fontsource-variable/cormorant-garamond";
+import "@fontsource-variable/nunito";
 import { ErrorBoundary } from "./components/ErrorBoundary";
 import { Providers } from "./di";
 import { initTheme } from "./hooks/useTheme";

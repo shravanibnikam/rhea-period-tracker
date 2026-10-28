@@ -23,7 +23,7 @@ export function applyTheme(pref: ThemePref): void {
   document.documentElement.classList.toggle("dark", dark);
   document
     .querySelector('meta[name="theme-color"]')
-    ?.setAttribute("content", dark ? "#141414" : "#F4F3F1");
+    ?.setAttribute("content", dark ? "#1B1519" : "#FBF7F5");
 }
 
 /** Once at startup: apply, then follow the OS while the preference is "system". */
