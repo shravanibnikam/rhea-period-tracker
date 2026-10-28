@@ -17,7 +17,7 @@ interface CycleRingProps {
 }
 
 const C = 100;
-const GAP_DEG = 1.6;
+const GAP_DEG = 2.4;
 
 function point(r: number, deg: number): [number, number] {
   const rad = ((deg - 90) * Math.PI) / 180;
@@ -41,7 +41,7 @@ export function CycleRing({
   avgPeriodLength,
   cycleDay,
   size = 240,
-  thickness = 14,
+  thickness = 11,
   children,
   className,
 }: CycleRingProps) {
@@ -50,6 +50,8 @@ export function CycleRing({
   const r = C - thickness / 2 - 6;
   const day = Math.min(Math.max(cycleDay, 1), avgLength);
   const deg = (d: number) => (d / avgLength) * 360;
+  // Round caps reach thickness/2 past an arc's end: trim by that so segments keep their gap.
+  const capDeg = ((thickness / 2) / r) * (180 / Math.PI);
   const todayDeg = deg(day - 0.5);
   const todayPhase: PhaseName = getPhaseForDay(day, anchors);
   const [mx, my] = point(r, todayDeg);
@@ -61,8 +63,9 @@ export function CycleRing({
         {PHASE_ORDER.map((p) => {
           const b = bounds[p];
           if (b.endDay < b.startDay) return null; // a squeezed phase has no width
-          const from = deg(b.startDay - 1) + GAP_DEG / 2;
-          const to = deg(b.endDay) - GAP_DEG / 2;
+          const from = deg(b.startDay - 1) + GAP_DEG / 2 + capDeg;
+          const to = deg(b.endDay) - GAP_DEG / 2 - capDeg;
+          if (to <= from) return null; // too short to draw with its gap
           const lived = Math.min(to, todayDeg);
           return (
             <g key={p}>
@@ -70,10 +73,11 @@ export function CycleRing({
                 d={arc(r, from, to)}
                 fill="none"
                 strokeWidth={thickness}
-                style={{ stroke: `color-mix(in srgb, var(--${p}) 22%, transparent)` }}
+                strokeLinecap="round"
+                style={{ stroke: `color-mix(in srgb, var(--${p}) 20%, transparent)` }}
               />
               {lived > from && (
-                <path d={arc(r, from, lived)} fill="none" strokeWidth={thickness} style={{ stroke: `var(--${p})` }} />
+                <path d={arc(r, from, lived)} fill="none" strokeWidth={thickness} strokeLinecap="round" style={{ stroke: `var(--${p})` }} />
               )}
             </g>
           );

@@ -99,7 +99,10 @@ export function OverviewTab({
                   size={232}
                   className="shrink-0"
                 >
-                  <p className="text-base font-medium tabular-nums text-muted-foreground first-line:font-display first-line:text-[40px] first-line:font-black first-line:leading-tight first-line:text-foreground">
+                  {/* One run of text nodes, "Day N of M", which specs read whole; the
+                      first line is the figure. font-display on the <p> gives it the
+                      x-height match and lining figures, which ::first-line inherits. */}
+                  <p className="font-display text-lg leading-snug tabular-nums lining-nums text-muted-foreground first-line:text-5xl first-line:leading-[1.3] first-line:font-semibold first-line:text-foreground">
                     Day {state.cycleDay} <br />
                     of {state.avgCycleLength}
                   </p>
@@ -110,7 +113,7 @@ export function OverviewTab({
                   </h2>
                   <p className="mt-1 text-base text-muted-foreground">{sentence(phaseData.tagline)}</p>
                   <p className="mt-6 text-sm text-muted-foreground">Next period</p>
-                  <p className="mt-1 font-display text-[32px] font-black leading-none tabular-nums">
+                  <p className="mt-1 font-display text-4xl leading-none font-semibold tabular-nums lining-nums">
                     {toNext < 0 ? (
                       "May be late"
                     ) : toNext === 0 ? (
@@ -118,7 +121,7 @@ export function OverviewTab({
                     ) : (
                       <>
                         {toNext}
-                        <span className="ml-1.5 text-lg font-bold text-muted-foreground">{days(toNext)}</span>
+                        <span className="ml-1.5 font-sans text-base font-normal text-muted-foreground">{days(toNext)}</span>
                       </>
                     )}
                   </p>
@@ -157,7 +160,7 @@ export function OverviewTab({
                   className="bg-menstrual-tint text-menstrual-ink hover:bg-menstrual-tint/70"
                 >
                   <Droplet size={18} aria-hidden="true" />
-                  {starting ? "Saving..." : "My period started today"}
+                  {starting ? "Saving…" : "My period started today"}
                 </Button>
               )}
             </div>
@@ -170,7 +173,7 @@ export function OverviewTab({
 
           <section aria-labelledby="today-symptoms" className={CARD}>
             <div className="flex items-baseline justify-between gap-4">
-              <h2 id="today-symptoms" className="text-lg">
+              <h2 id="today-symptoms" className="text-xl">
                 Today&apos;s symptoms
               </h2>
               <p className="shrink-0 text-sm tabular-nums text-muted-foreground">{symptoms.size} tracked today</p>
@@ -219,7 +222,7 @@ function ComingUp({ state, today }: { state: CycleState; today: Date }) {
   const toFertile = fertile ? daysFrom(today, fertile.start) : 0;
   return (
     <section aria-labelledby="coming-up" className={CARD}>
-      <h2 id="coming-up" className="text-lg">
+      <h2 id="coming-up" className="text-xl">
         Coming up
       </h2>
       {fertile && (
@@ -255,7 +258,7 @@ function PhaseCard({ phaseData, state }: { phaseData: PhaseData; state: CycleSta
   return (
     <section aria-labelledby="phase-card" className={CARD}>
       <div className="flex items-baseline justify-between gap-3">
-        <h2 id="phase-card" className="text-lg">
+        <h2 id="phase-card" className="text-xl">
           What&apos;s happening
         </h2>
         <p className="shrink-0 text-sm text-muted-foreground">{range}</p>
@@ -274,7 +277,7 @@ function PhaseCard({ phaseData, state }: { phaseData: PhaseData; state: CycleSta
         <dt className="text-muted-foreground">Common signs</dt>
         <dd>{phaseData.symptoms.map((s, i) => (i ? s.toLowerCase() : s)).join(", ")}</dd>
       </dl>
-      <h3 className="mt-5 text-base">Tips</h3>
+      <h3 className="mt-5 text-lg">Tips</h3>
       <ul className="mt-2 space-y-2 text-sm">
         {phaseData.tips.map((t) => (
           <li key={t} className="flex gap-3">

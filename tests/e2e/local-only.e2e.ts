@@ -7,7 +7,7 @@ test("local-only logging survives reload and works offline without an account", 
   await expect(page.getByRole("button", { name: "Sign in", exact: true })).toHaveCount(0);
   await page.getByRole("button", { name: /Log today/ }).click();
   await page.getByRole("button", { name: "Medium", exact: true }).first().click();
-  await page.getByRole("button", { name: "Save Log", exact: true }).click();
+  await page.getByRole("button", { name: "Save log", exact: true }).click();
   await expect(page.getByText(/Day \d+ of \d+/)).toBeVisible(); // the tracker, not onboarding
   await page.reload();
   await page.getByRole("button", { name: "Log today", exact: true }).click();

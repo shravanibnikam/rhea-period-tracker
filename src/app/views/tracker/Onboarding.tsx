@@ -49,7 +49,7 @@ export function Onboarding({ onStartLogging, onImport, onQuickAdd, hosted = fals
   return (
     <div className="grid items-start gap-6 lg:grid-cols-12">
       <section aria-labelledby="get-started" className={cn(CARD, "lg:col-span-7")}>
-        <img src={`${import.meta.env.BASE_URL}rhea-mark.svg`} alt="Rhea" className="size-10" />
+        <img src={`${import.meta.env.BASE_URL}rhea-mark.svg`} alt="Rhea" width={40} height={40} className="size-10" />
         <h1 id="get-started" className="mt-5 text-3xl">
           Get started
         </h1>
@@ -76,7 +76,7 @@ export function Onboarding({ onStartLogging, onImport, onQuickAdd, hosted = fals
       </section>
 
       <section aria-labelledby="good-to-know" className={cn(CARD, "lg:col-span-5")}>
-        <h2 id="good-to-know" className="text-lg">
+        <h2 id="good-to-know" className="text-xl">
           Good to know
         </h2>
         <dl className="mt-4 space-y-5 text-sm">

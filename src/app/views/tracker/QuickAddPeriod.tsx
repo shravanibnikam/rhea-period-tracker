@@ -3,10 +3,10 @@ import type { PhaseData } from "@/domain/types";
 import type { DailyLogPatch } from "@/data/repositories/LogRepository";
 import { buildPeriodLogs } from "@/domain/cycle";
 import { addDays, parseDate, toDateKey } from "@/domain/dates";
-import { fmt } from "@/app/lib/format";
 import { Sheet } from "@/app/components/ui/Sheet";
 import { Button } from "@/app/components/ui/Button";
 import { Segmented } from "@/app/components/ui/controls";
+import { fmtSpan } from "./dateText";
 
 interface QuickAddPeriodProps {
   onClose: () => void;
@@ -67,26 +67,27 @@ export function QuickAddPeriod({ onClose, saveLogs }: QuickAddPeriodProps) {
       }
     >
       <div className="space-y-7">
-        <label className="block space-y-3">
-          <span className="block font-display font-bold">First day</span>
+        <section className="space-y-3">
+          <h3 className="text-lg">
+            <label htmlFor="quick-add-start">First day</label>
+          </h3>
           <input
+            id="quick-add-start"
             type="date"
             value={startDate}
             max={todayKey}
             onChange={(e) => setStartDate(e.target.value)}
             className="h-11 w-full rounded-xl border border-input bg-input-background px-3 text-foreground"
           />
-          {!valid && (
-            <span className="block text-sm text-muted-foreground">Choose today or an earlier day.</span>
-          )}
-        </label>
+          {!valid && <p className="text-sm text-muted-foreground">Choose today or an earlier day.</p>}
+        </section>
 
         <section className="space-y-3">
           <div className="flex items-baseline justify-between gap-3">
-            <h3 className="text-base">Length in days</h3>
+            <h3 className="text-lg">Length in days</h3>
             {valid && (
               <span className="text-sm text-muted-foreground">
-                {fmt(parseDate(startDate))} – {fmt(addDays(parseDate(startDate), duration - 1))}
+                {fmtSpan(parseDate(startDate), addDays(parseDate(startDate), duration - 1))}
               </span>
             )}
           </div>
@@ -95,7 +96,7 @@ export function QuickAddPeriod({ onClose, saveLogs }: QuickAddPeriodProps) {
             value={String(duration)}
             options={LENGTHS}
             onChange={(v) => v && setDuration(Number(v))}
-            className="grid grid-cols-4 sm:grid-cols-8 [&>button]:min-h-11"
+            className="grid grid-cols-4 sm:grid-cols-8"
           />
           <p className="text-sm text-muted-foreground">You can change any day&apos;s flow later from the calendar.</p>
         </section>

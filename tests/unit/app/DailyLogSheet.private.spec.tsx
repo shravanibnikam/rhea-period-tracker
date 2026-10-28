@@ -32,7 +32,7 @@ const field = (label: RegExp) => screen.getByLabelText(label) as HTMLInputElemen
 const openMore = () => fireEvent.click(button("Medication and intimacy"));
 
 async function save(saved: DailyLog[]) {
-  fireEvent.click(button("Save Log"));
+  fireEvent.click(button("Save log"));
   await waitFor(() => expect(saved).toHaveLength(1));
   return saved[0];
 }

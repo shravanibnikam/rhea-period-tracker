@@ -41,7 +41,7 @@ test("installed project shell opens on a new tab offline and retains logs", asyn
   await page.getByRole("button", { name: /Start tracking/ }).first().click(); // first visit: the landing page
   await page.getByRole("button", { name: /Log today/ }).click();
   await page.getByRole("button", { name: "Medium", exact: true }).first().click();
-  await page.getByRole("button", { name: "Save Log", exact: true }).click();
+  await page.getByRole("button", { name: "Save log", exact: true }).click();
   await expect(page.getByText(/Day \d+ of \d+/)).toBeVisible(); // the tracker, not onboarding
   const scope = await page.evaluate(async () => (await navigator.serviceWorker.ready).scope);
   expect(scope).toBe("http://127.0.0.1:4175/rhea-period-tracker/");

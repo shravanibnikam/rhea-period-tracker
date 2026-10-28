@@ -123,7 +123,7 @@ function CycleLengthCard({ cycles, stats, color }: { cycles: Cycle[]; stats: Cyc
     <Card title="Cycle length">
       {avgCycleLength !== null && (
         <p className="mt-3 flex items-baseline gap-2">
-          <span className="font-display text-[40px] leading-none font-black tabular-nums">{avgCycleLength}</span>
+          <span className="font-display text-5xl leading-none font-semibold tabular-nums lining-nums">{avgCycleLength}</span>
           <span className="text-muted-foreground">days on average</span>
         </p>
       )}
@@ -204,7 +204,7 @@ function LengthChart({ cycles, avg, color }: { cycles: Cycle[]; avg: number | nu
                 const d = active ? (payload?.[0]?.payload as BarDatum | undefined) : undefined;
                 if (!d) return null;
                 return (
-                  <div className="rounded-lg border border-border bg-popover px-3 py-2 text-sm text-popover-foreground">
+                  <div className="rounded-xl border border-border bg-popover px-3 py-2 text-sm text-popover-foreground shadow-soft">
                     <p className="font-semibold tabular-nums">{days(d.days)}</p>
                     <p className="text-muted-foreground">
                       From {d.from}
@@ -217,12 +217,12 @@ function LengthChart({ cycles, avg, color }: { cycles: Cycle[]; avg: number | nu
             {avg !== null && (
               <ReferenceLine
                 y={avg}
-                stroke="var(--foreground)"
+                stroke="var(--muted-foreground)"
                 strokeDasharray="4 3"
                 label={{ value: `Avg ${avg}`, position: "right", fill: "var(--muted-foreground)", fontSize: 13 }}
               />
             )}
-            <Bar dataKey="days" maxBarSize={24} radius={[4, 4, 0, 0]} isAnimationActive={false}>
+            <Bar dataKey="days" maxBarSize={24} radius={[6, 6, 0, 0]} isAnimationActive={false}>
               {data.map((d) => (
                 <Cell
                   key={d.key}
@@ -342,7 +342,7 @@ function NextCycles({
           return (
             <li key={p.start.getTime()} className="flex items-center justify-between gap-4 py-3">
               <div>
-                <p className="font-display text-lg font-bold">{short(p.start)}</p>
+                <p className="font-display text-xl font-semibold">{short(p.start)}</p>
                 <p className="text-sm text-muted-foreground">
                   {until > 0 ? `Period in ${days(until)}` : until === 0 ? "Period due today" : `Period was due ${days(-until)} ago`}
                 </p>
@@ -352,7 +352,7 @@ function NextCycles({
           );
         })}
       </ul>
-      <h3 className="mt-5 text-base">Each cycle, by phase</h3>
+      <h3 className="mt-5 text-lg">Each cycle, by phase</h3>
       <div className="mt-3 flex h-3 gap-0.5 overflow-hidden rounded-full" aria-hidden="true">
         {PHASE_ORDER.map((p) =>
           lengths[p] > 0 ? (
@@ -360,7 +360,7 @@ function NextCycles({
           ) : null
         )}
       </div>
-      <ul className="mt-3 grid grid-cols-2 gap-x-4 gap-y-2 text-sm">
+      <ul className="mt-3 grid gap-x-4 gap-y-2 text-sm sm:grid-cols-2">
         {PHASE_ORDER.map((p) => (
           <li key={p} className="flex items-center gap-2">
             <Dot phase={p} />
@@ -465,8 +465,8 @@ function Moods({ logs, cycles, avgLength, avgPeriodLength }: PatternProps) {
     <Card title="Mood by phase" sub="The moods you logged most in each phase.">
       <ul className="mt-4 divide-y divide-border">
         {PHASE_ORDER.map((p) => (
-          <li key={p} data-phase={p} className="flex flex-wrap items-center gap-x-3 gap-y-2 py-3">
-            <span className="flex w-28 shrink-0 items-center gap-2">
+          <li key={p} data-phase={p} className="grid gap-2 py-3 sm:grid-cols-[7rem_1fr] sm:items-center sm:gap-3">
+            <span className="flex items-center gap-2">
               <Dot phase={p} />
               {PHASES[p].name}
             </span>

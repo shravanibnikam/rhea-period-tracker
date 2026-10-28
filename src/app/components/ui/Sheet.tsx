@@ -35,11 +35,11 @@ export function Sheet({
   return (
     <Dialog.Root open={open} onOpenChange={onOpenChange}>
       <Dialog.Portal>
-        <Dialog.Overlay className="fixed inset-0 z-50 bg-black/45 data-[state=open]:animate-in data-[state=open]:fade-in-0 data-[state=closed]:animate-out data-[state=closed]:fade-out-0" />
+        <Dialog.Overlay className="fixed inset-0 z-50 bg-charcoal/45 dark:bg-black/60 data-[state=open]:animate-in data-[state=open]:fade-in-0 data-[state=closed]:animate-out data-[state=closed]:fade-out-0" />
         <Dialog.Content
           {...(description ? {} : { "aria-describedby": undefined })}
           className={cn(
-            "fixed z-50 flex flex-col bg-card text-card-foreground shadow-[0_12px_48px_rgba(0,0,0,0.22)] outline-none",
+            "fixed z-50 flex flex-col bg-card text-card-foreground shadow-soft outline-none",
             "inset-x-0 bottom-0 max-h-[92svh] rounded-t-3xl",
             "sm:inset-auto sm:left-1/2 sm:top-1/2 sm:w-[calc(100%-2rem)] sm:max-w-lg sm:-translate-x-1/2 sm:-translate-y-1/2 sm:max-h-[85vh] sm:rounded-3xl",
             "data-[state=open]:animate-in data-[state=open]:fade-in-0 data-[state=open]:slide-in-from-bottom-6 data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=closed]:slide-out-to-bottom-6",
@@ -48,7 +48,7 @@ export function Sheet({
         >
           <div className="flex items-start justify-between gap-4 px-6 pt-6 pb-4">
             <div className="min-w-0">
-              <Dialog.Title className="font-display text-xl font-bold text-foreground">{title}</Dialog.Title>
+              <Dialog.Title className="text-2xl text-foreground">{title}</Dialog.Title>
               {description ? (
                 <Dialog.Description className="mt-1 text-sm text-muted-foreground">
                   {description}

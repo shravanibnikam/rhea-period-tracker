@@ -26,9 +26,14 @@ import { RoleSelect } from "@/app/views/auth/RoleSelect";
 import { Landing } from "@/app/views/landing/Landing";
 import { hasWelcomed, markWelcomed, isStandalone } from "@/app/lib/welcome";
 
-// Toasts float over the screen, so they carry a shadow.
+// Toasts float over the screen, so they carry the soft elevation.
 const TOAST =
-  "flex w-full items-center gap-3 rounded-xl border border-border bg-popover px-4 py-3 font-sans text-sm text-popover-foreground shadow-lg"; // taste-skill-ignore
+  "flex w-full items-center gap-3 rounded-xl border border-border bg-popover px-4 py-3 font-sans text-sm text-popover-foreground shadow-soft";
+
+/** Landing: a first visit (no deep link, not installed), or #welcome on purpose. */
+const wantsLanding = () =>
+  window.location.hash === "#welcome" ||
+  (window.location.hash === "" && !hasWelcomed() && !isStandalone());
 
 /** The app, plus the one toast region every screen shares (`toast()` from sonner). */
 export default function App() {
@@ -48,12 +53,7 @@ function AppScreens() {
   const [showPrivacy, setShowPrivacy] = useState(false);
   const [roleChosen, setRoleChosen] = useState(false);
   const [symptomError, setSymptomError] = useState<string | null>(null);
-  // Landing: a first visit (no deep link, not installed), or #welcome on purpose.
-  const [showLanding, setShowLanding] = useState(
-    () =>
-      window.location.hash === "#welcome" ||
-      (window.location.hash === "" && !hasWelcomed() && !isStandalone())
-  );
+  const [showLanding, setShowLanding] = useState(wantsLanding);
   const [authMode, setAuthMode] = useState<"signin" | "signup">("signin");
 
   // Local midnight: diffDays floors, so a time-of-day "today" read every "in N days" one short.
@@ -236,11 +236,13 @@ function AppScreens() {
 
   // ── Navigation ── The URL hash is the source of truth: nav links set it,
   // Back and Forward change it, and the view follows (#today is the default).
-  // #welcome reopens the landing page (the gate below).
+  // The landing gate follows it too: #welcome reopens the landing page, and an
+  // app route leaves it (a same-route change, #welcome → #today, re-renders
+  // only through this state).
   const [route, setRoute] = useState<Route>(readRoute);
   useEffect(() => {
     const follow = () => {
-      if (window.location.hash === "#welcome") setShowLanding(true);
+      setShowLanding(wantsLanding());
       setRoute(readRoute());
       document.documentElement.scrollTop = 0;
     };
@@ -322,13 +324,15 @@ function AppScreens() {
   if (auth.loading || dataLoading || dataAccount !== accountId) {
     return (
       <div className="flex min-h-dvh items-center justify-center bg-background font-sans">
-        <div className="flex flex-col items-center gap-4">
+        <div role="status" className="flex flex-col items-center gap-4">
           <img
             src={`${import.meta.env.BASE_URL}rhea-mark.svg`}
             alt="Rhea"
-            className="size-12"
+            width={48}
+            height={48}
+            className="size-12 motion-safe:animate-pulse"
           />
-          <p className="text-sm text-muted-foreground">Loading...</p>
+          <p className="text-sm text-muted-foreground">Loading…</p>
         </div>
       </div>
     );

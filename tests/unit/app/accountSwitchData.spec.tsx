@@ -190,7 +190,7 @@ describe("account switch: the screen shows the NEW account's own store", () => {
     await settle(50);
 
     expect(trackerOf()).toBeNull();
-    expect(screen.getByText("Loading...")).toBeTruthy();
+    expect(screen.getByText("Loading…")).toBeTruthy();
 
     c.holdReads = null;
     await act(async () => {

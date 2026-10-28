@@ -306,7 +306,7 @@ describe("interactive sign-in shows the splash until the role resolves", () => {
     beginSignIn("owner-1");
     await settle();
 
-    expect(screen.getByText("Loading...")).toBeTruthy();
+    expect(screen.getByText("Loading…")).toBeTruthy();
     expect(screen.queryByRole("button", { name: "Log today" })).toBeNull();
 
     await act(async () => {

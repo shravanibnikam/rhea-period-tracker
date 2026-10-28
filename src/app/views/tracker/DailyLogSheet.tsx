@@ -64,10 +64,10 @@ function clock(hhmm: string): string {
   return new Date(2000, 0, 1, h, m).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" });
 }
 
-// Chips stay 36px to keep 57 of them compact; the pseudo-element grows each hit
-// area to 44px, filling the 8px row gap without overlapping the next row.
+// The medication suggestions are 36px pills like the chips (ui/Chip): the
+// pseudo-element grows each hit area to 44px, filling the 8px row gap.
 const CHIP_TARGET = "relative before:absolute before:inset-x-0 before:-inset-y-1";
-const SEGMENTS = "gap-0.5 p-0.5 [&>button]:min-h-11 [&>button]:px-1 [&>button]:text-[13px]";
+const SEGMENTS = "gap-0.5 p-0.5 [&>button]:px-1 [&>button]:text-[13px]";
 const FIELD =
   "h-11 w-full rounded-xl border border-input bg-input-background px-3 text-foreground placeholder:text-muted-foreground";
 
@@ -230,13 +230,27 @@ export function DailyLogSheet({
         ) : null
       )}
       {showDelete && confirming ? (
-        <div className="flex items-center gap-2" role="group" aria-label="Confirm deleting this log">
-          <p className="mr-auto text-sm font-medium">Delete the log for {fmt(date)}?</p>
-          <Button variant="secondary" onClick={() => setConfirming(false)} disabled={deleting || saving}>
+        // Keyed apart, so Save never morphs into Cancel (React would reuse the node).
+        <div
+          key="confirm"
+          className="flex flex-wrap items-center gap-x-2 gap-y-3"
+          role="group"
+          aria-label="Confirm deleting this log"
+        >
+          <p className="w-full text-base font-semibold sm:mr-auto sm:w-auto">Delete the log for {fmt(date)}?</p>
+          <Button
+            variant="secondary"
+            size="lg"
+            className="flex-1 sm:flex-none"
+            onClick={() => setConfirming(false)}
+            disabled={deleting || saving}
+          >
             Cancel
           </Button>
           <Button
             variant="destructive"
+            size="lg"
+            className="flex-1 sm:flex-none"
             onClick={runDelete}
             disabled={deleting || saving}
             autoFocus
@@ -246,7 +260,7 @@ export function DailyLogSheet({
           </Button>
         </div>
       ) : (
-        <div className="flex gap-2">
+        <div key="actions" className="flex gap-2">
           {showDelete && (
             <Button
               variant="destructive-outline"
@@ -264,7 +278,7 @@ export function DailyLogSheet({
             </Button>
           )}
           <Button size="lg" className="flex-1" onClick={runSave} disabled={saving || deleting || !!loadError} aria-busy={saving}>
-            Save Log
+            Save log
           </Button>
         </div>
       )}
@@ -296,7 +310,7 @@ export function DailyLogSheet({
         <Section title="Symptoms" aside={log.symptoms.length ? `${log.symptoms.length} selected` : null}>
           <div className="flex flex-wrap gap-2">
             {ALL_SYMPTOMS.map((s) => (
-              <Chip key={s} selected={log.symptoms.includes(s)} onClick={() => toggleSymptom(s)} className={CHIP_TARGET}>
+              <Chip key={s} selected={log.symptoms.includes(s)} onClick={() => toggleSymptom(s)}>
                 {s}
               </Chip>
             ))}
@@ -310,7 +324,6 @@ export function DailyLogSheet({
                 key={m}
                 selected={log.mood === m}
                 onClick={() => setField("mood", log.mood === m ? null : m)}
-                className={CHIP_TARGET}
               >
                 {m}
               </Chip>
@@ -330,7 +343,7 @@ export function DailyLogSheet({
         </Section>
 
         <section className="space-y-3">
-          <h3 className="text-base">
+          <h3 className="text-lg">
             <label htmlFor="log-notes">Notes</label>
           </h3>
           <textarea
@@ -352,7 +365,7 @@ export function DailyLogSheet({
             aria-expanded={showMore}
             aria-controls="log-more"
             onClick={() => setMoreOpen(!showMore)}
-            className="flex min-h-11 w-full items-center justify-between rounded-xl bg-muted px-4 text-left font-medium"
+            className="flex min-h-11 w-full items-center justify-between rounded-xl bg-muted px-4 text-left font-semibold transition-colors hover:bg-secondary/70"
           >
             Medication and intimacy
             <ChevronDown
@@ -370,7 +383,7 @@ export function DailyLogSheet({
                     {meds.map((m, i) => (
                       <li key={`${i}:${m.name}`} className="flex min-h-12 items-center justify-between gap-2 py-1 pr-1 pl-4">
                         <span className="min-w-0">
-                          <span className="font-medium">{m.name}</span>
+                          <span className="font-semibold">{m.name}</span>
                           {(m.dose || m.takenAt) && (
                             <span className="text-muted-foreground">
                               {" · "}
@@ -406,7 +419,7 @@ export function DailyLogSheet({
                   ))}
                 </div>
                 <form onSubmit={submitDraft} noValidate className="grid grid-cols-2 gap-3">
-                  <label className="col-span-2 space-y-1.5 text-sm font-medium">
+                  <label className="col-span-2 space-y-1.5 text-sm font-semibold">
                     <span>Other medication</span>
                     <input
                       value={draft.name}
@@ -421,7 +434,7 @@ export function DailyLogSheet({
                       className={FIELD}
                     />
                   </label>
-                  <label className="space-y-1.5 text-sm font-medium">
+                  <label className="space-y-1.5 text-sm font-semibold">
                     <span>Dose (optional)</span>
                     <input
                       value={draft.dose}
@@ -432,7 +445,7 @@ export function DailyLogSheet({
                       className={FIELD}
                     />
                   </label>
-                  <label className="space-y-1.5 text-sm font-medium">
+                  <label className="space-y-1.5 text-sm font-semibold">
                     <span>Time (optional)</span>
                     <input
                       type="time"
@@ -457,7 +470,7 @@ export function DailyLogSheet({
                   htmlFor="log-had-sex"
                   className="flex min-h-11 items-center justify-between gap-4 rounded-xl border border-border px-4"
                 >
-                  <span className="font-medium">Had sex</span>
+                  <span className="font-semibold">Had sex</span>
                   <Switch
                     id="log-had-sex"
                     checked={intimacy !== null}
@@ -466,9 +479,7 @@ export function DailyLogSheet({
                 </label>
                 {intimacy && (
                   <div className="space-y-2">
-                    <p className="text-sm font-medium">
-                      Protected
-                    </p>
+                    <p className="text-sm font-semibold">Protected</p>
                     <Segmented
                       label="Protected"
                       value={intimacy.protected === true ? "yes" : intimacy.protected === false ? "no" : "unsure"}
@@ -497,7 +508,7 @@ function Section({ title, aside, children }: { title: string; aside?: string | n
   return (
     <section className="space-y-3">
       <div className="flex items-baseline justify-between gap-3">
-        <h3 className="text-base">{title}</h3>
+        <h3 className="text-lg">{title}</h3>
         {aside ? <span className="text-sm text-muted-foreground">{aside}</span> : null}
       </div>
       {children}

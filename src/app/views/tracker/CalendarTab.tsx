@@ -71,8 +71,9 @@ const MONTH_NAMES = [
   "July", "August", "September", "October", "November", "December",
 ];
 const WEEKDAYS = ["Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"];
+// An explicit background and colour keep the native option list readable in dark mode.
 const SELECT =
-  "h-11 cursor-pointer rounded-lg bg-transparent px-1.5 font-display text-lg font-bold text-foreground hover:bg-muted";
+  "h-11 cursor-pointer rounded-lg bg-card px-1.5 font-display text-xl font-semibold text-foreground hover:bg-muted";
 
 interface Day {
   d: number;
@@ -98,7 +99,7 @@ const MARKS: { label: string; swatch: string; test: (d: Day) => boolean }[] = [
   },
   { label: "Fertile window", swatch: "h-1 w-3.5 rounded-full bg-ovulation", test: (d) => d.isFertile },
   { label: "Ovulation", swatch: "size-2 rounded-full bg-ovulation", test: (d) => d.isOvulation },
-  { label: "Today", swatch: "size-3.5 rounded-full ring-2 ring-inset ring-foreground", test: (d) => d.isToday },
+  { label: "Today", swatch: "size-3.5 rounded-full ring-[1.5px] ring-inset ring-foreground/70", test: (d) => d.isToday },
 ];
 
 /** Runs of consecutive days that pass `test`, as "Oct 10–14". */
@@ -202,7 +203,9 @@ export function CalendarTab({ cycles, avgLength, avgPeriodLength, today, logs, o
     <section aria-label="Month calendar" className="@container rounded-2xl border border-border bg-card p-5 sm:p-6">
       <div className="grid gap-6 @3xl:grid-cols-[minmax(0,1fr)_16rem] @3xl:gap-8">
         <div>
-          <div className="flex flex-wrap items-center gap-2">
+          {/* Arrows stay put on the first row. "Today" appears only away from this
+              month, and wraps below them when the card is narrow. */}
+          <div className="flex flex-wrap items-center gap-x-1 gap-y-2">
             <div className="mr-auto flex items-center">
               <select
                 aria-label="Month"
@@ -225,15 +228,17 @@ export function CalendarTab({ cycles, avgLength, avgPeriodLength, today, logs, o
                 ))}
               </select>
             </div>
-            <div className="ml-auto flex items-center gap-1">
+            {!isThisMonth && (
               <Button
                 variant="outline"
                 size="sm"
-                disabled={isThisMonth}
+                className="@max-md:order-last"
                 onClick={() => setCalMonth(new Date(today.getFullYear(), today.getMonth(), 1))}
               >
                 Today
               </Button>
+            )}
+            <div className="flex items-center gap-1">
               <Button
                 variant="ghost"
                 size="icon"
@@ -292,7 +297,7 @@ export function CalendarTab({ cycles, avgLength, avgPeriodLength, today, logs, o
                           : info
                             ? "bg-phase-tint text-phase-ink"
                             : "text-foreground",
-                      isToday && "font-bold ring-2 ring-foreground ring-offset-2 ring-offset-card"
+                      isToday && "font-semibold ring-[1.5px] ring-foreground/70 ring-offset-2 ring-offset-card"
                     )}
                   >
                     {d}
@@ -308,7 +313,7 @@ export function CalendarTab({ cycles, avgLength, avgPeriodLength, today, logs, o
                     {hasLog && (
                       <span
                         aria-hidden="true"
-                        className="absolute -right-0.5 -top-0.5 size-2 rounded-full bg-foreground ring-2 ring-card"
+                        className="absolute -right-0.5 -top-0.5 size-2 rounded-full bg-muted-foreground ring-2 ring-card"
                       />
                     )}
                   </span>
@@ -319,14 +324,14 @@ export function CalendarTab({ cycles, avgLength, avgPeriodLength, today, logs, o
         </div>
 
         <div className="@3xl:border-l @3xl:border-border @3xl:pl-8">
-          <h2 className="text-base">This month</h2>
+          <h2 className="text-xl">This month</h2>
           <ul className="mt-3 space-y-2.5 text-sm">
             {marks.map((m) => (
               <Key key={m.label} swatch={<span className={m.swatch} />} label={m.label} value={m.value} />
             ))}
             {entries > 0 && (
               <Key
-                swatch={<span className="size-2 rounded-full bg-foreground" />}
+                swatch={<span className="size-2 rounded-full bg-muted-foreground" />}
                 label="Days with a log"
                 value={String(entries)}
               />
@@ -335,7 +340,13 @@ export function CalendarTab({ cycles, avgLength, avgPeriodLength, today, logs, o
               PHASE_ORDER.map((p) => (
                 <Key
                   key={p}
-                  swatch={<span className="size-3.5 rounded-full" style={{ backgroundColor: PHASES[p].bg }} />}
+                  swatch={
+                    <span
+                      className="size-3.5 rounded-full"
+                      // The tint alone is too faint on the card: outline it in its own hue.
+                      style={{ backgroundColor: PHASES[p].bg, boxShadow: `inset 0 0 0 1px ${PHASES[p].border}` }}
+                    />
+                  }
                   label={`${PHASES[p].name} phase`}
                   value={getPhaseRangeLabel(p, anchors)}
                 />

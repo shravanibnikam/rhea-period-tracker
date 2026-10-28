@@ -125,7 +125,7 @@ describe("DailyLogSheet awaits the save (INV-WRITE-ACK)", () => {
     fireEvent.change(notes, { target: { value: "edited note" } });
 
     const write = await failNextWrite(c);
-    const saveButton = screen.getByRole("button", { name: "Save Log" }) as HTMLButtonElement;
+    const saveButton = screen.getByRole("button", { name: "Save log" }) as HTMLButtonElement;
     fireEvent.click(saveButton);
     await waitFor(() => expect(write).toHaveBeenCalledTimes(1));
 
@@ -135,7 +135,7 @@ describe("DailyLogSheet awaits the save (INV-WRITE-ACK)", () => {
     expect(alert.textContent).toMatch(/couldn't save this log/i);
     expect(onClose).not.toHaveBeenCalled();
     expect(saveButton.disabled).toBe(false);
-    expect(saveButton.textContent).toBe("Save Log");
+    expect(saveButton.textContent).toBe("Save log");
     // The user's edit is still in the form; the stored record is untouched.
     expect(notes.value).toBe("edited note");
     expect((await c.getLog(KEY))?.notes).toBe("private note");
@@ -160,7 +160,7 @@ describe("DailyLogSheet awaits the save (INV-WRITE-ACK)", () => {
         date={DATE}
       />
     );
-    const saveButton = screen.getByRole("button", { name: "Save Log" }) as HTMLButtonElement;
+    const saveButton = screen.getByRole("button", { name: "Save log" }) as HTMLButtonElement;
     fireEvent.click(saveButton);
 
     expect(onSave).toHaveBeenCalledTimes(1);

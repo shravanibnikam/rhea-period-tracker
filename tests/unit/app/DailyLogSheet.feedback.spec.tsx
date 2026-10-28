@@ -34,7 +34,7 @@ function props(over: Partial<Props> = {}): Props {
   };
 }
 
-const saveButton = () => screen.getByRole("button", { name: "Save Log" }) as HTMLButtonElement;
+const saveButton = () => screen.getByRole("button", { name: "Save log" }) as HTMLButtonElement;
 const closeButton = () => screen.getByRole("button", { name: "Close" }) as HTMLButtonElement;
 /**
  * Press the Sheet's overlay. Radix starts listening for outside presses one

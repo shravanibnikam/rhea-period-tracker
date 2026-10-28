@@ -35,7 +35,7 @@ test("UI delete persists a tombstone and removes the log from another device", a
     await page.getByRole("button", { name: /Log today/ }).click();
     // Flow precedes the separate energy control with the same label.
     await page.getByRole("button", { name: "Medium", exact: true }).first().click();
-    await page.getByRole("button", { name: "Save Log", exact: true }).click();
+    await page.getByRole("button", { name: "Save log", exact: true }).click();
     await expect.poll(async () => (await remoteRow())?.deleted).toBe(false);
     const saved = (await remoteRow())!;
     expect(saved.flow).toBe("medium");

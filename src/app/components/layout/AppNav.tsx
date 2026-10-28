@@ -27,11 +27,11 @@ const ITEMS: Record<Route, { label: string; tip: string; icon: LucideIcon }> = {
   settings: { label: "Settings", tip: "Settings", icon: Settings },
 };
 
-// Tooltips and the account menu float, so they carry a shadow.
+// Tooltips and the account menu float, so they carry the soft elevation.
 const TIP =
-  "z-50 rounded-lg border border-border bg-popover px-2.5 py-1.5 text-sm text-popover-foreground shadow-md max-lg:hidden"; // taste-skill-ignore
+  "z-50 rounded-lg border border-border bg-popover px-2.5 py-1.5 text-sm text-popover-foreground shadow-soft max-lg:hidden";
 const MENU =
-  "absolute bottom-0 left-full z-50 ml-3 w-64 rounded-xl border border-border bg-popover p-1.5 text-popover-foreground shadow-lg"; // taste-skill-ignore
+  "absolute bottom-0 left-full z-50 ml-3 w-64 rounded-xl border border-border bg-popover p-1.5 text-popover-foreground shadow-soft";
 
 function Tip({ label, children }: { label: string; children: ReactNode }) {
   return (
@@ -68,6 +68,8 @@ export function AppNav({ routes, current, account }: AppNavProps) {
         <img
           src={`${import.meta.env.BASE_URL}rhea-mark.svg`}
           alt=""
+          width={28}
+          height={28}
           className="mb-6 hidden size-7 lg:block"
         />
         <ul className="flex lg:flex-1 lg:flex-col lg:items-center lg:gap-1.5">
@@ -79,9 +81,10 @@ export function AppNav({ routes, current, account }: AppNavProps) {
                   <a
                     href={`#${r}`}
                     aria-current={current === r ? "page" : undefined}
-                    className="group flex h-16 flex-col items-center justify-center gap-1 text-[13px] font-medium text-muted-foreground transition-colors hover:text-foreground aria-[current=page]:text-foreground lg:size-11 lg:rounded-xl lg:hover:bg-muted lg:aria-[current=page]:bg-muted"
+                    // On phones the focus ring hugs the icon pill, not the whole bar cell.
+                    className="group flex h-16 flex-col items-center justify-center gap-1 text-[13px] font-semibold text-muted-foreground transition-colors hover:text-foreground aria-[current=page]:text-foreground max-lg:focus-visible:outline-none lg:size-11 lg:rounded-xl lg:hover:bg-muted lg:aria-[current=page]:bg-muted"
                   >
-                    <span className="flex h-8 w-14 items-center justify-center rounded-full transition-colors group-aria-[current=page]:bg-muted lg:h-auto lg:w-auto lg:group-aria-[current=page]:bg-transparent">
+                    <span className="flex h-8 w-14 items-center justify-center rounded-full transition-colors group-aria-[current=page]:bg-muted max-lg:group-focus-visible:outline-2 max-lg:group-focus-visible:outline-offset-2 max-lg:group-focus-visible:outline-ring lg:h-auto lg:w-auto lg:group-aria-[current=page]:bg-transparent">
                       <Icon size={20} strokeWidth={1.75} aria-hidden="true" />
                     </span>
                     <span className="lg:sr-only">{label}</span>

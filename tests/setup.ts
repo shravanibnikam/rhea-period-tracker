@@ -8,12 +8,4 @@ process.env.TZ = "UTC";
 import { getSodium } from "@/crypto/sodium";
 await getSodium();
 
-// App specs model a returning visitor: the first-visit landing page (App gate)
-// is covered by its own spec, which clears this flag.
-try {
-  globalThis.localStorage?.setItem("rhea:welcomed", "1");
-} catch {
-  // node environment: no Web Storage
-}
-
 export {};
