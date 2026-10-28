@@ -9,7 +9,7 @@
  * like every other key.
  */
 import { describe, it, expect, vi, afterEach } from "vitest";
-import { render, screen, cleanup, waitFor } from "@testing-library/react";
+import { render, screen, cleanup, waitFor, fireEvent } from "@testing-library/react";
 
 vi.mock("@/app/lib/sharing", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@/app/lib/sharing")>();
@@ -80,16 +80,16 @@ function renderPartner(settings: ShareSettings, logs: DailyLog[] = LOGS) {
 describe("partner calendar + symptom gating", () => {
   it("hides both when the owner has not enabled them", async () => {
     renderPartner(settingsWith("todays_phase"));
-    await screen.findByText(/What's Happening in Her Body/i);
+    await screen.findByText(/What's happening in their body/i);
 
-    expect(screen.queryByText(/Her Cycle Calendar/i)).toBeNull();
-    expect(screen.queryByText(/What She's Feeling/i)).toBeNull();
+    expect(screen.queryByText(/Their cycle calendar/i)).toBeNull();
+    expect(screen.queryByText(/How they're feeling/i)).toBeNull();
     expect(screen.queryByText("Cramps")).toBeNull();
   });
 
   it("shows the calendar only when calendar_view is on", async () => {
     renderPartner(settingsWith("calendar_view"));
-    await screen.findByText(/Her Cycle Calendar/i);
+    await screen.findByText(/Their cycle calendar/i);
 
     // Rendered read-only: no day opens a log sheet for a partner.
     const dayButtons = screen
@@ -101,7 +101,7 @@ describe("partner calendar + symptom gating", () => {
 
   it("shows logged symptoms only when symptom_details is on", async () => {
     renderPartner(settingsWith("symptom_details"));
-    await screen.findByText(/What She's Feeling/i);
+    await screen.findByText(/How they're feeling/i);
 
     expect(screen.getByText("Cramps")).toBeTruthy();
     expect(screen.getByText("Fatigue")).toBeTruthy();
@@ -110,7 +110,7 @@ describe("partner calendar + symptom gating", () => {
 
   it("never renders the owner's free-text notes", async () => {
     renderPartner(settingsWith("symptom_details", "calendar_view", "todays_phase"));
-    await screen.findByText(/What She's Feeling/i);
+    await screen.findByText(/How they're feeling/i);
 
     expect(screen.queryByText(/private thought/i)).toBeNull();
   });
@@ -125,15 +125,15 @@ describe("partner calendar + symptom gating", () => {
     renderPartner(settingsWith("calendar_view", "symptom_details"));
 
     await screen.findByText(/Sharing paused/i);
-    expect(screen.queryByText(/Her Cycle Calendar/i)).toBeNull();
-    expect(screen.queryByText(/What She's Feeling/i)).toBeNull();
+    expect(screen.queryByText(/Their cycle calendar/i)).toBeNull();
+    expect(screen.queryByText(/How they're feeling/i)).toBeNull();
   });
 
-  it("mood_signal shows the mood she logged today, labelled; without it, only the phase's usual mood", async () => {
+  it("mood_signal shows the mood the owner logged today, labelled; without it, only the phase's usual mood", async () => {
     const logs = LOGS.map((l) => (l.date === toDateKey(TODAY) ? { ...l, mood: "Irritable" } : l));
     renderPartner(settingsWith("mood_signal"), logs);
     expect(await screen.findByText("Irritable")).toBeTruthy();
-    expect(screen.getByText("Logged by her")).toBeTruthy();
+    expect(screen.getByText("Logged by your partner")).toBeTruthy();
     cleanup();
 
     renderPartner(settingsWith("mood_signal")); // nothing logged today
@@ -147,12 +147,36 @@ describe("partner calendar + symptom gating", () => {
 
   it("shows the cycle ring only with both todays_phase and cycle_headsup (its position reveals the due date)", async () => {
     renderPartner(settingsWith("todays_phase"));
-    await screen.findByText(/What's Happening in Her Body/i);
+    await screen.findByText(/What's happening in their body/i);
     expect(screen.queryByRole("img", { name: /Cycle day/i })).toBeNull();
     cleanup();
 
     renderPartner(settingsWith("todays_phase", "cycle_headsup"));
     expect(await screen.findByRole("img", { name: /Cycle day/i })).toBeTruthy();
+  });
+
+  it("a failed load offers a retry and never shows the owner's details", async () => {
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    vi.mocked(getShareSettings).mockRejectedValueOnce(new Error("Failed to fetch"));
+    const state = deriveCycleState(LOGS, null, TODAY);
+    render(
+      <PartnerView
+        phaseData={PHASES[state.phase]}
+        phase={state.phase}
+        state={state}
+        today={TODAY}
+        logs={LOGS}
+        ownerId="owner-1"
+        currentUserId="partner-1"
+      />
+    );
+    await screen.findByText("Couldn't load the partner view");
+    expect(screen.queryByText("Cramps")).toBeNull();
+    expect(screen.queryByText(/Their cycle calendar/i)).toBeNull();
+
+    vi.mocked(getShareSettings).mockResolvedValueOnce(settingsWith("symptom_details"));
+    fireEvent.click(screen.getByRole("button", { name: "Try again" }));
+    expect(await screen.findByText("Cramps")).toBeTruthy();
   });
 
   it("falls back to 'nothing shared' when every key is off", async () => {

@@ -10,7 +10,7 @@ const LABEL = "font-sans text-sm font-semibold text-foreground [font-size-adjust
 
 /**
  * The partner-side symptom list (gated on the owner's `symptom_details` toggle),
- * rendered inside PartnerView's "What she's feeling" card. Chips take the tint
+ * rendered inside PartnerView's "How they're feeling" card. Chips take the tint
  * of the nearest `[data-phase]` scope.
  *
  * Deliberately narrow: symptoms ONLY. Free-text notes, medication, and intimacy

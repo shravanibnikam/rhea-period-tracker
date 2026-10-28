@@ -1,10 +1,11 @@
 import { useState, useEffect, type ReactNode } from "react";
-import { CalendarHeart, HeartHandshake, Moon, type LucideIcon } from "lucide-react";
+import { CalendarHeart, CloudOff, HeartHandshake, Moon, type LucideIcon } from "lucide-react";
 import type { PhaseData, PhaseName, CycleState, DailyLog } from "@/domain/types";
 import { PHASES, PHASE_ORDER, ENERGY_LABELS, getPhaseRangeLabel, anchorsFrom } from "@/domain/phases";
 import { diffDays, toDateKey } from "@/domain/dates";
 import { fmt } from "@/app/lib/format";
 import { cn } from "@/app/lib/cn";
+import { Button } from "@/app/components/ui/Button";
 import { CycleRing } from "@/app/components/shared/CycleRing";
 import { CalendarTab } from "@/app/views/tracker/CalendarTab";
 import { PartnerSymptoms } from "@/app/views/partner/PartnerSymptoms";
@@ -54,7 +55,17 @@ function Energy({ level }: { level: number }) {
   );
 }
 
-function Notice({ icon: Icon, title, children }: { icon: LucideIcon; title: string; children: ReactNode }) {
+function Notice({
+  icon: Icon,
+  title,
+  children,
+  action,
+}: {
+  icon: LucideIcon;
+  title: string;
+  children: ReactNode;
+  action?: ReactNode;
+}) {
   return (
     <section className={cn(CARD, "flex items-start gap-4")}>
       <span className="flex size-11 shrink-0 items-center justify-center rounded-full bg-accent text-accent-foreground">
@@ -63,6 +74,7 @@ function Notice({ icon: Icon, title, children }: { icon: LucideIcon; title: stri
       <div className="min-w-0">
         <h2 className={H2}>{title}</h2>
         <p className="mt-1.5 text-base text-muted-foreground">{children}</p>
+        {action}
       </div>
     </section>
   );
@@ -80,6 +92,8 @@ export function PartnerView({
   const [settings, setSettings] = useState<ShareSettings | null>(null);
   const [quietWindows, setQuietWindows] = useState<QuietWindow[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadFailed, setLoadFailed] = useState(false);
+  const [attempt, setAttempt] = useState(0);
   // Same oracle as the owner's views (M1.3): phase ranges cannot disagree.
   const anchors = anchorsFrom(state.avgCycleLength, state.avgPeriodLength);
 
@@ -88,12 +102,26 @@ export function PartnerView({
       setLoading(false);
       return;
     }
-    Promise.all([getShareSettings(ownerId), getQuietWindows(ownerId)]).then(([s, qw]) => {
-      setSettings(s);
-      setQuietWindows(qw);
-      setLoading(false);
-    });
-  }, [ownerId]);
+    let current = true;
+    Promise.all([getShareSettings(ownerId), getQuietWindows(ownerId)])
+      .then(([s, qw]) => {
+        if (!current) return;
+        setSettings(s);
+        setQuietWindows(qw);
+        setLoadFailed(false);
+      })
+      .catch((err) => {
+        // Unknown choices show nothing: with no settings, `on` below shows everything.
+        console.error("Failed to load the partner view's sharing choices:", err);
+        if (current) setLoadFailed(true);
+      })
+      .finally(() => {
+        if (current) setLoading(false);
+      });
+    return () => {
+      current = false;
+    };
+  }, [ownerId, attempt]);
 
   const isQuiet = isInQuietWindow(quietWindows);
   // When no Supabase / no owner, show everything (local demo mode)
@@ -109,9 +137,9 @@ export function PartnerView({
   };
   const nothingShared = isGated && Object.values(show).every((visible) => !visible);
 
-  // The owner previewing her own partner view (App passes her id as both).
+  // The owner previewing their own partner view (App passes their id as both).
   const preview = ownerId != null && ownerId === currentUserId;
-  // Without a logged period the phase is a default, not hers: show none.
+  // Without a logged period the phase is a default, not theirs: show none.
   const hasCycle = state.currentCycleStart !== null;
   const todayMood = logs.find((l) => l.date === toDateKey(today))?.mood ?? null;
 
@@ -119,13 +147,34 @@ export function PartnerView({
   if (loading) {
     body = (
       <p role="status" className="text-sm text-muted-foreground">
-        Loading what she shares…
+        Loading what your partner shares…
       </p>
+    );
+  } else if (loadFailed) {
+    body = (
+      <Notice
+        icon={CloudOff}
+        title="Couldn't load the partner view"
+        action={
+          <Button
+            variant="outline"
+            className="mt-4"
+            onClick={() => {
+              setLoading(true);
+              setAttempt((n) => n + 1);
+            }}
+          >
+            Try again
+          </Button>
+        }
+      >
+        Check your connection and try again.
+      </Notice>
     );
   } else if (isGated && isQuiet) {
     body = (
       <Notice icon={Moon} title="Sharing paused">
-        She has paused sharing for a while. Her cycle details show here again when the pause ends.
+        Your partner has paused sharing for a while. Their cycle details show here again when the pause ends.
       </Notice>
     );
   } else if (nothingShared) {
@@ -140,7 +189,7 @@ export function PartnerView({
             , and it shows here.
           </>
         ) : (
-          "She hasn't turned on any sharing. When she does, it shows here."
+          "Your partner hasn't turned on any sharing yet. When they do, it shows here."
         )}
       </Notice>
     );
@@ -149,7 +198,7 @@ export function PartnerView({
       <div className="flex flex-col gap-4">
         {(show.phase || show.headsup || show.tips) && !hasCycle && (
           <Notice icon={CalendarHeart} title="No period logged">
-            Her phase, predictions and ideas for helping show here after she logs a period.
+            Their phase, predictions and ideas for helping show here after they log a period.
           </Notice>
         )}
 
@@ -163,7 +212,7 @@ export function PartnerView({
                 !show.headsup && "border-transparent bg-phase-tint text-phase-ink"
               )}
             >
-              {/* Where she is in the cycle reveals when her period is due, so the
+              {/* Where they are in the cycle reveals when their period is due, so the
                   ring needs the heads-up toggle as well as the phase. */}
               {show.headsup && (
                 <CycleRing
@@ -183,16 +232,16 @@ export function PartnerView({
               )}
               <div className="min-w-0">
                 <h2 className={cn("text-2xl sm:text-3xl", show.headsup && "text-foreground")}>
-                  She&apos;s in her {phaseData.name.toLowerCase()} phase
+                  They&apos;re in their {phaseData.name.toLowerCase()} phase
                 </h2>
                 <p className={cn("mt-2 text-sm", show.headsup && "text-muted-foreground")}>
-                  {getPhaseRangeLabel(phase, anchors)} of her cycle
+                  {getPhaseRangeLabel(phase, anchors)} of their cycle
                 </p>
               </div>
             </section>
 
             <section className={CARD}>
-              <h2 className={H2}>What&apos;s happening in her body</h2>
+              <h2 className={H2}>What&apos;s happening in their body</h2>
               <p className="mt-2 text-base leading-relaxed text-foreground">{phaseData.partnerDesc}</p>
               <dl className="mt-5 grid gap-4 text-sm sm:grid-cols-2">
                 <div>
@@ -214,7 +263,7 @@ export function PartnerView({
         <div className={ROW}>
           {(show.mood || show.symptoms) && (
             <section className={CARD}>
-              <h2 className={H2}>What she&apos;s feeling</h2>
+              <h2 className={H2}>How they&apos;re feeling</h2>
               <div className="mt-4 space-y-5">
                 {show.mood && (
                   <div>
@@ -224,7 +273,7 @@ export function PartnerView({
                         <span className="rounded-full bg-phase-tint px-3 py-1.5 text-sm font-medium text-phase-ink">
                           {todayMood}
                         </span>
-                        <span className="text-sm text-muted-foreground">Logged by her</span>
+                        <span className="text-sm text-muted-foreground">Logged by your partner</span>
                       </p>
                     ) : (
                       <p className="mt-2 text-sm text-muted-foreground">No mood logged today.</p>
@@ -257,7 +306,7 @@ export function PartnerView({
           <section className={CARD}>
             <h2 className={H2}>What&apos;s coming next</h2>
             <p className="mt-1 text-sm text-muted-foreground">
-              Estimated from her logged cycles, so dates can shift by a few days.
+              Estimated from their logged cycles, so dates can shift by a few days.
             </p>
             <ul className="mt-4 grid gap-2 sm:grid-cols-3">
               {state.predictions.slice(0, 3).map((pred, i) => {
@@ -286,7 +335,7 @@ export function PartnerView({
 
         {show.calendar && (
           <section>
-            <h2 className={cn(H2, "mb-3")}>Her cycle calendar</h2>
+            <h2 className={cn(H2, "mb-3")}>Their cycle calendar</h2>
             <CalendarTab
               cycles={state.cycles}
               avgLength={state.avgCycleLength}
@@ -329,7 +378,7 @@ export function PartnerView({
               })}
             </ul>
             <p className="mt-4 text-sm text-muted-foreground">
-              Every cycle is different. These are tendencies, not certainties, and listening to her is the best guide.
+              Every cycle is different. These are tendencies, not certainties, and listening to them is the best guide.
             </p>
           </section>
         )}
@@ -340,7 +389,7 @@ export function PartnerView({
   return (
     <div data-phase={phase} className="flex flex-col gap-6">
       <header>
-        <h1 className="text-3xl text-foreground">Her cycle</h1>
+        <h1 className="text-3xl text-foreground">Your partner&apos;s cycle</h1>
         <p className="mt-1 text-sm text-muted-foreground">{fmt(today, { weekday: "long", month: "long", day: "numeric" })}</p>
       </header>
       {body}

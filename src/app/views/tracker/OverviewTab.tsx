@@ -43,8 +43,6 @@ const DATE: Intl.DateTimeFormatOptions = { month: "long", day: "numeric" };
 const CONFIDENCE = { early: "Early estimate", building: "Building accuracy", good: "Good accuracy" } as const;
 const ENERGY = ["", "Very low", "Low", "Moderate", "High", "Peak"];
 const days = (n: number) => (n === 1 ? "day" : "days");
-/** Phase copy is title case ("Turn Inward"); the app is sentence case. */
-const sentence = (s: string) => s.charAt(0) + s.slice(1).toLowerCase();
 
 /** The Today screen: where you are in the cycle, what's next, and today's log. */
 export function OverviewTab({
@@ -111,7 +109,7 @@ export function OverviewTab({
                   <h2 id="today-cycle" className="text-2xl text-phase-ink">
                     {phaseData.name} phase
                   </h2>
-                  <p className="mt-1 text-base text-muted-foreground">{sentence(phaseData.tagline)}</p>
+                  <p className="mt-1 text-base text-muted-foreground">{phaseData.tagline}</p>
                   <p className="mt-6 text-sm text-muted-foreground">Next period</p>
                   <p className="mt-1 font-display text-4xl leading-none font-semibold tabular-nums lining-nums">
                     {toNext < 0 ? (
