@@ -1,5 +1,5 @@
-import { useState, useEffect } from "react";
-import { Eye, EyeOff, Moon } from "lucide-react";
+import { useState, useEffect, type FormEvent } from "react";
+import { Moon } from "lucide-react";
 import { logAudit, getAuditLog, formatAction, type AuditEntry } from "@/app/lib/audit";
 import {
   SHARE_KEYS,
@@ -14,26 +14,68 @@ import {
   type QuietWindow,
 } from "@/app/lib/sharing";
 import { toDateKey } from "@/domain/dates";
+import { Button } from "@/app/components/ui/Button";
+import { Switch } from "@/app/components/ui/controls";
+import { Section, Panel, fieldClass, formatDay } from "./Section";
 
 interface SharingControlsProps {
   ownerId: string;
 }
 
+const span = (qw: QuietWindow) =>
+  qw.start_date === qw.end_date
+    ? formatDay(qw.start_date)
+    : `${formatDay(qw.start_date)} to ${formatDay(qw.end_date)}`;
+
+/** A switch with its title as the accessible name; the whole text block toggles it. */
+function SwitchRow({
+  id,
+  label,
+  description,
+  checked,
+  onCheckedChange,
+}: {
+  id: string;
+  label: string;
+  description: string;
+  checked: boolean;
+  onCheckedChange: () => void;
+}) {
+  return (
+    <div className="flex items-start justify-between gap-4 py-4">
+      <label htmlFor={id} className="min-w-0 flex-1 cursor-pointer">
+        <span id={`${id}-label`} className="block text-foreground">
+          {label}
+        </span>
+        <span id={`${id}-hint`} className="mt-0.5 block text-sm font-normal text-muted-foreground">
+          {description}
+        </span>
+      </label>
+      <Switch
+        id={id}
+        checked={checked}
+        onCheckedChange={onCheckedChange}
+        aria-labelledby={`${id}-label`}
+        aria-describedby={`${id}-hint`}
+      />
+    </div>
+  );
+}
+
+/** The owner's partner-view choices, quiet windows and activity log: three Settings sections. */
 export function SharingControls({ ownerId }: SharingControlsProps) {
   const [settings, setSettings] = useState<ShareSettings | null>(null);
   const [quietWindows, setQuietWindows] = useState<QuietWindow[]>([]);
   const [showAddQuiet, setShowAddQuiet] = useState(false);
   const [quietStart, setQuietStart] = useState(() => toDateKey(new Date()));
   const [quietEnd, setQuietEnd] = useState(() => toDateKey(new Date()));
+  const [saving, setSaving] = useState(false);
   const [loading, setLoading] = useState(true);
   const [auditEntries, setAuditEntries] = useState<AuditEntry[]>([]);
   const [showAudit, setShowAudit] = useState(false);
 
   useEffect(() => {
-    Promise.all([
-      getShareSettings(ownerId),
-      getQuietWindows(ownerId),
-    ]).then(([s, qw]) => {
+    Promise.all([getShareSettings(ownerId), getQuietWindows(ownerId)]).then(([s, qw]) => {
       setSettings(s);
       setQuietWindows(qw);
       setLoading(false);
@@ -48,18 +90,37 @@ export function SharingControls({ ownerId }: SharingControlsProps) {
     await logAudit(ownerId, newValue ? "share.toggle_on" : "share.toggle_off", key);
   };
 
-  const handleAddQuiet = async () => {
-    await addQuietWindow(ownerId, quietStart, quietEnd);
-    await logAudit(ownerId, "quiet.added", `${quietStart} to ${quietEnd}`);
-    const updated = await getQuietWindows(ownerId);
-    setQuietWindows(updated);
-    setShowAddQuiet(false);
+  // Date keys compare as strings (YYYY-MM-DD); both days are included.
+  const rangeError =
+    !quietStart || !quietEnd
+      ? "Choose a first and a last day."
+      : quietEnd < quietStart
+        ? "The last day is before the first day. Choose a last day on or after the first."
+        : null;
+
+  const handleAddQuiet = async (e: FormEvent) => {
+    e.preventDefault();
+    if (rangeError) return;
+    setSaving(true);
+    try {
+      await addQuietWindow(ownerId, quietStart, quietEnd);
+      await logAudit(ownerId, "quiet.added", `${quietStart} to ${quietEnd}`);
+      setQuietWindows(await getQuietWindows(ownerId));
+      setShowAddQuiet(false);
+    } finally {
+      setSaving(false);
+    }
   };
 
-  const handleRemoveQuiet = async (id: string) => {
-    await removeQuietWindow(id);
-    await logAudit(ownerId, "quiet.removed", id);
-    setQuietWindows((prev) => prev.filter((qw) => qw.id !== id));
+  const handleRemoveQuiet = async (qw: QuietWindow) => {
+    await removeQuietWindow(qw.id);
+    await logAudit(ownerId, "quiet.removed", `${qw.start_date} to ${qw.end_date}`);
+    setQuietWindows((prev) => prev.filter((w) => w.id !== qw.id));
+  };
+
+  const toggleAudit = async () => {
+    if (!showAudit) setAuditEntries(await getAuditLog(ownerId));
+    setShowAudit(!showAudit);
   };
 
   if (loading || !settings) return null;
@@ -67,170 +128,156 @@ export function SharingControls({ ownerId }: SharingControlsProps) {
   const currentlyQuiet = isInQuietWindow(quietWindows);
 
   return (
-    <div>
-      <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-1">
-        Sharing Controls
-      </p>
-      <p className="text-xs text-muted-foreground mb-4">
-        Choose what your partner&apos;s view shows. Everything is off by
-        default. The server does not enforce these choices yet; see the
-        privacy policy.
-      </p>
-
-      {currentlyQuiet && (
-        <div className="flex items-center gap-2 p-3 rounded-xl bg-muted mb-4">
-          <Moon size={14} className="text-muted-foreground" />
-          <p className="text-xs text-muted-foreground">
-            Partner view paused — quiet window active
+    <>
+      <Section
+        title="Partner view"
+        description={
+          <p>
+            Choose what Rhea&apos;s partner view shows. Everything starts off. These choices are applied by the app,
+            not the server: a linked partner&apos;s account can read your synced logs.
           </p>
-        </div>
-      )}
-
-      <div className="space-y-2 mb-5">
-        {SHARE_KEYS.map(({ key, label, description }) => (
-          <button
-            key={key}
-            onClick={() => handleToggle(key)}
-            className="w-full flex items-center gap-3 p-3.5 rounded-xl border border-border hover:bg-muted/30 transition-colors text-left"
-          >
-            <div
-              className={`w-9 h-5 rounded-full flex items-center px-0.5 transition-colors ${
-                settings[key] ? "bg-primary" : "bg-muted"
-              }`}
-            >
-              <div
-                className={`w-4 h-4 rounded-full bg-white shadow-sm transition-transform ${
-                  settings[key] ? "translate-x-4" : "translate-x-0"
-                }`}
-              />
+        }
+      >
+        <Panel>
+          {currentlyQuiet && (
+            <div className="flex items-start gap-3 py-4">
+              <Moon size={18} aria-hidden="true" className="mt-0.5 shrink-0 text-muted-foreground" />
+              <p className="text-sm text-foreground">
+                Paused today by a quiet window: the partner view shows a pause message instead of these.
+              </p>
             </div>
-            <div className="flex-1 min-w-0">
-              <p className="text-sm font-medium text-foreground">{label}</p>
-              <p className="text-xs text-muted-foreground">{description}</p>
-            </div>
-            {settings[key] ? (
-              <Eye size={14} className="text-primary flex-shrink-0" />
-            ) : (
-              <EyeOff size={14} className="text-muted-foreground flex-shrink-0" />
-            )}
-          </button>
-        ))}
-      </div>
+          )}
+          {SHARE_KEYS.map(({ key, label, description }) => (
+            <SwitchRow
+              key={key}
+              id={`share-${key}`}
+              label={label}
+              description={description}
+              checked={settings[key]}
+              onCheckedChange={() => handleToggle(key)}
+            />
+          ))}
+        </Panel>
+      </Section>
 
-      {/* Quiet windows */}
-      <div className="pt-4 border-t border-border">
-        <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-3">
-          Quiet Windows
-        </p>
-        <p className="text-xs text-muted-foreground mb-3">
-          Pause your partner&apos;s view on chosen days, regardless of toggles.
-        </p>
+      <Section
+        title="Quiet windows"
+        description={<p>Pause the partner view on the days you choose, whatever is turned on above.</p>}
+      >
+        <Panel>
+          {quietWindows.length > 0 ? (
+            <ul className="divide-y divide-border">
+              {quietWindows.map((qw) => (
+                <li key={qw.id} className="flex items-center justify-between gap-4 py-2">
+                  <span className="text-foreground tabular-nums">{span(qw)}</span>
+                  <Button variant="ghost" onClick={() => handleRemoveQuiet(qw)} aria-label={`Remove quiet window ${span(qw)}`}>
+                    Remove
+                  </Button>
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <p className="py-4 text-sm text-muted-foreground">No quiet windows set.</p>
+          )}
 
-        {quietWindows.length > 0 && (
-          <div className="space-y-2 mb-3">
-            {quietWindows.map((qw) => (
-              <div
-                key={qw.id}
-                className="flex items-center justify-between p-3 rounded-xl bg-muted"
-              >
-                <p className="text-xs text-foreground">
-                  {qw.start_date} &rarr; {qw.end_date}
-                </p>
-                <button
-                  onClick={() => handleRemoveQuiet(qw.id)}
-                  className="text-xs text-muted-foreground hover:text-destructive transition-colors"
-                >
-                  Remove
-                </button>
-              </div>
-            ))}
-          </div>
-        )}
-
-        {showAddQuiet ? (
-          <div className="space-y-2 p-3 rounded-xl border border-border">
-            <div className="flex gap-2">
-              <input
-                type="date"
-                value={quietStart}
-                onChange={(e) => setQuietStart(e.target.value)}
-                className="flex-1 rounded-lg border border-border bg-muted/50 px-3 py-2 text-xs text-foreground focus:outline-none focus:ring-2 focus:ring-primary/30"
-              />
-              <span className="text-xs text-muted-foreground self-center">&rarr;</span>
-              <input
-                type="date"
-                value={quietEnd}
-                onChange={(e) => setQuietEnd(e.target.value)}
-                className="flex-1 rounded-lg border border-border bg-muted/50 px-3 py-2 text-xs text-foreground focus:outline-none focus:ring-2 focus:ring-primary/30"
-              />
-            </div>
-            <div className="flex gap-2">
-              <button
-                onClick={() => setShowAddQuiet(false)}
-                className="flex-1 py-2 rounded-lg text-xs font-medium border border-border hover:bg-muted transition-colors"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={handleAddQuiet}
-                className="flex-1 py-2 rounded-lg text-xs font-medium bg-primary text-primary-foreground hover:opacity-90 transition-opacity"
-              >
-                Add
-              </button>
-            </div>
-          </div>
-        ) : (
-          <button
-            onClick={() => setShowAddQuiet(true)}
-            className="text-xs text-primary hover:underline"
-          >
-            + Add quiet window
-          </button>
-        )}
-      </div>
-
-      {/* Audit log */}
-      <div className="pt-4 border-t border-border">
-        <button
-          onClick={async () => {
-            if (!showAudit) {
-              const entries = await getAuditLog(ownerId);
-              setAuditEntries(entries);
-            }
-            setShowAudit(!showAudit);
-          }}
-          className="text-xs text-primary hover:underline"
-        >
-          {showAudit ? "Hide activity log" : "View activity log"}
-        </button>
-
-        {showAudit && auditEntries.length > 0 && (
-          <div className="mt-3 space-y-1.5 max-h-48 overflow-y-auto">
-            {auditEntries.map((entry) => (
-              <div key={entry.id} className="flex items-center justify-between py-1.5">
-                <div>
-                  <p className="text-xs text-foreground">{formatAction(entry.action)}</p>
-                  {entry.target && (
-                    <p className="text-xs text-muted-foreground">{entry.target}</p>
-                  )}
+          {showAddQuiet ? (
+            <form className="space-y-4 py-4" onSubmit={handleAddQuiet} noValidate>
+              <div className="grid gap-4 sm:grid-cols-2">
+                <div className="space-y-2">
+                  <label htmlFor="quiet-start" className="block text-sm text-foreground">
+                    First day
+                  </label>
+                  <input
+                    id="quiet-start"
+                    type="date"
+                    required
+                    value={quietStart}
+                    onChange={(e) => setQuietStart(e.target.value)}
+                    className={fieldClass}
+                  />
                 </div>
-                <p className="text-xs text-muted-foreground flex-shrink-0 ml-3">
-                  {new Date(entry.created_at).toLocaleDateString("en-US", {
-                    month: "short",
-                    day: "numeric",
-                    hour: "numeric",
-                    minute: "2-digit",
-                  })}
-                </p>
+                <div className="space-y-2">
+                  <label htmlFor="quiet-end" className="block text-sm text-foreground">
+                    Last day
+                  </label>
+                  <input
+                    id="quiet-end"
+                    type="date"
+                    required
+                    min={quietStart || undefined}
+                    value={quietEnd}
+                    onChange={(e) => setQuietEnd(e.target.value)}
+                    aria-invalid={rangeError !== null}
+                    aria-describedby={rangeError ? "quiet-error" : undefined}
+                    className={fieldClass}
+                  />
+                </div>
               </div>
-            ))}
-          </div>
-        )}
+              {rangeError && (
+                <p id="quiet-error" role="alert" className="text-sm text-destructive">
+                  {rangeError}
+                </p>
+              )}
+              <div className="flex flex-wrap justify-end gap-2">
+                <Button variant="ghost" onClick={() => setShowAddQuiet(false)}>
+                  Cancel
+                </Button>
+                <Button type="submit" disabled={rangeError !== null || saving}>
+                  Add quiet window
+                </Button>
+              </div>
+            </form>
+          ) : (
+            <div className="py-4">
+              <Button variant="outline" onClick={() => setShowAddQuiet(true)}>
+                Add quiet window
+              </Button>
+            </div>
+          )}
+        </Panel>
+      </Section>
 
-        {showAudit && auditEntries.length === 0 && (
-          <p className="mt-3 text-xs text-muted-foreground">No activity yet.</p>
-        )}
-      </div>
-    </div>
+      <Section
+        title="Activity log"
+        description={<p>Changes to the partner view and quiet windows on this account, newest first.</p>}
+      >
+        <Panel>
+          <div className="py-4">
+            <Button variant="outline" onClick={toggleAudit} aria-expanded={showAudit} aria-controls="activity-log">
+              {showAudit ? "Hide activity" : "Show activity"}
+            </Button>
+          </div>
+          {showAudit &&
+            (auditEntries.length > 0 ? (
+              <ol id="activity-log" className="max-h-80 divide-y divide-border overflow-y-auto">
+                {auditEntries.map((entry) => (
+                  <li key={entry.id} className="flex items-start justify-between gap-4 py-3">
+                    <div className="min-w-0">
+                      <p className="text-sm font-medium text-foreground">{formatAction(entry.action)}</p>
+                      {entry.target && (
+                        <p className="text-sm text-muted-foreground">
+                          {SHARE_KEYS.find((k) => k.key === entry.target)?.label ?? entry.target}
+                        </p>
+                      )}
+                    </div>
+                    <time dateTime={entry.created_at} className="shrink-0 text-sm text-muted-foreground tabular-nums">
+                      {new Date(entry.created_at).toLocaleDateString("en-US", {
+                        month: "short",
+                        day: "numeric",
+                        hour: "numeric",
+                        minute: "2-digit",
+                      })}
+                    </time>
+                  </li>
+                ))}
+              </ol>
+            ) : (
+              <p id="activity-log" className="py-4 text-sm text-muted-foreground">
+                No activity recorded.
+              </p>
+            ))}
+        </Panel>
+      </Section>
+    </>
   );
 }

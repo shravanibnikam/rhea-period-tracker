@@ -2,7 +2,7 @@
  * Transport — the swappable wire seam (M1.8 / spec Sync ch. §2.1). The
  * SyncEngine is the ONLY caller. SupabaseTransport (M1.9) is the first real
  * implementation; Bluetooth/LAN/WebRTC would be alternate implementations
- * behind this same interface (see lib/transports.ts registry).
+ * behind this same interface.
  */
 
 import type { SyncRecord, SyncScope } from "@/data/envelope";

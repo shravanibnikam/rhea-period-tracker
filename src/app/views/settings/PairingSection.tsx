@@ -1,7 +1,11 @@
-import { useState, useEffect } from "react";
-import { Link, Unlink, Copy, Check } from "lucide-react";
+import { useState, useEffect, useId } from "react";
+import { Copy } from "lucide-react";
+import { toast } from "sonner";
 import type { UserRole } from "@/app/hooks/useAuth";
 import { createInviteCode, redeemInviteCode, getPartnerLink, unpair, isValidInviteCode } from "@/app/lib/pairing";
+import { cn } from "@/app/lib/cn";
+import { Button } from "@/app/components/ui/Button";
+import { Panel, Row, fieldClass } from "./Section";
 
 interface PairingSectionProps {
   userId: string;
@@ -21,17 +25,32 @@ function RedeemForm({
   onChange,
   onRedeem,
   prompt,
+  busy,
 }: {
   code: string;
   onChange: (v: string) => void;
   onRedeem: () => void;
   prompt: string;
+  busy: boolean;
 }) {
+  const id = useId();
   return (
-    <div className="space-y-3">
-      <p className="text-xs text-muted-foreground">{prompt}</p>
-      <div className="flex gap-2">
+    <form
+      className="space-y-2 py-4"
+      onSubmit={(e) => {
+        e.preventDefault();
+        onRedeem();
+      }}
+    >
+      <label htmlFor={id} className="block text-sm text-foreground">
+        Invite code
+      </label>
+      <p id={`${id}-hint`} className="text-sm text-muted-foreground">
+        {prompt}
+      </p>
+      <div className="flex gap-2 pt-1">
         <input
+          id={id}
           type="text"
           value={code}
           onChange={(e) => onChange(e.target.value)}
@@ -40,33 +59,33 @@ function RedeemForm({
           autoCorrect="off"
           autoComplete="off"
           spellCheck={false}
-          aria-label="Invite code"
-          className="flex-1 rounded-xl border border-border bg-muted/50 px-4 py-2.5 text-sm text-foreground font-mono placeholder:text-muted-foreground/50 focus:outline-none focus:ring-2 focus:ring-primary/30"
+          aria-describedby={`${id}-hint`}
+          className={cn(fieldClass, "min-w-0 flex-1 font-mono") /* taste-skill-ignore: an invite code is code */}
         />
-        <button
-          onClick={onRedeem}
-          disabled={!code.trim()}
-          className="px-4 py-2.5 rounded-xl text-sm font-medium bg-primary text-primary-foreground hover:opacity-90 transition-opacity disabled:opacity-50"
-        >
+        <Button type="submit" disabled={!code.trim() || busy}>
           Pair
-        </button>
+        </Button>
       </div>
-    </div>
+    </form>
   );
 }
 
+/** Pairing with a partner: the panel of the Settings "Partner" section. */
 export function PairingSection({ userId, role, onRoleChanged }: PairingSectionProps) {
   const [inviteCode, setInviteCode] = useState<string | null>(null);
   const [partnerLinked, setPartnerLinked] = useState(false);
   const [redeemCode, setRedeemCode] = useState("");
-  const [status, setStatus] = useState<string | null>(null);
-  const [copied, setCopied] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
   const [loading, setLoading] = useState(true);
   const [loadFailed, setLoadFailed] = useState(false);
+  const [attempt, setAttempt] = useState(0);
 
   useEffect(() => {
+    let current = true;
     getPartnerLink(userId)
       .then((link) => {
+        if (!current) return;
         setPartnerLinked(link !== null);
         setLoadFailed(false);
       })
@@ -74,196 +93,178 @@ export function PairingSection({ userId, role, onRoleChanged }: PairingSectionPr
         // Link state unknown (P0-06): offer neither invite nor redeem on a
         // guess — a false "not linked" would invite a second partner.
         console.error("Failed to load partner status:", err);
-        setLoadFailed(true);
+        if (current) setLoadFailed(true);
       })
-      .finally(() => setLoading(false));
-  }, [userId]);
+      .finally(() => {
+        if (current) setLoading(false);
+      });
+    return () => {
+      current = false;
+    };
+  }, [userId, attempt]);
 
-  const showStatus = (msg: string) => {
-    setStatus(msg);
-    setTimeout(() => setStatus(null), 4000);
-  };
-
-  const handleCreateInvite = async () => {
-    const code = await createInviteCode(userId);
-    if (code) {
-      setInviteCode(code);
-    } else {
-      showStatus("Failed to create invite");
+  /** Runs one server action; `busy` disables the buttons meanwhile. */
+  const act = async (action: () => Promise<void>) => {
+    setError(null);
+    setBusy(true);
+    try {
+      await action();
+    } finally {
+      setBusy(false);
     }
   };
+
+  const handleCreateInvite = () =>
+    act(async () => {
+      const code = await createInviteCode(userId);
+      if (code) setInviteCode(code);
+      else setError("Couldn't create an invite code. Check your connection and try again.");
+    });
 
   const handleCopy = async () => {
     if (!inviteCode) return;
-    await navigator.clipboard.writeText(inviteCode);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
-  };
-
-  const handleRedeem = async () => {
-    const code = redeemCode.trim();
-    if (!code) return;
-    // Validate against the real server format before hitting the network — but
-    // NEVER mutate the code (case and internal characters preserved). A
-    // wrong-looking code gets a clear message instead of a confusing rejection.
-    if (!isValidInviteCode(code)) {
-      showStatus("That doesn't look like a valid invite code — paste the full code your partner shared.");
-      return;
-    }
-    const err = await redeemInviteCode(code);
-    if (err) {
-      showStatus(err);
-    } else {
-      showStatus("Paired successfully!");
-      setPartnerLinked(true);
-      onRoleChanged();
+    try {
+      await navigator.clipboard.writeText(inviteCode);
+      toast("Invite code copied");
+    } catch {
+      setError("Couldn't copy the code. Select it and copy it yourself.");
     }
   };
 
-  const handleUnpair = async () => {
-    const err = await unpair(userId);
-    if (err) {
-      showStatus(err);
-    } else {
-      setPartnerLinked(false);
-      showStatus("Unlinked from partner");
-      onRoleChanged();
-    }
-  };
+  const handleRedeem = () =>
+    act(async () => {
+      const code = redeemCode.trim();
+      if (!code) return;
+      // Validate against the real server format before hitting the network — but
+      // NEVER mutate the code (case and internal characters preserved). A
+      // wrong-looking code gets a clear message instead of a confusing rejection.
+      if (!isValidInviteCode(code)) {
+        setError("That doesn't look like a valid invite code — paste the full code your partner shared.");
+        return;
+      }
+      const err = await redeemInviteCode(code);
+      if (err) {
+        setError(err);
+      } else {
+        toast("Paired with your partner");
+        setPartnerLinked(true);
+        onRoleChanged();
+      }
+    });
+
+  const handleUnpair = () =>
+    act(async () => {
+      const err = await unpair(userId);
+      if (err) {
+        setError(err);
+      } else {
+        setPartnerLinked(false);
+        setInviteCode(null);
+        toast("Partner unlinked");
+        onRoleChanged();
+      }
+    });
 
   if (loading) return null;
 
   if (loadFailed) {
     return (
-      <div>
-        <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-3">
-          Partner
-        </p>
-        <p role="status" className="text-sm text-muted-foreground">
-          Couldn't load partner status. Check your connection and reopen Settings.
-        </p>
-      </div>
+      <Panel>
+        <div className="flex flex-col gap-3 py-4 sm:flex-row sm:items-center sm:justify-between sm:gap-6">
+          <p role="status" className="text-sm text-foreground">
+            Couldn't load partner status. Check your connection and try again.
+          </p>
+          <Button
+            variant="outline"
+            onClick={() => {
+              setLoading(true);
+              setAttempt((n) => n + 1);
+            }}
+          >
+            Try again
+          </Button>
+        </div>
+      </Panel>
     );
   }
 
+  const redeem = (prompt: string) => (
+    <RedeemForm
+      code={redeemCode}
+      onChange={(v) => {
+        setRedeemCode(v);
+        setError(null);
+      }}
+      onRedeem={handleRedeem}
+      prompt={prompt}
+      busy={busy}
+    />
+  );
+
   return (
-    <div>
-      <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-3">
-        Partner
-      </p>
+    <Panel>
+      <div>
+        {role === "owner" && !partnerLinked && !inviteCode && (
+          <Row
+            title="Invite a partner"
+            description="Create a one-time code to send to your partner. It works once, for 30 minutes."
+            action={
+              <Button onClick={handleCreateInvite} disabled={busy}>
+                Generate invite code
+              </Button>
+            }
+          />
+        )}
 
-      {status && (
-        <div className="px-4 py-2.5 rounded-xl bg-muted text-sm text-foreground text-center mb-3">
-          {status}
-        </div>
-      )}
-
-      {role === "owner" && !partnerLinked && (
-        <div className="space-y-3">
-          <p className="text-xs text-muted-foreground">
-            Generate an invite code and share it with your partner. They'll use
-            it to link their account to yours.
-          </p>
-
-          {inviteCode ? (
-            <div className="flex items-center gap-2">
-              <div className="flex-1 rounded-xl border-2 border-primary/30 bg-primary/5 px-4 py-3 text-center">
-                <p className="font-mono text-lg font-bold text-foreground tracking-widest">
-                  {inviteCode}
-                </p>
-              </div>
-              <button
-                onClick={handleCopy}
-                className="p-3 rounded-xl border border-border hover:bg-muted transition-colors"
-              >
-                {copied ? (
-                  <Check size={18} className="text-primary" />
-                ) : (
-                  <Copy size={18} className="text-muted-foreground" />
-                )}
-              </button>
-            </div>
-          ) : (
-            <button
-              onClick={handleCreateInvite}
-              className="w-full flex items-center gap-3 p-4 rounded-xl border border-border hover:bg-muted/50 transition-colors text-left"
-            >
-              <Link size={18} className="text-primary flex-shrink-0" />
-              <div>
-                <p className="text-sm font-medium text-foreground">
-                  Generate invite code
-                </p>
-                <p className="text-xs text-muted-foreground">
-                  Create a one-time code for your partner
-                </p>
-              </div>
-            </button>
-          )}
-        </div>
-      )}
-
-      {role === "owner" && partnerLinked && (
-        <div className="space-y-3">
-          <div className="flex items-center gap-3 p-4 rounded-xl bg-primary/5 border border-primary/20">
-            <Link size={18} className="text-primary flex-shrink-0" />
-            <div className="flex-1">
-              <p className="text-sm font-medium text-foreground">
-                Partner linked
-              </p>
-              <p className="text-xs text-muted-foreground">
-                Your partner can see the shared view
-              </p>
-            </div>
-          </div>
-          <button
-            onClick={handleUnpair}
-            className="w-full flex items-center gap-3 p-4 rounded-xl border border-destructive/30 hover:bg-destructive/5 transition-colors text-left"
-          >
-            <Unlink size={18} className="text-destructive flex-shrink-0" />
+        {role === "owner" && !partnerLinked && inviteCode && (
+          <div className="space-y-3 py-4">
             <div>
-              <p className="text-sm font-medium text-destructive">
-                Unlink partner
-              </p>
-              <p className="text-xs text-muted-foreground">
-                Ends their access on the server. Anything already on their
-                device may remain.
+              <p className="font-medium text-foreground">Send this code to your partner</p>
+              <p className="mt-0.5 text-sm text-muted-foreground">
+                They enter it in Rhea on their own account. It works once, and only for 30 minutes after you
+                created it.
               </p>
             </div>
-          </button>
-        </div>
-      )}
-
-      {role === "partner" && !partnerLinked && (
-        <RedeemForm
-          code={redeemCode}
-          onChange={setRedeemCode}
-          onRedeem={handleRedeem}
-          prompt="Enter the invite code your partner shared with you."
-        />
-      )}
-
-      {role === "partner" && partnerLinked && (
-        <div className="flex items-center gap-3 p-4 rounded-xl bg-primary/5 border border-primary/20">
-          <Link size={18} className="text-primary flex-shrink-0" />
-          <div>
-            <p className="text-sm font-medium text-foreground">
-              Connected to partner
-            </p>
-            <p className="text-xs text-muted-foreground">
-              You're seeing their shared cycle view
-            </p>
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+              <p
+                className="min-w-0 flex-1 select-all break-all rounded-xl bg-muted px-4 py-2.5 font-mono text-lg text-foreground" /* taste-skill-ignore: an invite code is code */
+              >
+                {inviteCode}
+              </p>
+              <Button variant="outline" onClick={handleCopy}>
+                <Copy size={16} aria-hidden="true" />
+                Copy code
+              </Button>
+            </div>
           </div>
-        </div>
-      )}
+        )}
 
-      {role === null && (
-        <RedeemForm
-          code={redeemCode}
-          onChange={setRedeemCode}
-          onRedeem={handleRedeem}
-          prompt="Enter an invite code from your partner to link accounts."
-        />
-      )}
-    </div>
+        {role === "owner" && partnerLinked && (
+          <Row
+            title="Partner linked"
+            description="Your partner can open the partner view. Unlinking ends their access on the server; anything already on their device may remain."
+            action={
+              <Button variant="destructive-outline" onClick={handleUnpair} disabled={busy}>
+                Unlink partner
+              </Button>
+            }
+          />
+        )}
+
+        {role === "partner" && !partnerLinked && redeem("Enter the invite code your partner shared with you.")}
+
+        {role === "partner" && partnerLinked && (
+          <Row title="Linked to your partner" description="You see the partner view they share with you." />
+        )}
+
+        {role === null && redeem("Enter an invite code from your partner to link accounts.")}
+
+        {error && (
+          <p role="alert" className="pb-4 text-sm text-destructive">
+            {error}
+          </p>
+        )}
+      </div>
+    </Panel>
   );
 }
