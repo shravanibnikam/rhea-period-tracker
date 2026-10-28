@@ -1,5 +1,6 @@
 import { useState, useEffect, type FormEvent } from "react";
 import { Moon } from "lucide-react";
+import { toast } from "sonner";
 import { logAudit, getAuditLog, formatAction, type AuditEntry } from "@/app/lib/audit";
 import {
   SHARE_KEYS,
@@ -17,7 +18,7 @@ import { parseDate, toDateKey } from "@/domain/dates";
 import { fmt } from "@/app/lib/format";
 import { Button } from "@/app/components/ui/Button";
 import { Switch } from "@/app/components/ui/controls";
-import { Section, Panel, fieldClass, formatDay } from "./Section";
+import { Section, Panel, RetryRow, fieldClass, formatDay } from "./Section";
 
 interface SharingControlsProps {
   ownerId: string;
@@ -34,6 +35,12 @@ const span = ({ start_date: start, end_date: end }: Pick<QuietWindow, "start_dat
 const targetText = (target: string) => {
   const range = /^(\d{4}-\d{2}-\d{2}) to (\d{4}-\d{2}-\d{2})$/.exec(target);
   return SHARE_KEYS.find((k) => k.key === target)?.label ?? (range ? span({ start_date: range[1], end_date: range[2] }) : target);
+};
+
+/** A change the server didn't take: logged, and said out loud. */
+const saveFailed = (err: unknown) => {
+  console.error("Failed to save a sharing change:", err);
+  toast.error("Couldn't save that change. Check your connection and try again.");
 };
 
 /** A switch with its title as the accessible name; the whole row toggles it. */
@@ -80,22 +87,46 @@ export function SharingControls({ ownerId }: SharingControlsProps) {
   const [quietEnd, setQuietEnd] = useState(() => toDateKey(new Date()));
   const [saving, setSaving] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [loadFailed, setLoadFailed] = useState(false);
+  const [attempt, setAttempt] = useState(0);
   const [auditEntries, setAuditEntries] = useState<AuditEntry[]>([]);
   const [showAudit, setShowAudit] = useState(false);
 
   useEffect(() => {
-    Promise.all([getShareSettings(ownerId), getQuietWindows(ownerId)]).then(([s, qw]) => {
-      setSettings(s);
-      setQuietWindows(qw);
-      setLoading(false);
-    });
-  }, [ownerId]);
+    let current = true;
+    Promise.all([getShareSettings(ownerId), getQuietWindows(ownerId)])
+      .then(([s, qw]) => {
+        if (!current) return;
+        setSettings(s);
+        setQuietWindows(qw);
+        setLoadFailed(false);
+      })
+      .catch((err) => {
+        // Unknown choices: show none rather than all-off switches.
+        console.error("Failed to load sharing settings:", err);
+        if (current) setLoadFailed(true);
+      })
+      .finally(() => {
+        if (current) setLoading(false);
+      });
+    return () => {
+      current = false;
+    };
+  }, [ownerId, attempt]);
 
   const handleToggle = async (key: ShareKey) => {
     if (!settings) return;
     const newValue = !settings[key];
-    setSettings({ ...settings, [key]: newValue });
-    await setShareSetting(ownerId, key, newValue);
+    const showValue = (value: boolean) => setSettings((s) => s && { ...s, [key]: value });
+    showValue(newValue);
+    try {
+      await setShareSetting(ownerId, key, newValue);
+    } catch (err) {
+      // The switch goes back: it never shows a choice the server doesn't have.
+      showValue(!newValue);
+      saveFailed(err);
+      return;
+    }
     await logAudit(ownerId, newValue ? "share.toggle_on" : "share.toggle_off", key);
   };
 
@@ -116,13 +147,20 @@ export function SharingControls({ ownerId }: SharingControlsProps) {
       await logAudit(ownerId, "quiet.added", `${quietStart} to ${quietEnd}`);
       setQuietWindows(await getQuietWindows(ownerId));
       setShowAddQuiet(false);
+    } catch (err) {
+      saveFailed(err);
     } finally {
       setSaving(false);
     }
   };
 
   const handleRemoveQuiet = async (qw: QuietWindow) => {
-    await removeQuietWindow(qw.id);
+    try {
+      await removeQuietWindow(qw.id);
+    } catch (err) {
+      saveFailed(err);
+      return;
+    }
     await logAudit(ownerId, "quiet.removed", `${qw.start_date} to ${qw.end_date}`);
     setQuietWindows((prev) => prev.filter((w) => w.id !== qw.id));
   };
@@ -132,7 +170,27 @@ export function SharingControls({ ownerId }: SharingControlsProps) {
     setShowAudit(!showAudit);
   };
 
-  if (loading || !settings) return null;
+  if (loading || loadFailed || !settings) {
+    return (
+      <Section title="Partner view">
+        <Panel>
+          {loading ? (
+            <p role="status" className="py-4 text-sm text-muted-foreground">
+              Loading your sharing choices…
+            </p>
+          ) : (
+            <RetryRow
+              message="Couldn't load your sharing choices. Check your connection and try again."
+              onRetry={() => {
+                setLoading(true);
+                setAttempt((n) => n + 1);
+              }}
+            />
+          )}
+        </Panel>
+      </Section>
+    );
+  }
 
   const currentlyQuiet = isInQuietWindow(quietWindows);
 

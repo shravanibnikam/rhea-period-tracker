@@ -61,10 +61,14 @@ export async function getShareSettings(ownerId: string): Promise<ShareSettings> 
   // Ensure defaults exist
   await supabase.rpc("ensure_share_settings", { uid: ownerId });
 
-  const { data } = await supabase
+  const { data, error } = await supabase
     .from("share_settings")
     .select("share_key, enabled")
     .eq("owner_id", ownerId);
+  // Returned errors reject (as in pairing.ts): all-off defaults in place of a
+  // failed read would misreport what is shared, and a failed write must not
+  // read as saved.
+  if (error) throw error;
 
   const settings = { ...DEFAULT_SETTINGS };
   if (data) {
@@ -86,12 +90,13 @@ export async function setShareSetting(
 ): Promise<void> {
   if (!supabase) return;
 
-  await supabase
+  const { error } = await supabase
     .from("share_settings")
     .upsert(
       { owner_id: ownerId, share_key: key, enabled },
       { onConflict: "owner_id,share_key" }
     );
+  if (error) throw error;
 }
 
 // ─── Quiet windows ──────────────────────────────────────────────────────────
@@ -106,11 +111,12 @@ export interface QuietWindow {
 export async function getQuietWindows(ownerId: string): Promise<QuietWindow[]> {
   if (!supabase) return [];
 
-  const { data } = await supabase
+  const { data, error } = await supabase
     .from("quiet_windows")
     .select("*")
     .eq("owner_id", ownerId)
     .order("start_date", { ascending: false });
+  if (error) throw error;
 
   return (data as QuietWindow[]) ?? [];
 }
@@ -122,16 +128,18 @@ export async function addQuietWindow(
 ): Promise<void> {
   if (!supabase) return;
 
-  await supabase.from("quiet_windows").insert({
+  const { error } = await supabase.from("quiet_windows").insert({
     owner_id: ownerId,
     start_date: startDate,
     end_date: endDate,
   });
+  if (error) throw error;
 }
 
 export async function removeQuietWindow(id: string): Promise<void> {
   if (!supabase) return;
-  await supabase.from("quiet_windows").delete().eq("id", id);
+  const { error } = await supabase.from("quiet_windows").delete().eq("id", id);
+  if (error) throw error;
 }
 
 export function isInQuietWindow(

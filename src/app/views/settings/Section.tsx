@@ -1,5 +1,6 @@
 import { useId, type ReactNode } from "react";
 import { cn } from "@/app/lib/cn";
+import { Button } from "@/app/components/ui/Button";
 import { fmt } from "@/app/lib/format";
 import { parseDate } from "@/domain/dates";
 
@@ -59,6 +60,20 @@ export function Row({
         {description ? <p className="mt-0.5 text-sm text-muted-foreground">{description}</p> : null}
       </div>
       {action ? <div className="flex shrink-0 flex-wrap gap-2">{action}</div> : null}
+    </div>
+  );
+}
+
+/** A load that failed, in a panel: what went wrong, and a way to try again. */
+export function RetryRow({ message, onRetry }: { message: string; onRetry: () => void }) {
+  return (
+    <div className="flex flex-col gap-3 py-4 sm:flex-row sm:items-center sm:justify-between sm:gap-6">
+      <p role="status" className="text-sm text-foreground">
+        {message}
+      </p>
+      <Button variant="outline" onClick={onRetry}>
+        Try again
+      </Button>
     </div>
   );
 }

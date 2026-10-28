@@ -5,7 +5,7 @@ import type { UserRole } from "@/app/hooks/useAuth";
 import { createInviteCode, redeemInviteCode, getPartnerLink, unpair, isValidInviteCode } from "@/app/lib/pairing";
 import { cn } from "@/app/lib/cn";
 import { Button } from "@/app/components/ui/Button";
-import { Panel, Row, fieldClass } from "./Section";
+import { Panel, RetryRow, Row, fieldClass } from "./Section";
 
 interface PairingSectionProps {
   userId: string;
@@ -168,25 +168,22 @@ export function PairingSection({ userId, role, onRoleChanged }: PairingSectionPr
       }
     });
 
-  if (loading) return null;
-
-  if (loadFailed) {
+  if (loading || loadFailed) {
     return (
       <Panel>
-        <div className="flex flex-col gap-3 py-4 sm:flex-row sm:items-center sm:justify-between sm:gap-6">
-          <p role="status" className="text-sm text-foreground">
-            Couldn't load partner status. Check your connection and try again.
+        {loading ? (
+          <p role="status" className="py-4 text-sm text-muted-foreground">
+            Loading partner status…
           </p>
-          <Button
-            variant="outline"
-            onClick={() => {
+        ) : (
+          <RetryRow
+            message="Couldn't load partner status. Check your connection and try again."
+            onRetry={() => {
               setLoading(true);
               setAttempt((n) => n + 1);
             }}
-          >
-            Try again
-          </Button>
-        </div>
+          />
+        )}
       </Panel>
     );
   }
