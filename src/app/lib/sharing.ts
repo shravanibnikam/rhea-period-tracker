@@ -1,5 +1,4 @@
 import { supabase } from "@/app/lib/supabase";
-import { flags } from "@/app/lib/flags";
 import { toDateKey } from "@/domain/dates";
 
 export type ShareKey =
@@ -8,19 +7,18 @@ export type ShareKey =
   | "calendar_view"
   | "mood_signal"
   | "symptom_details"
-  | "care_nudges"
-  | "shared_notes";
+  | "care_nudges";
 
 export const SHARE_KEYS: { key: ShareKey; label: string; description: string }[] = [
   {
     key: "cycle_headsup",
     label: "Cycle heads-up",
-    description: "Partner sees \"Period likely in ~N days\"",
+    description: "Partner sees when your next periods are likely to start",
   },
   {
     key: "todays_phase",
     label: "Today's phase",
-    description: "A soft label like \"luteal — may be lower energy\"",
+    description: "Which phase you're in, with its usual energy and mood",
   },
   {
     key: "calendar_view",
@@ -29,8 +27,8 @@ export const SHARE_KEYS: { key: ShareKey; label: string; description: string }[]
   },
   {
     key: "mood_signal",
-    label: "Mood signal",
-    description: "An optional flag: \"rough day\" or \"good day\"",
+    label: "Today's mood",
+    description: "The mood you've logged today, like \"Calm\" or \"Irritable\"",
   },
   {
     key: "symptom_details",
@@ -40,12 +38,7 @@ export const SHARE_KEYS: { key: ShareKey; label: string; description: string }[]
   {
     key: "care_nudges",
     label: "Care nudges",
-    description: "Gentle suggestions like \"she may want space\"",
-  },
-  {
-    key: "shared_notes",
-    label: "Shared notes",
-    description: "A small two-way space for messages",
+    description: "Ideas for how your partner can help in this phase",
   },
 ];
 
@@ -58,7 +51,6 @@ const DEFAULT_SETTINGS: ShareSettings = {
   mood_signal: false,
   symptom_details: false,
   care_nudges: false,
-  shared_notes: false,
 };
 
 // ─── Load share settings ─────────────────────────────────────────────────────
@@ -100,44 +92,6 @@ export async function setShareSetting(
       { owner_id: ownerId, share_key: key, enabled },
       { onConflict: "owner_id,share_key" }
     );
-}
-
-// ─── Shared notes ────────────────────────────────────────────────────────────
-
-export interface SharedNote {
-  id: string;
-  owner_id: string;
-  author_id: string;
-  content: string;
-  created_at: string;
-}
-
-export async function getSharedNotes(ownerId: string): Promise<SharedNote[]> {
-  if (!flags.notesSync) return []; // plaintext notes disabled until E2EE (M2.10)
-  if (!supabase) return [];
-
-  const { data } = await supabase
-    .from("shared_notes")
-    .select("*")
-    .eq("owner_id", ownerId)
-    .order("created_at", { ascending: true });
-
-  return (data as SharedNote[]) ?? [];
-}
-
-export async function sendSharedNote(
-  ownerId: string,
-  authorId: string,
-  content: string
-): Promise<void> {
-  if (!flags.notesSync) return; // do not send plaintext note content off-device
-  if (!supabase) return;
-
-  await supabase.from("shared_notes").insert({
-    owner_id: ownerId,
-    author_id: authorId,
-    content,
-  });
 }
 
 // ─── Quiet windows ──────────────────────────────────────────────────────────

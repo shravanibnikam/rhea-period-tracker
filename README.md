@@ -111,7 +111,7 @@ Rhea's **goal** is that detailed health data never reaches a server in readable 
 - 🔴 **Cloud health data is currently PLAINTEXT.** When sync is enabled, owner `daily_logs` (flow, symptoms, mood, energy, notes, medication, intimacy) are stored **unencrypted** in Supabase. The "zero-knowledge server" model is designed (see the technical spec) but **not deployed**. <!-- copy-guard: allow zero-knowledge -->
 - 🔴 **Partner sharing reads the owner's plaintext rows** via RLS (legacy path); share toggles/quiet windows are currently presentation-level, not a hard data boundary.
 - 🟢 Invite secrets are stored hashed (sha256), single-use, 30-minute TTL.
-- 🟢 Shared-notes sync is **disabled** (`flags.notesSync=false`) — shared-note messages stay on-device. Daily-log notes still sync in plaintext when owner sync is enabled.
+- 🟢 Shared notes are removed from the app: no shared-note messages are sent or shown. Daily-log notes, medication and intimacy still sync in plaintext when owner sync is enabled.
 - 🟡 The crypto layer has had no external security review.
 
 **Bottom line:** fine for your own data and trusted alpha/closed-beta testers who understand the above; **not yet appropriate as a public product handling other people's reproductive-health data.**

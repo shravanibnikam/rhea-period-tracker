@@ -17,7 +17,6 @@ vi.mock("@/app/lib/sharing", async (importOriginal) => {
     ...actual,
     getShareSettings: vi.fn(),
     getQuietWindows: vi.fn().mockResolvedValue([]),
-    getSharedNotes: vi.fn().mockResolvedValue([]),
   };
 });
 
@@ -47,7 +46,6 @@ const ALL_OFF: ShareSettings = {
   mood_signal: false,
   symptom_details: false,
   care_nudges: false,
-  shared_notes: false,
 };
 
 function settingsWith(...on: ShareKey[]): ShareSettings {
@@ -63,16 +61,16 @@ const LOGS: DailyLog[] = [
   { date: toDateKey(TODAY), flow: "none", symptoms: ["Cramps", "Fatigue"], mood: null, energy: null, notes: "private thought" },
 ];
 
-function renderPartner(settings: ShareSettings) {
+function renderPartner(settings: ShareSettings, logs: DailyLog[] = LOGS) {
   vi.mocked(getShareSettings).mockResolvedValue(settings);
-  const state = deriveCycleState(LOGS, null, TODAY);
+  const state = deriveCycleState(logs, null, TODAY);
   return render(
     <PartnerView
       phaseData={PHASES[state.phase]}
       phase={state.phase}
       state={state}
       today={TODAY}
-      logs={LOGS}
+      logs={logs}
       ownerId="owner-1"
       currentUserId="partner-1"
     />
@@ -129,6 +127,32 @@ describe("partner calendar + symptom gating", () => {
     await screen.findByText(/Sharing paused/i);
     expect(screen.queryByText(/Her Cycle Calendar/i)).toBeNull();
     expect(screen.queryByText(/What She's Feeling/i)).toBeNull();
+  });
+
+  it("mood_signal shows the mood she logged today, labelled; without it, only the phase's usual mood", async () => {
+    const logs = LOGS.map((l) => (l.date === toDateKey(TODAY) ? { ...l, mood: "Irritable" } : l));
+    renderPartner(settingsWith("mood_signal"), logs);
+    expect(await screen.findByText("Irritable")).toBeTruthy();
+    expect(screen.getByText("Logged by her")).toBeTruthy();
+    cleanup();
+
+    renderPartner(settingsWith("mood_signal")); // nothing logged today
+    expect(await screen.findByText("No mood logged today.")).toBeTruthy();
+    cleanup();
+
+    renderPartner(settingsWith("todays_phase"), logs);
+    expect(await screen.findByText("Usual mood in this phase")).toBeTruthy();
+    expect(screen.queryByText("Irritable")).toBeNull();
+  });
+
+  it("shows the cycle ring only with both todays_phase and cycle_headsup (its position reveals the due date)", async () => {
+    renderPartner(settingsWith("todays_phase"));
+    await screen.findByText(/What's Happening in Her Body/i);
+    expect(screen.queryByRole("img", { name: /Cycle day/i })).toBeNull();
+    cleanup();
+
+    renderPartner(settingsWith("todays_phase", "cycle_headsup"));
+    expect(await screen.findByRole("img", { name: /Cycle day/i })).toBeTruthy();
   });
 
   it("falls back to 'nothing shared' when every key is off", async () => {

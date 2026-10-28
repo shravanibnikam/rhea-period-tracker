@@ -1,19 +1,29 @@
-import { useState } from "react";
-import { Moon, Heart } from "lucide-react";
+import { useState, type FormEvent } from "react";
+import { ChevronLeft, ChevronRight } from "lucide-react";
 import { redeemInviteCode, isValidInviteCode } from "@/app/lib/pairing";
+import { Button } from "@/app/components/ui/Button";
+import { cn } from "@/app/lib/cn";
+import { PrivacyPolicy } from "@/app/views/settings/PrivacyPolicy";
+import { AUTH_INPUT, AUTH_LINK, AUTH_MARK, AUTH_SCREEN, AUTH_TITLE } from "@/app/views/auth/AuthScreen";
 
 interface RoleSelectProps {
   onChooseOwner: () => void;
   onPaired: () => void;
 }
 
+// One tile per person, each in its own hue: hers the brand (menstrual) tint, the partner's blue.
+const CHOICE =
+  "flex min-h-[5.5rem] w-full items-center gap-4 rounded-2xl px-5 py-4 text-left transition-[box-shadow,transform] duration-150 hover:ring-2 hover:ring-current/25 active:scale-[0.99]";
+
 export function RoleSelect({ onChooseOwner, onPaired }: RoleSelectProps) {
   const [mode, setMode] = useState<"choose" | "invite">("choose");
   const [code, setCode] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const [showPolicy, setShowPolicy] = useState(false);
 
-  const handleRedeem = async () => {
+  const handleRedeem = async (e: FormEvent) => {
+    e.preventDefault();
     const trimmed = code.trim();
     if (!trimmed) return;
     // The secret is a case-sensitive base64url string — validate against the
@@ -35,122 +45,99 @@ export function RoleSelect({ onChooseOwner, onPaired }: RoleSelectProps) {
     }
   };
 
-  if (mode === "invite") {
-    return (
-      <div className="min-h-screen bg-background font-sans flex items-center justify-center px-4">
-        <div className="w-full max-w-sm">
-          <div className="text-center mb-8">
-            <div className="w-14 h-14 rounded-full bg-primary/10 flex items-center justify-center mx-auto mb-4">
-              <Heart size={28} className="text-primary" />
-            </div>
-            <h1 className="font-serif text-2xl font-bold text-foreground mb-2">
-              Join as partner
-            </h1>
-            <p className="text-sm text-muted-foreground">
-              Enter the invite code your partner shared with you
-            </p>
-          </div>
+  const privacy = (
+    <p className="mt-8 text-sm text-muted-foreground">
+      Your logs sync to your account over TLS. Synced data is not end-to-end encrypted.{" "}
+      <button type="button" onClick={() => setShowPolicy(true)} className={AUTH_LINK}>
+        Privacy policy
+      </button>
+    </p>
+  );
 
-          <div className="space-y-4">
-            <input
-              type="text"
-              value={code}
-              onChange={(e) => setCode(e.target.value)}
-              placeholder="Paste invite code"
-              autoFocus
-              autoCapitalize="none"
-              autoCorrect="off"
-              autoComplete="off"
-              spellCheck={false}
-              aria-label="Invite code"
-              className="w-full rounded-xl border border-border bg-muted/50 px-4 py-4 text-base text-foreground font-mono placeholder:text-muted-foreground/40 focus:outline-none focus:ring-2 focus:ring-primary/30"
-            />
+  return (
+    <main className={AUTH_SCREEN}>
+      {mode === "invite" ? (
+        <div className="w-full max-w-sm">
+          <Button
+            variant="ghost"
+            className="-ml-4 mb-4"
+            onClick={() => {
+              setMode("choose");
+              setError(null);
+              setCode("");
+            }}
+          >
+            <ChevronLeft size={18} aria-hidden="true" />
+            Back
+          </Button>
+          <img src={AUTH_MARK} alt="Rhea" className="size-12" />
+          <h1 className={AUTH_TITLE}>Join as a partner</h1>
+          <p className="mt-3 text-base text-muted-foreground">
+            Paste the invite code your partner shared with you. Codes expire 30 minutes after they are made.
+          </p>
+
+          <form onSubmit={handleRedeem} className="mt-8 space-y-4 rounded-2xl border border-border bg-card p-5 sm:p-6">
+            <div>
+              <label htmlFor="invite-code" className="text-sm font-medium text-foreground">
+                Invite code
+              </label>
+              <input
+                id="invite-code"
+                type="text"
+                value={code}
+                onChange={(e) => setCode(e.target.value)}
+                placeholder="Paste invite code"
+                autoFocus
+                autoCapitalize="none"
+                autoCorrect="off"
+                autoComplete="off"
+                spellCheck={false}
+                className={`mt-2 font-mono ${AUTH_INPUT}`} /* taste-skill-ignore: invite codes are code (docs/DESIGN.md) */
+              />
+            </div>
 
             {error && (
-              <p className="text-xs text-destructive bg-destructive/10 rounded-xl px-4 py-2.5 text-center">
+              <p role="alert" className="text-sm text-destructive">
                 {error}
               </p>
             )}
 
-            <button
-              onClick={handleRedeem}
-              disabled={submitting || !code.trim()}
-              className="w-full py-3 rounded-xl font-medium text-sm text-white bg-primary hover:opacity-90 transition-opacity disabled:opacity-50"
-            >
-              {submitting ? "Pairing..." : "Connect"}
+            <Button type="submit" size="lg" className="w-full" disabled={submitting || !code.trim()}>
+              {submitting ? "Connecting…" : "Connect"}
+            </Button>
+          </form>
+          {privacy}
+        </div>
+      ) : (
+        <div className="w-full max-w-md">
+          <img src={AUTH_MARK} alt="Rhea" className="size-12" />
+          <h1 className={AUTH_TITLE}>How will you use the app?</h1>
+
+          <div className="mt-8 grid gap-3">
+            <button type="button" onClick={onChooseOwner} className={cn(CHOICE, "bg-accent text-accent-foreground")}>
+              <span className="min-w-0 flex-1">
+                <span className="block text-base font-semibold">I&apos;m tracking my cycle</span>
+                <span className="mt-1 block text-sm">Log periods, symptoms, mood and energy</span>
+              </span>
+              <ChevronRight size={20} aria-hidden="true" className="shrink-0" />
             </button>
 
             <button
-              onClick={() => {
-                setMode("choose");
-                setError(null);
-                setCode("");
-              }}
-              className="w-full text-center text-xs text-muted-foreground hover:text-foreground transition-colors"
+              type="button"
+              onClick={() => setMode("invite")}
+              className={cn(CHOICE, "bg-(--partner-tint) text-(color:--partner-ink)")}
             >
-              Back
+              <span className="min-w-0 flex-1">
+                <span className="block text-base font-semibold">I&apos;m joining as a partner</span>
+                <span className="mt-1 block text-sm">I have an invite code from my partner</span>
+              </span>
+              <ChevronRight size={20} aria-hidden="true" className="shrink-0" />
             </button>
           </div>
+          {privacy}
         </div>
-      </div>
-    );
-  }
-
-  return (
-    <div className="min-h-screen bg-background font-sans flex items-center justify-center px-4">
-      <div className="w-full max-w-sm">
-        <div className="text-center mb-8">
-          <img src={`${import.meta.env.BASE_URL}rhea-mark.svg`} alt="Rhea" className="w-14 h-14 mx-auto mb-4" />
-          <h1 className="font-serif text-2xl font-bold text-foreground mb-2">
-            Welcome to Rhea
-          </h1>
-          <p className="text-sm text-muted-foreground">
-            How will you use the app?
-          </p>
-        </div>
-
-        <div className="space-y-3">
-          <button
-            onClick={onChooseOwner}
-            className="w-full flex items-center gap-4 p-5 rounded-2xl border-2 border-border hover:border-primary/40 transition-all text-left"
-          >
-            <div className="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0">
-              <Moon size={24} className="text-primary" />
-            </div>
-            <div>
-              <p className="text-base font-semibold text-foreground">
-                I&apos;m tracking my cycle
-              </p>
-              <p className="text-xs text-muted-foreground mt-0.5">
-                Log periods, symptoms, mood, and energy
-              </p>
-            </div>
-          </button>
-
-          <button
-            onClick={() => setMode("invite")}
-            className="w-full flex items-center gap-4 p-5 rounded-2xl border-2 border-border hover:border-primary/40 transition-all text-left"
-          >
-            <div className="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0">
-              <Heart size={24} className="text-primary" />
-            </div>
-            <div>
-              <p className="text-base font-semibold text-foreground">
-                I&apos;m joining as a partner
-              </p>
-              <p className="text-xs text-muted-foreground mt-0.5">
-                I have an invite code from my partner
-              </p>
-            </div>
-          </button>
-        </div>
-
-        <p className="text-xs text-center text-muted-foreground mt-8">
-          Synced data is not yet end-to-end encrypted.
-          <br />
-          See the privacy policy in Settings for details.
-        </p>
-      </div>
-    </div>
+      )}
+      {showPolicy && <PrivacyPolicy onClose={() => setShowPolicy(false)} />}
+    </main>
   );
 }

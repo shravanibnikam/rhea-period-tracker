@@ -1,31 +1,20 @@
-import { useState, useEffect } from "react";
-import { Heart, Moon } from "lucide-react";
+import { useState, useEffect, type ReactNode } from "react";
 import type { PhaseData, PhaseName, CycleState, DailyLog } from "@/domain/types";
-import {
-  PHASES,
-  PHASE_ORDER,
-  ENERGY_LABELS,
-  getPhaseLengths,
-  getPhaseRangeLabel,
-  anchorsFrom,
-} from "@/domain/phases";
+import { PHASES, PHASE_ORDER, ENERGY_LABELS, getPhaseRangeLabel, anchorsFrom } from "@/domain/phases";
+import { diffDays, toDateKey } from "@/domain/dates";
 import { fmt } from "@/app/lib/format";
-import { diffDays } from "@/domain/dates";
-import { EnergyBar } from "@/app/components/shared/EnergyBar";
+import { cn } from "@/app/lib/cn";
+import { CycleRing } from "@/app/components/shared/CycleRing";
 import { CalendarTab } from "@/app/views/tracker/CalendarTab";
 import { PartnerSymptoms } from "@/app/views/partner/PartnerSymptoms";
 import {
   getShareSettings,
   getQuietWindows,
-  getSharedNotes,
-  sendSharedNote,
   isInQuietWindow,
+  type ShareKey,
   type ShareSettings,
   type QuietWindow,
-  type SharedNote,
 } from "@/app/lib/sharing";
-import { supabase } from "@/app/lib/supabase";
-import { flags } from "@/app/lib/flags";
 
 interface PartnerViewProps {
   phaseData: PhaseData;
@@ -36,6 +25,39 @@ interface PartnerViewProps {
   logs: DailyLog[];
   ownerId?: string | null;
   currentUserId?: string | null;
+}
+
+// Cards pair up from lg; a card alone in its row takes both columns.
+const CARD = "rounded-2xl border border-border bg-card p-5 sm:p-6 lg:only:col-span-2";
+const ROW = "grid gap-4 lg:grid-cols-2 empty:hidden";
+const H2 = "font-display text-lg font-bold text-foreground";
+
+/** A predicted start's distance from today: "In 7 days", "Tomorrow", "3 days ago". */
+function fromToday(days: number): string {
+  if (days === 0) return "Today";
+  if (days === 1) return "Tomorrow";
+  if (days > 1) return `In ${days} days`;
+  return days === -1 ? "1 day ago" : `${-days} days ago`;
+}
+
+/** Five energy marks in the nearest `[data-phase]` colour. */
+function Energy({ level }: { level: number }) {
+  return (
+    <span role="img" aria-label={`Energy ${level} of 5`} className="flex w-24 gap-1">
+      {[1, 2, 3, 4, 5].map((i) => (
+        <span key={i} className={cn("h-1.5 flex-1 rounded-full", i <= level ? "bg-phase" : "bg-phase/20")} />
+      ))}
+    </span>
+  );
+}
+
+function Notice({ title, children }: { title: string; children: ReactNode }) {
+  return (
+    <section className={CARD}>
+      <h2 className={H2}>{title}</h2>
+      <p className="mt-2 text-base text-muted-foreground">{children}</p>
+    </section>
+  );
 }
 
 export function PartnerView({
@@ -49,435 +71,255 @@ export function PartnerView({
 }: PartnerViewProps) {
   const [settings, setSettings] = useState<ShareSettings | null>(null);
   const [quietWindows, setQuietWindows] = useState<QuietWindow[]>([]);
-  const [notes, setNotes] = useState<SharedNote[]>([]);
-  const [noteInput, setNoteInput] = useState("");
   const [loading, setLoading] = useState(true);
-  // Same oracle as the owner's hero bar (M1.3) — the segment widths can no
-  // longer disagree between the two views.
+  // Same oracle as the owner's views (M1.3): phase ranges cannot disagree.
   const anchors = anchorsFrom(state.avgCycleLength, state.avgPeriodLength);
-  const phaseLengths = getPhaseLengths(anchors);
 
-  // Load share settings + quiet windows
   useEffect(() => {
     if (!ownerId) {
       setLoading(false);
       return;
     }
-    Promise.all([
-      getShareSettings(ownerId),
-      getQuietWindows(ownerId),
-      getSharedNotes(ownerId),
-    ]).then(([s, qw, n]) => {
+    Promise.all([getShareSettings(ownerId), getQuietWindows(ownerId)]).then(([s, qw]) => {
       setSettings(s);
       setQuietWindows(qw);
-      setNotes(n);
       setLoading(false);
     });
   }, [ownerId]);
 
-  // Realtime subscription for shared notes
-  useEffect(() => {
-    if (!flags.notesSync || !supabase || !ownerId) return;
-    const client = supabase;
-    const channel = client
-      .channel("shared-notes")
-      .on(
-        "postgres_changes",
-        { event: "INSERT", schema: "public", table: "shared_notes", filter: `owner_id=eq.${ownerId}` },
-        (payload) => {
-          setNotes((prev) => [...prev, payload.new as SharedNote]);
-        }
-      )
-      .subscribe();
-    return () => { client.removeChannel(channel); };
-  }, [ownerId]);
-
-  const handleSendNote = async () => {
-    if (!noteInput.trim() || !ownerId || !currentUserId) return;
-    await sendSharedNote(ownerId, currentUserId, noteInput.trim());
-    setNoteInput("");
-  };
-
   const isQuiet = isInQuietWindow(quietWindows);
-
   // When no Supabase / no owner, show everything (local demo mode)
   const isGated = ownerId != null && settings != null;
-
+  const on = (key: ShareKey) => ownerId == null || settings == null || (!isQuiet && settings[key]);
   const show = {
-    phase: !isGated || (!isQuiet && settings!.todays_phase),
-    headsup: !isGated || (!isQuiet && settings!.cycle_headsup),
-    mood: !isGated || (!isQuiet && settings!.mood_signal),
-    tips: !isGated || (!isQuiet && settings!.care_nudges),
-    notes: !isGated || (!isQuiet && settings!.shared_notes),
-    calendar: !isGated || (!isQuiet && settings!.calendar_view),
-    symptoms: !isGated || (!isQuiet && settings!.symptom_details),
+    phase: on("todays_phase"),
+    headsup: on("cycle_headsup"),
+    mood: on("mood_signal"),
+    tips: on("care_nudges"),
+    calendar: on("calendar_view"),
+    symptoms: on("symptom_details"),
   };
+  const nothingShared = isGated && Object.values(show).every((visible) => !visible);
 
-  const nothingShared =
-    isGated && Object.values(show).every((visible) => !visible);
+  // The owner previewing her own partner view (App passes her id as both).
+  const preview = ownerId != null && ownerId === currentUserId;
+  // Without a logged period the phase is a default, not hers: show none.
+  const hasCycle = state.currentCycleStart !== null;
+  const todayMood = logs.find((l) => l.date === toDateKey(today))?.mood ?? null;
 
+  let body: ReactNode;
   if (loading) {
-    return (
-      <div className="flex items-center justify-center py-20">
-        <p className="text-sm text-muted-foreground">Loading partner view...</p>
-      </div>
+    body = (
+      <p role="status" className="text-sm text-muted-foreground">
+        Loading what she shares…
+      </p>
     );
-  }
-
-  // Quiet window active
-  if (isGated && isQuiet) {
-    return (
-      <div className="space-y-5">
-        <div className="rounded-3xl p-8 sm:p-10 border text-center bg-card border-border">
-          <Moon size={40} className="mx-auto mb-4 text-muted-foreground" />
-          <h1 className="font-serif text-2xl font-bold text-foreground mb-2">
-            Sharing paused
-          </h1>
-          <p className="text-sm text-muted-foreground max-w-xs mx-auto">
-            She&apos;s taken a quiet moment. Sharing will resume when she&apos;s ready.
-          </p>
-        </div>
-      </div>
+  } else if (isGated && isQuiet) {
+    body = (
+      <Notice title="Sharing paused">
+        She has paused sharing for a while. Her cycle details show here again when the pause ends.
+      </Notice>
     );
-  }
+  } else if (nothingShared) {
+    body = (
+      <Notice title="Nothing shared yet">
+        {preview
+          ? "Turn on a sharing toggle in Settings and it shows here."
+          : "She hasn't turned on any sharing. When she does, it shows here."}
+      </Notice>
+    );
+  } else {
+    body = (
+      <div className="flex flex-col gap-4">
+        {(show.phase || show.headsup) && !hasCycle && (
+          <Notice title="No period logged">Her phase and predictions show here after she logs a period.</Notice>
+        )}
 
-  // Nothing shared
-  if (nothingShared) {
-    return (
-      <div className="space-y-5">
-        <div className="rounded-3xl p-8 sm:p-10 border text-center bg-card border-border">
-          <Heart size={40} className="mx-auto mb-4 text-muted-foreground" />
-          <h1 className="font-serif text-2xl font-bold text-foreground mb-2">
-            Nothing shared yet
-          </h1>
-          <p className="text-sm text-muted-foreground max-w-xs mx-auto">
-            She hasn&apos;t enabled any sharing yet. When she does, you&apos;ll
-            see cycle updates here.
-          </p>
+        {show.phase && hasCycle && (
+          <div className={ROW}>
+            <section className={cn(CARD, "flex flex-col items-start gap-5 sm:flex-row sm:items-center")}>
+              {/* Where she is in the cycle reveals when her period is due, so the
+                  ring needs the heads-up toggle as well as the phase. */}
+              {show.headsup && (
+                <CycleRing
+                  avgLength={state.avgCycleLength}
+                  avgPeriodLength={state.avgPeriodLength}
+                  cycleDay={state.cycleDay}
+                  size={168}
+                  className="shrink-0"
+                >
+                  <span aria-hidden="true" className="flex flex-col items-center">
+                    <span className="text-sm text-muted-foreground">Day</span>
+                    <span className="font-display text-5xl font-black leading-none tabular-nums text-foreground">
+                      {state.cycleDay}
+                    </span>
+                  </span>
+                </CycleRing>
+              )}
+              <div className="min-w-0">
+                <h2 className="font-display text-2xl font-bold leading-tight text-foreground">
+                  She&apos;s in her {phaseData.name.toLowerCase()} phase
+                </h2>
+                <p className="mt-2 text-sm text-muted-foreground">{getPhaseRangeLabel(phase, anchors)} of her cycle</p>
+              </div>
+            </section>
+
+            <section className={CARD}>
+              <h2 className={H2}>What&apos;s happening in her body</h2>
+              <p className="mt-2 text-base leading-relaxed text-foreground">{phaseData.partnerDesc}</p>
+              <dl className="mt-5 grid gap-4 text-sm sm:grid-cols-2">
+                <div>
+                  <dt className="text-muted-foreground">Energy</dt>
+                  <dd className="mt-2 text-foreground">
+                    <Energy level={phaseData.energy} />
+                    <span className="mt-2 block">{ENERGY_LABELS[phaseData.energy]}</span>
+                  </dd>
+                </div>
+                <div>
+                  <dt className="text-muted-foreground">Usual mood in this phase</dt>
+                  <dd className="mt-2 text-foreground">{phaseData.mood}</dd>
+                </div>
+              </dl>
+            </section>
+          </div>
+        )}
+
+        <div className={ROW}>
+          {(show.mood || show.symptoms) && (
+            <section className={CARD}>
+              <h2 className={H2}>What she&apos;s feeling</h2>
+              <div className="mt-4 space-y-5">
+                {show.mood && (
+                  <div>
+                    <h3 className="text-sm font-semibold text-foreground">Mood today</h3>
+                    {todayMood ? (
+                      <p className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1">
+                        <span className="rounded-full bg-phase-tint px-3 py-1.5 text-sm font-medium text-phase-ink">
+                          {todayMood}
+                        </span>
+                        <span className="text-sm text-muted-foreground">Logged by her</span>
+                      </p>
+                    ) : (
+                      <p className="mt-2 text-sm text-muted-foreground">No mood logged today.</p>
+                    )}
+                  </div>
+                )}
+                {show.symptoms && <PartnerSymptoms logs={logs} today={today} />}
+              </div>
+            </section>
+          )}
+
+          {show.tips && (
+            <section className={CARD}>
+              <h2 className={H2}>How you can help</h2>
+              <ul className="mt-4 grid gap-2 sm:grid-cols-2 lg:grid-cols-1">
+                {phaseData.partnerTips.map((tip) => (
+                  <li
+                    key={tip}
+                    className="rounded-xl bg-(--partner-tint) px-4 py-3 text-sm leading-snug text-(color:--partner-ink)"
+                  >
+                    {tip}
+                  </li>
+                ))}
+              </ul>
+            </section>
+          )}
         </div>
+
+        {show.headsup && hasCycle && (
+          <section className={CARD}>
+            <h2 className={H2}>What&apos;s coming next</h2>
+            <p className="mt-1 text-sm text-muted-foreground">
+              Estimated from her logged cycles, so dates can shift by a few days.
+            </p>
+            <ul className="mt-4 grid gap-2 sm:grid-cols-3">
+              {state.predictions.slice(0, 3).map((pred, i) => {
+                const days = diffDays(pred.start, today);
+                return (
+                  <li
+                    key={pred.cycleNumber}
+                    className={cn(
+                      "rounded-xl px-4 py-3",
+                      i === 0 ? "bg-menstrual-tint text-menstrual-ink" : "bg-muted text-foreground"
+                    )}
+                  >
+                    <p className="text-sm font-medium">
+                      {i > 0 ? "Period" : days < 0 ? "Period may be late" : "Next period"}
+                    </p>
+                    <p className="mt-1 font-display text-xl font-bold tabular-nums">
+                      {fmt(pred.start, { month: "long", day: "numeric" })}
+                    </p>
+                    <p className="text-sm">{fromToday(days)}</p>
+                  </li>
+                );
+              })}
+            </ul>
+          </section>
+        )}
+
+        {show.calendar && (
+          <section>
+            <h2 className={cn(H2, "mb-3")}>Her cycle calendar</h2>
+            <CalendarTab
+              cycles={state.cycles}
+              avgLength={state.avgCycleLength}
+              avgPeriodLength={state.avgPeriodLength}
+              today={today}
+              logs={logs}
+              fertileWindow={state.fertileWindow}
+              readOnly
+            />
+          </section>
+        )}
+
+        {show.phase && (
+          <section className={CARD}>
+            <h2 className={H2}>Understanding the full cycle</h2>
+            <p className="mt-1 text-sm text-muted-foreground">
+              A cycle moves through four phases, each with different needs.
+            </p>
+            <ul className="mt-4 grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+              {PHASE_ORDER.map((p) => {
+                const now = hasCycle && p === phase;
+                return (
+                  <li
+                    key={p}
+                    data-phase={p}
+                    aria-current={now ? "true" : undefined}
+                    className={cn("rounded-xl p-4", now ? "bg-phase-tint text-phase-ink" : "bg-muted text-foreground")}
+                  >
+                    <p className="flex items-baseline justify-between gap-2">
+                      <span className="font-semibold">{PHASES[p].name}</span>
+                      {now && <span className="text-sm font-medium">Now</span>}
+                    </p>
+                    <p className={cn("text-sm", !now && "text-muted-foreground")}>{getPhaseRangeLabel(p, anchors)}</p>
+                    <div className="mt-3">
+                      <Energy level={PHASES[p].energy} />
+                    </div>
+                    <p className="mt-3 text-sm leading-snug">{PHASES[p].partnerTips[0]}</p>
+                  </li>
+                );
+              })}
+            </ul>
+            <p className="mt-4 text-sm text-muted-foreground">
+              Every cycle is different. These are tendencies, not certainties, and listening to her is the best guide.
+            </p>
+          </section>
+        )}
       </div>
     );
   }
 
   return (
-    <div className="space-y-5">
-      {/* Partner Hero — gated by todays_phase */}
-      {show.phase && (
-        <div
-          className="rounded-3xl p-6 sm:p-8 border text-center"
-          style={{ backgroundColor: phaseData.bg, borderColor: phaseData.border }}
-        >
-          <div className="flex items-center justify-center gap-2 mb-3">
-            <Heart size={14} style={{ color: phaseData.color }} fill={phaseData.color} />
-            <p
-              className="text-xs font-semibold uppercase tracking-widest"
-              style={{ color: phaseData.color }}
-            >
-              Partner&apos;s Guide
-            </p>
-            <Heart size={14} style={{ color: phaseData.color }} fill={phaseData.color} />
-          </div>
-
-          <p
-            className="text-4xl sm:text-5xl mb-3 select-none"
-            style={{ filter: "drop-shadow(0 4px 12px rgba(0,0,0,0.08))" }}
-          >
-            {phaseData.emoji}
-          </p>
-
-          <h1
-            className="font-serif text-3xl sm:text-4xl font-bold mb-1"
-            style={{ color: phaseData.text }}
-          >
-            She&apos;s in her
-          </h1>
-          <h1
-            className="font-serif text-3xl sm:text-4xl font-bold italic mb-3"
-            style={{ color: phaseData.text }}
-          >
-            {phaseData.name} Phase
-          </h1>
-
-          <p className="text-sm mb-2" style={{ color: phaseData.text, opacity: 0.75 }}>
-            &ldquo;{phaseData.tagline}&rdquo;
-          </p>
-
-          <div className="max-w-xs mx-auto mt-5">
-            <div className="flex h-2.5 rounded-full overflow-hidden gap-px">
-              {PHASE_ORDER.map((p) => {
-                const len = phaseLengths[p];
-                const pct = (len / state.avgCycleLength) * 100;
-                return (
-                  <div
-                    key={p}
-                    className="h-full transition-all"
-                    style={{
-                      width: `${pct}%`,
-                      backgroundColor: PHASES[p].color,
-                      opacity: p === phase ? 1 : 0.25,
-                    }}
-                  />
-                );
-              })}
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* What's Happening — gated by todays_phase */}
-      {show.phase && (
-        <div className="bg-card rounded-2xl border border-border p-6">
-          <h2 className="font-serif text-xl font-semibold mb-3 text-foreground">
-            What&apos;s Happening in Her Body
-          </h2>
-          <p className="text-sm text-muted-foreground leading-relaxed mb-5">
-            {phaseData.partnerDesc}
-          </p>
-
-          <div className="grid sm:grid-cols-2 gap-3">
-            <div className="p-4 rounded-xl" style={{ backgroundColor: phaseData.bg }}>
-              <p className="text-xs font-semibold uppercase tracking-wider mb-2" style={{ color: phaseData.color }}>
-                Energy Level
-              </p>
-              <EnergyBar level={phaseData.energy} color={phaseData.color} />
-              <p className="text-xs mt-2" style={{ color: phaseData.text, opacity: 0.85 }}>
-                {ENERGY_LABELS[phaseData.energy]}
-              </p>
-            </div>
-
-            {show.mood && (
-              <div className="p-4 rounded-xl" style={{ backgroundColor: phaseData.bg }}>
-                <p className="text-xs font-semibold uppercase tracking-wider mb-2" style={{ color: phaseData.color }}>
-                  Mood Tendencies
-                </p>
-                <p className="text-sm" style={{ color: phaseData.text }}>
-                  {phaseData.mood}
-                </p>
-              </div>
-            )}
-          </div>
-        </div>
-      )}
-
-      {/* Symptoms — gated by symptom_details */}
-      {show.symptoms && (
-        <PartnerSymptoms logs={logs} today={today} phaseData={phaseData} />
-      )}
-
-      {/* Cycle calendar — gated by calendar_view */}
-      {show.calendar && (
-        <div>
-          <h2 className="font-serif text-xl font-semibold mb-3 px-1 text-foreground">
-            Her Cycle Calendar
-          </h2>
-          <CalendarTab
-            cycles={state.cycles}
-            avgLength={state.avgCycleLength}
-            avgPeriodLength={state.avgPeriodLength}
-            today={today}
-            logs={logs}
-            fertileWindow={state.fertileWindow}
-            readOnly
-          />
-        </div>
-      )}
-
-      {/* How You Can Help — gated by care_nudges */}
-      {show.tips && (
-        <div className="bg-card rounded-2xl border border-border p-6">
-          <h2 className="font-serif text-xl font-semibold mb-1 text-foreground">
-            How You Can Help
-          </h2>
-          <p className="text-xs text-muted-foreground mb-4">
-            Four things that matter most right now
-          </p>
-          <div className="grid sm:grid-cols-2 gap-3">
-            {phaseData.partnerTips.map((tip, i) => (
-              <div key={i} className="flex items-start gap-3 p-4 rounded-xl border border-border">
-                <div
-                  className="w-6 h-6 rounded-full flex-shrink-0 flex items-center justify-center text-xs font-bold text-white"
-                  style={{ backgroundColor: phaseData.color }}
-                >
-                  {i + 1}
-                </div>
-                <p className="text-sm text-foreground leading-snug">{tip}</p>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* What's Coming Next — gated by cycle_headsup */}
-      {show.headsup && (
-        <div className="bg-card rounded-2xl border border-border p-6">
-          <h2 className="font-serif text-xl font-semibold mb-4 text-foreground">
-            What&apos;s Coming Next
-          </h2>
-          <div className="space-y-2.5">
-            {state.predictions.slice(0, 3).map((pred, i) => {
-              const isNext = i === 0;
-              const daysAway = diffDays(pred.start, today);
-              return (
-                <div
-                  key={i}
-                  className={`flex items-center justify-between p-3.5 rounded-xl ${isNext ? "" : "bg-muted"}`}
-                  style={isNext ? { backgroundColor: PHASES.menstrual.bg } : undefined}
-                >
-                  <div className="flex items-center gap-3">
-                    <span className={`text-2xl ${isNext ? "" : "opacity-50"}`}>{PHASES.menstrual.emoji}</span>
-                    <div>
-                      <p
-                        className={`text-sm ${isNext ? "font-semibold" : "font-medium text-foreground"}`}
-                        style={isNext ? { color: PHASES.menstrual.text } : undefined}
-                      >
-                        {isNext ? "Next Period" : fmt(pred.start, { month: "long", day: "numeric" })}
-                      </p>
-                      <p className="text-xs" style={isNext ? { color: PHASES.menstrual.text, opacity: 0.7 } : undefined}>
-                        <span className={isNext ? "" : "text-muted-foreground"}>
-                          {isNext
-                            ? `${fmt(pred.start, { month: "long", day: "numeric" })} \u00b7 in ${daysAway} days`
-                            : `in ${daysAway} days`}
-                        </span>
-                      </p>
-                    </div>
-                  </div>
-                  {isNext && (
-                    <div className="text-right text-sm font-serif font-bold" style={{ color: PHASES.menstrual.text }}>
-                      {daysAway}d
-                    </div>
-                  )}
-                </div>
-              );
-            })}
-          </div>
-        </div>
-      )}
-
-      {/* Shared Notes — gated by shared_notes */}
-      {show.notes && (
-        <div className="bg-card rounded-2xl border border-border p-6">
-          <h2 className="font-serif text-xl font-semibold mb-1 text-foreground">
-            Notes
-          </h2>
-          {flags.notesSync ? (
-            <>
-              <p className="text-xs text-muted-foreground mb-4">
-                A small space for you both
-              </p>
-
-              {notes.length > 0 && (
-                <div className="space-y-2 mb-4 max-h-60 overflow-y-auto">
-                  {notes.map((note) => {
-                    const isMe = note.author_id === currentUserId;
-                    return (
-                      <div
-                        key={note.id}
-                        className={`flex ${isMe ? "justify-end" : "justify-start"}`}
-                      >
-                        <div
-                          className={`max-w-[75%] px-3.5 py-2 rounded-2xl text-sm ${
-                            isMe
-                              ? "bg-primary text-primary-foreground rounded-br-md"
-                              : "bg-muted text-foreground rounded-bl-md"
-                          }`}
-                        >
-                          {note.content}
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
-
-              {currentUserId && (
-                <div className="flex gap-2">
-                  <input
-                    type="text"
-                    value={noteInput}
-                    onChange={(e) => setNoteInput(e.target.value)}
-                    onKeyDown={(e) => e.key === "Enter" && handleSendNote()}
-                    placeholder="Send a note..."
-                    className="flex-1 rounded-xl border border-border bg-muted/50 px-4 py-2.5 text-sm text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:ring-2 focus:ring-primary/30"
-                  />
-                  <button
-                    onClick={handleSendNote}
-                    disabled={!noteInput.trim()}
-                    className="px-4 py-2.5 rounded-xl text-sm font-medium bg-primary text-primary-foreground hover:opacity-90 transition-opacity disabled:opacity-40"
-                  >
-                    Send
-                  </button>
-                </div>
-              )}
-            </>
-          ) : (
-            <p className="text-xs text-muted-foreground">
-              Shared notes are being upgraded to end-to-end encryption and are
-              temporarily unavailable.
-            </p>
-          )}
-        </div>
-      )}
-
-      {/* Understanding the Full Cycle — always shown if anything is visible */}
-      {show.phase && (
-        <div className="bg-card rounded-2xl border border-border p-6">
-          <h2 className="font-serif text-xl font-semibold mb-1 text-foreground">
-            Understanding the Full Cycle
-          </h2>
-          <p className="text-xs text-muted-foreground mb-4">
-            Each cycle has four distinct phases with different needs.
-          </p>
-
-          <div className="space-y-2.5">
-            {PHASE_ORDER.map((p) => (
-              <div
-                key={p}
-                className="p-4 rounded-xl border-2 transition-all"
-                style={{
-                  backgroundColor: PHASES[p].bg,
-                  borderColor: p === phase ? PHASES[p].color : "transparent",
-                }}
-              >
-                <div className="flex items-start justify-between mb-2">
-                  <div className="flex items-center gap-2.5">
-                    <span className="text-xl">{PHASES[p].emoji}</span>
-                    <div>
-                      <p className="text-sm font-semibold" style={{ color: PHASES[p].text }}>
-                        {PHASES[p].name}{" "}
-                        {p === phase && (
-                          <span
-                            className="ml-1.5 text-xs px-1.5 py-0.5 rounded-full"
-                            style={{ backgroundColor: PHASES[p].color, color: "white" }}
-                          >
-                            Now
-                          </span>
-                        )}
-                      </p>
-                      <p className="text-xs" style={{ color: PHASES[p].text, opacity: 0.6 }}>
-                        {getPhaseRangeLabel(p, anchors)}
-                      </p>
-                    </div>
-                  </div>
-                  <div className="w-24">
-                    <EnergyBar level={PHASES[p].energy} color={PHASES[p].color} />
-                  </div>
-                </div>
-                <p className="text-xs leading-relaxed pl-9" style={{ color: PHASES[p].text, opacity: 0.8 }}>
-                  {PHASES[p].partnerTips[0]}
-                </p>
-              </div>
-            ))}
-          </div>
-
-          <div className="mt-4 pt-4 border-t border-border">
-            <p className="text-xs text-center text-muted-foreground leading-relaxed">
-              Every cycle is different. These are tendencies, not certainties &mdash;
-              <br />
-              listening is always the best guide.
-            </p>
-          </div>
-        </div>
-      )}
+    <div data-phase={phase} className="flex flex-col gap-6">
+      <header>
+        <h1 className="font-display text-[28px] font-bold leading-tight text-foreground sm:text-[32px]">Her cycle</h1>
+        <p className="mt-1 text-sm text-muted-foreground">
+          {fmt(today, { weekday: "long", month: "long", day: "numeric" })}
+          {preview && " · what your partner sees, with your sharing settings"}
+        </p>
+      </header>
+      {body}
     </div>
   );
 }
