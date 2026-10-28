@@ -10,7 +10,7 @@ interface RoleSelectProps {
   onPaired: () => void;
 }
 
-// One tile per person, each in its own hue: hers the brand (menstrual) tint, the partner's blue.
+// One tile per person, each in its own hue: the tracker's the brand (menstrual) tint, the partner's blue.
 const CHOICE =
   "flex min-h-[5.5rem] w-full items-center gap-4 rounded-2xl px-5 py-4 text-left transition-[box-shadow,transform] duration-150 hover:ring-2 hover:ring-current/25 active:scale-[0.99]";
 const CHOICE_ICON = "flex size-11 shrink-0 items-center justify-center rounded-full bg-card/80";
@@ -20,6 +20,7 @@ export function RoleSelect({ onChooseOwner, onPaired }: RoleSelectProps) {
   const [code, setCode] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const [cameBack, setCameBack] = useState(false);
 
   const handleRedeem = async (e: FormEvent) => {
     e.preventDefault();
@@ -55,6 +56,7 @@ export function RoleSelect({ onChooseOwner, onPaired }: RoleSelectProps) {
               setMode("choose");
               setError(null);
               setCode("");
+              setCameBack(true);
             }}
           >
             <ChevronLeft size={18} aria-hidden="true" />
@@ -117,9 +119,11 @@ export function RoleSelect({ onChooseOwner, onPaired }: RoleSelectProps) {
                 <ChevronRight size={20} aria-hidden="true" className="shrink-0" />
               </button>
 
+              {/* After Back, focus returns to the tile that opened the invite step. */}
               <button
                 type="button"
                 onClick={() => setMode("invite")}
+                autoFocus={cameBack}
                 className={cn(CHOICE, "bg-partner-tint text-partner-ink")}
               >
                 <span className={CHOICE_ICON}>

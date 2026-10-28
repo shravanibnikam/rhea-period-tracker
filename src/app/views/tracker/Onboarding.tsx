@@ -1,5 +1,6 @@
 import { CalendarPlus, ChevronRight, FileUp, PenLine, type LucideIcon } from "lucide-react";
 import { cn } from "@/app/lib/cn";
+import { RheaMark } from "@/app/components/shared/RheaMark";
 
 interface OnboardingProps {
   onStartLogging: () => void;
@@ -49,7 +50,7 @@ export function Onboarding({ onStartLogging, onImport, onQuickAdd, hosted = fals
   return (
     <div className="grid items-start gap-6 lg:grid-cols-12">
       <section aria-labelledby="get-started" className={cn(CARD, "lg:col-span-7")}>
-        <img src={`${import.meta.env.BASE_URL}rhea-mark.svg`} alt="Rhea" width={40} height={40} className="size-10" />
+        <RheaMark size={40} label="Rhea" className="size-10" />
         <h1 id="get-started" className="mt-5 text-3xl">
           Get started
         </h1>

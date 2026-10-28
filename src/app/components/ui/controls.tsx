@@ -67,7 +67,10 @@ export function Segmented<T extends string>({
             onClick={() => onChange(on && allowDeselect ? null : o.value)}
             className={cn(
               "flex min-h-11 flex-1 items-center justify-center gap-1.5 rounded-xl px-2 text-sm font-semibold transition-colors duration-150",
-              on ? "bg-card text-foreground shadow-soft ring-1 ring-border" : "text-muted-foreground hover:text-foreground"
+              // Dark cards sit below the track, so the chosen option lifts with a light wash instead.
+              on
+                ? "bg-card text-foreground shadow-soft ring-1 ring-border dark:bg-foreground/10"
+                : "text-muted-foreground hover:text-foreground"
             )}
           >
             {o.label}

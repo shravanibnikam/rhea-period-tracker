@@ -2,6 +2,7 @@ import { useState, type FormEvent, type ReactNode } from "react";
 import { Eye, EyeOff } from "lucide-react";
 import { Button } from "@/app/components/ui/Button";
 import { cn } from "@/app/lib/cn";
+import { RheaMark } from "@/app/components/shared/RheaMark";
 import { PrivacyPolicy } from "@/app/views/settings/PrivacyPolicy";
 
 interface AuthScreenProps {
@@ -22,11 +23,8 @@ export function AuthCard({ title, intro, children }: { title: string; intro: Rea
   return (
     <div className="overflow-hidden rounded-3xl border border-border bg-card shadow-soft">
       <header className="bg-accent px-6 pt-8 pb-7 text-center text-accent-foreground">
-        <span className="mx-auto flex size-14 items-center justify-center rounded-full bg-card text-brand shadow-soft">
-          <svg viewBox="0 0 64 64" width="32" height="32" fill="none" role="img" aria-label="Rhea">
-            <path d="M52.68 28.35A21 21 0 1 1 35.65 11.32" stroke="currentColor" strokeWidth="9" strokeLinecap="round" />
-            <circle cx="46.85" cy="17.15" r="5" fill="currentColor" />
-          </svg>
+        <span className="mx-auto flex size-14 items-center justify-center rounded-full bg-card shadow-soft">
+          <RheaMark size={32} label="Rhea" />
         </span>
         <h1 className="mt-5 text-3xl text-foreground">{title}</h1>
         <p className="mx-auto mt-2 max-w-xs text-base">{intro}</p>

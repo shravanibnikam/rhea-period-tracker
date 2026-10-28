@@ -9,6 +9,7 @@ import {
   Settings,
   type LucideIcon,
 } from "lucide-react";
+import { RheaMark } from "@/app/components/shared/RheaMark";
 
 export const ROUTES = ["today", "calendar", "insights", "settings", "partner"] as const;
 export type Route = (typeof ROUTES)[number];
@@ -65,13 +66,7 @@ export function AppNav({ routes, current, account }: AppNavProps) {
         aria-label="Rhea"
         className="fixed inset-x-0 bottom-0 z-40 border-t border-border bg-card pb-[env(safe-area-inset-bottom)] lg:inset-x-auto lg:inset-y-0 lg:left-0 lg:flex lg:w-14 lg:flex-col lg:items-center lg:border-t-0 lg:border-r lg:bg-background lg:py-4"
       >
-        <img
-          src={`${import.meta.env.BASE_URL}rhea-mark.svg`}
-          alt=""
-          width={28}
-          height={28}
-          className="mb-6 hidden size-7 lg:block"
-        />
+        <RheaMark size={28} className="mb-6 hidden size-7 lg:block" />
         <ul className="flex lg:flex-1 lg:flex-col lg:items-center lg:gap-1.5">
           {routes.map((r) => {
             const { label, tip, icon: Icon } = ITEMS[r];

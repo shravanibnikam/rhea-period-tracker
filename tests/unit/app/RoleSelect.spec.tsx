@@ -52,3 +52,11 @@ describe("RoleSelect partner invite input preserves the code", () => {
     expect(await screen.findByText(/valid invite code/i)).toBeTruthy();
   });
 });
+
+describe("RoleSelect focus", () => {
+  it("Back returns focus to the tile that opened the invite step", () => {
+    openInvite();
+    fireEvent.click(screen.getByRole("button", { name: /Back/ }));
+    expect(document.activeElement).toBe(screen.getByRole("button", { name: /joining as a partner/i }));
+  });
+});

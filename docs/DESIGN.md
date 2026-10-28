@@ -72,8 +72,11 @@ is kept for actions. Every pairing in the tables above meets WCAG AA in both the
 - `shared/CycleRing`: the signature element. The cycle as a ring of its four phases with rounded
   ends, sized by the phase oracle; days lived this cycle in the phase marks, the rest as a faint
   track, a marker on today, and a centre slot for figures.
+- `shared/RheaMark`: the mark, inline in `text-brand` so it follows the theme. Give it a `label`
+  where it stands for Rhea; without one it is decorative. `public/rhea-mark.svg` is the favicon.
 - `lib/cn`: class merging. Icons: `lucide-react` outline at 16–20px.
-- Toasts: `import { toast } from "sonner"` for confirmations. Keep inline `role="status"` /
+- Toasts: `import { toast } from "sonner"` for confirmations, `toast.error` for a save that
+  failed. Keep inline `role="status"` /
   `role="alert"` text wherever a spec reads it.
 
 ## Navigation
@@ -97,3 +100,4 @@ other hash opens the app directly.
 - Predictions are estimates and say so. The fertile window is a calendar estimate, not
   contraception.
 - Sentence case everywhere. Buttons are named for what they do.
+- Don't assume anyone's gender. Partner copy says "your partner" and "they", never "she" or "her".

@@ -14,11 +14,13 @@ test("fresh deep link loads the 404 shell with project-scoped assets", async ({ 
     const response = await page.goto("http://127.0.0.1:4175/rhea-period-tracker/calendar");
     expect(response?.status()).toBe(404); // GitHub Pages serves the shell with 404 status.
     console.log("Pages assets:", await page.locator("script[src]").evaluateAll(scripts => scripts.map(script => script.getAttribute("src"))));
-    // A first visit opens on the landing page.
+    // A first visit opens on the landing page; its photo is a project-scoped public asset.
+    const photo = page.getByAltText(/^Rhea, a small grey cratered moon/);
+    await photo.scrollIntoViewIfNeeded();
+    await expect.poll(() => photo.evaluate(image => (image as HTMLImageElement).naturalWidth)).toBeGreaterThan(0);
     await page.getByRole("button", { name: /Start tracking/ }).first().click();
     await expect(page.getByRole("heading", { name: "Get started", exact: true })).toBeVisible();
-    const logo = page.getByAltText("Rhea", { exact: true });
-    await expect.poll(() => logo.evaluate(image => (image as HTMLImageElement).naturalWidth)).toBeGreaterThan(0);
+    await expect(page.getByRole("img", { name: "Rhea", exact: true })).toBeVisible();
     expect(failures).toEqual([]);
     const manifestResponse = await page.request.get("http://127.0.0.1:4175/rhea-period-tracker/manifest.json");
     const manifest = await manifestResponse.json();

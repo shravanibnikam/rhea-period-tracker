@@ -11,6 +11,7 @@ import { supabase } from "@/app/lib/supabase";
 import { isOwnerEngineSync, ownerOutboxMode } from "@/app/lib/flags";
 import { useContainer } from "@/app/di";
 import { AppNav, readRoute, type Route } from "@/app/components/layout/AppNav";
+import { RheaMark } from "@/app/components/shared/RheaMark";
 import { OverviewTab } from "@/app/views/tracker/OverviewTab";
 import { CalendarTab } from "@/app/views/tracker/CalendarTab";
 import { InsightsTab } from "@/app/views/tracker/InsightsTab";
@@ -325,13 +326,7 @@ function AppScreens() {
     return (
       <div className="flex min-h-dvh items-center justify-center bg-background font-sans">
         <div role="status" className="flex flex-col items-center gap-4">
-          <img
-            src={`${import.meta.env.BASE_URL}rhea-mark.svg`}
-            alt="Rhea"
-            width={48}
-            height={48}
-            className="size-12 motion-safe:animate-pulse"
-          />
+          <RheaMark size={48} label="Rhea" className="size-12 motion-safe:animate-pulse" />
           <p className="text-sm text-muted-foreground">Loading…</p>
         </div>
       </div>

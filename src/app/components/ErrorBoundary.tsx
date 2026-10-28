@@ -1,5 +1,6 @@
 import { Component, type ReactNode } from "react";
 import { Button } from "@/app/components/ui/Button";
+import { RheaMark } from "@/app/components/shared/RheaMark";
 
 interface Props {
   children: ReactNode;
@@ -29,7 +30,7 @@ export class ErrorBoundary extends Component<Props, State> {
       return (
         <main className="flex min-h-dvh items-center justify-center bg-background px-4 font-sans text-foreground">
           <div role="alert" className="max-w-sm text-center">
-            <img src={`${import.meta.env.BASE_URL}rhea-mark.svg`} alt="Rhea" width={48} height={48} className="mx-auto size-12" />
+            <RheaMark size={48} label="Rhea" className="mx-auto size-12" />
             <h1 className="mt-5 text-2xl">Something went wrong</h1>
             <p className="mt-2 text-base text-muted-foreground">
               Rhea ran into an unexpected error. Your saved logs are still on this device.
