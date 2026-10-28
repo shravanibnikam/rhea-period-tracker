@@ -1,5 +1,5 @@
 // True-size fragments of Rhea's own screens for the landing page (docs/DESIGN.md, app style
-// "Pastel consumer"): white panels, phase tints with the dark of their hue as ink, one 20px radius.
+// "Shape, space and depth"): white panels, phase tints with the dark of their hue as ink, 24px corners.
 // They are pictures of the app, so nothing in them is a working control. Data: cycle.ts.
 import { FileJson } from "lucide-react";
 import { CycleRing } from "@/app/components/shared/CycleRing";
@@ -41,12 +41,23 @@ function Label({ children }: { children: string }) {
 
 // ─── Today: the visitor's own estimate (the live thing) ─────────────────────
 
-export function TodayCard({ estimate, cycleLength, today }: { estimate: Estimate | null; cycleLength: number; today: Date }) {
+/** `sample`: the hero's picture of Maya's day, so it is not the live region and says it is an example. */
+export function TodayCard({
+  estimate,
+  cycleLength,
+  today,
+  sample = false,
+}: {
+  estimate: Estimate | null;
+  cycleLength: number;
+  today: Date;
+  sample?: boolean;
+}) {
   return (
-    <div data-ui className="l-ui w-full max-w-[400px] rounded-2xl bg-card p-6 text-foreground" role="status">
+    <div data-ui className="l-ui w-full max-w-[400px] rounded-2xl bg-card p-6 text-foreground shadow-soft" role={sample ? undefined : "status"}>
       <div className="flex items-baseline justify-between gap-4">
-        <p className="font-display text-xl font-bold">{estimate ? "Today" : "Your cycle, in four phases"}</p>
-        <p className="text-sm text-muted-foreground">{estimate ? weekday(today) : `${cycleLength} days`}</p>
+        <p className="font-display text-xl font-semibold">{estimate ? "Today" : "Your cycle, in four phases"}</p>
+        <p className="text-sm text-muted-foreground">{sample ? "Example" : estimate ? weekday(today) : `${cycleLength} days`}</p>
       </div>
       {estimate ? <EstimateView e={estimate} /> : <PhaseList cycleLength={cycleLength} />}
     </div>
@@ -67,7 +78,7 @@ function EstimateView({ e }: { e: Estimate }) {
       <div className="mt-4 flex justify-center">
         <CycleRing avgLength={e.cycleLength} avgPeriodLength={PERIOD_LENGTH} cycleDay={e.cycleDay} size={200}>
           <p className="text-sm text-muted-foreground">Day</p>
-          <p className="font-display text-5xl font-black leading-none tabular-nums">{e.cycleDay}</p>
+          <p className="font-display text-5xl font-medium leading-none lining-nums tabular-nums">{e.cycleDay}</p>
           <p className="mt-1 text-sm text-muted-foreground">of {e.cycleLength}</p>
         </CycleRing>
       </div>
@@ -119,7 +130,7 @@ const MOODS = ["Calm", "Happy", "Sensitive", "Anxious", "Sad", "Emotional", "Tea
 export function DayLogSheet() {
   return (
     <div data-ui className="l-ui l-sheet rounded-2xl bg-card p-6 text-foreground">
-      <p className="font-display text-xl font-bold">{weekday(SAMPLE_START)}</p>
+      <p className="font-display text-xl font-semibold">{weekday(SAMPLE_START)}</p>
       <p className="text-sm text-muted-foreground">Cycle day 1 · Menstrual phase</p>
       <div className="mt-5" data-phase="menstrual">
         <Label>Flow</Label>
@@ -195,7 +206,7 @@ export function CalendarSheet({ compact = false }: { compact?: boolean }) {
   return (
     <div data-ui className={cn("l-ui rounded-2xl text-foreground", compact ? "bg-muted p-4" : "l-sheet bg-card p-6")}>
       <div className="flex items-baseline justify-between">
-        <p className={cn("font-display font-bold", compact ? "text-base" : "text-xl")}>{fmt(first, { month: "long", year: "numeric" })}</p>
+        <p className={cn("font-display font-semibold", compact ? "text-base" : "text-xl")}>{fmt(first, { month: "long", year: "numeric" })}</p>
         {!compact && <p className="text-sm text-muted-foreground">Cycle day {SAMPLE_STATE.cycleDay}</p>}
       </div>
       <div className={cn("mt-4 grid grid-cols-7 text-center", compact ? "gap-1 text-[13px]" : "gap-1.5 text-sm")}>
@@ -217,7 +228,7 @@ export function CalendarSheet({ compact = false }: { compact?: boolean }) {
               className={cn(
                 "relative flex aspect-square items-center justify-center rounded-lg tabular-nums",
                 (period || fertile) && "bg-phase-tint font-semibold text-phase-ink",
-                today && "ring-2 ring-foreground ring-inset font-bold"
+                today && "ring-2 ring-foreground ring-inset font-semibold"
               )}
             >
               {d.getDate()}
@@ -246,7 +257,7 @@ export function HistorySheet() {
   const longest = Math.max(...done.map((c) => c.cycleLength as number));
   return (
     <div data-ui className="l-ui l-sheet rounded-2xl bg-card p-6 text-foreground">
-      <p className="font-display text-xl font-bold">Cycle history</p>
+      <p className="font-display text-xl font-semibold">Cycle history</p>
       <div className="mt-4 grid grid-cols-3 gap-2">
         {[
           [`${SAMPLE_STATE.avgCycleLength}`, "days, average cycle"],
@@ -254,7 +265,7 @@ export function HistorySheet() {
           [getVariabilityLabel(SAMPLE_STATE.stdDev), "over 5 cycles"],
         ].map(([figure, note]) => (
           <div key={note} className="rounded-xl bg-muted px-3 py-3">
-            <p className="font-display text-2xl font-black leading-tight tabular-nums">{figure}</p>
+            <p className="font-display text-2xl font-semibold leading-tight lining-nums tabular-nums">{figure}</p>
             <p className="text-sm text-muted-foreground">{note}</p>
           </div>
         ))}
@@ -288,7 +299,7 @@ export function BackupSheet() {
   const file = `rhea-backup-${toDateKey(SAMPLE_TODAY)}.json`;
   return (
     <div data-ui className="l-ui l-sheet l-sheet--narrow rounded-2xl bg-card p-6 text-foreground">
-      <p className="font-display text-xl font-bold">Export backup</p>
+      <p className="font-display text-xl font-semibold">Export backup</p>
       <p className="text-sm text-muted-foreground">Download all your data as a JSON file</p>
       <div className="mt-4 flex items-center gap-3 rounded-xl bg-muted px-4 py-3">
         <FileJson size={20} aria-hidden="true" />
@@ -319,9 +330,9 @@ export function PartnerCard({ on }: { on: Record<PartnerKey, boolean> }) {
   const daysLeft = diffDays(SAMPLE_STATE.nextPeriodDate!, SAMPLE_TODAY);
   const nothing = !on.headsup && !on.phase && !on.symptoms && !on.calendar;
   return (
-    <div data-ui className="l-ui w-[400px] max-w-full rounded-2xl bg-card p-6 text-foreground">
+    <div data-ui className="l-ui w-[400px] max-w-full rounded-2xl bg-card p-6 text-foreground shadow-soft">
       <div className="flex items-baseline justify-between gap-4">
-        <p className="font-display text-xl font-bold">Maya&rsquo;s cycle</p>
+        <p className="font-display text-xl font-semibold">Maya&rsquo;s cycle</p>
         <p className="text-sm text-muted-foreground">Partner view</p>
       </div>
       {on.quiet ? (
@@ -338,7 +349,7 @@ export function PartnerCard({ on }: { on: Record<PartnerKey, boolean> }) {
         <div className="mt-4 grid gap-2.5">
           {on.phase && (
             <div data-phase={SAMPLE_STATE.phase} className="rounded-xl bg-phase-tint px-4 py-3 text-phase-ink">
-              <p className="font-display text-2xl font-black">{phase.name} phase</p>
+              <p className="font-display text-2xl font-semibold">{phase.name} phase</p>
               <p className="text-sm">
                 {phase.tagline} · {ENERGY_LABELS[phase.energy]}
               </p>
@@ -347,7 +358,7 @@ export function PartnerCard({ on }: { on: Record<PartnerKey, boolean> }) {
           {on.headsup && (
             <div data-phase="menstrual" className="flex items-center justify-between rounded-xl bg-phase-tint px-4 py-3 text-phase-ink">
               <span className="text-sm font-semibold">Period likely in ~{daysLeft} days</span>
-              <span className="font-display text-xl font-black tabular-nums">{daysLeft}d</span>
+              <span className="font-display text-xl font-semibold lining-nums tabular-nums">{daysLeft}d</span>
             </div>
           )}
           {on.symptoms && (

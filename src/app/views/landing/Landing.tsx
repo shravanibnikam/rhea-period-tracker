@@ -1,10 +1,17 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type MouseEvent, type ReactNode } from "react";
+import { ArrowDown } from "lucide-react";
+import { CycleRing } from "@/app/components/shared/CycleRing";
+import { Button, buttonVariants } from "@/app/components/ui/Button";
+import { Segmented, Switch } from "@/app/components/ui/controls";
 import { applyTheme, readTheme } from "@/app/hooks/useTheme";
+import { cn } from "@/app/lib/cn";
 import { DEFAULT_CYCLE_LENGTH } from "@/domain/constants";
 import { toDateKey } from "@/domain/dates";
 import type { PhaseName } from "@/domain/types";
-import { MAX_CYCLE, MIN_CYCLE, cycleLengthFrom, estimateCycle } from "./cycle";
+import { MAX_CYCLE, MIN_CYCLE, PERIOD_LENGTH, SAMPLE_ESTIMATE, SAMPLE_TODAY, cycleLengthFrom, estimateCycle } from "./cycle";
 import { BackupSheet, CalendarSheet, DayLogSheet, HistorySheet, PartnerCard, TodayCard, type PartnerKey } from "./fragments";
+// The one italic phrase (the hero's "gently"); main.tsx loads the upright face only.
+import "@fontsource-variable/cormorant-garamond/wght-italic.css";
 import "./landing.css";
 
 interface LandingProps {
@@ -17,7 +24,7 @@ interface LandingProps {
 }
 
 const REPO = "https://github.com/shravanibnikam/rhea-period-tracker";
-const COMMONS = "https://commons.wikimedia.org/wiki/File:";
+const PHOTO_PAGE = "https://commons.wikimedia.org/wiki/File:Rhea_Over_Saturn_from_Cassini.jpg";
 const img = (file: string) => `${import.meta.env.BASE_URL}landing/${file}`;
 const order = (i: number) => ({ "--i": i }) as CSSProperties;
 
@@ -41,56 +48,53 @@ function Mark() {
   );
 }
 
-function Actions({ hosted, onStart, onSignIn, large = false }: LandingProps & { large?: boolean }) {
+/** The primary action, plus Sign in on a hosted build. The nav puts Sign in first. */
+function Actions({ hosted, onStart, onSignIn, size = "md", nav = false }: LandingProps & { size?: "md" | "lg"; nav?: boolean }) {
+  const start = (
+    <Button size={size} className="l-start" onClick={onStart}>
+      {hosted ? "Create your account" : "Start tracking"}
+    </Button>
+  );
+  const signIn = hosted && onSignIn && (
+    <Button variant="ghost" size={size} onClick={onSignIn}>
+      Sign in
+    </Button>
+  );
   return (
     <div className="l-actions">
-      {hosted && onSignIn && (
-        <button type="button" className="l-link" onClick={onSignIn}>
-          Sign in
-        </button>
-      )}
-      <button type="button" className={large ? "l-button l-button--lg" : "l-button"} onClick={onStart}>
-        {hosted ? "Create your account" : "Start tracking"}
-      </button>
+      {nav ? signIn : start}
+      {nav ? start : signIn}
     </div>
   );
 }
 
-function Hl({ phase, children }: { phase: PhaseName; children: ReactNode }) {
+/** Emphasis as a soft underline in a phase's colour, never a highlighter block. */
+function Em({ phase, children }: { phase: PhaseName; children: ReactNode }) {
   return (
-    <mark data-phase={phase} className="l-hl">
+    <strong data-phase={phase} className="l-em">
       {children}
-    </mark>
+    </strong>
   );
 }
 
 // ─── Content ─────────────────────────────────────────────────────────────────
 
 type OutputKey = "log" | "calendar" | "history" | "backup";
-const OUTPUTS: { key: OutputKey; name: string; caption: string; Sheet: () => ReactNode }[] = [
-  { key: "log", name: "Day log", caption: "One sheet a day: flow, symptoms, mood, energy and a note. This is the first day of Maya’s period.", Sheet: DayLogSheet },
-  { key: "calendar", name: "Calendar", caption: "The month with period days, the estimated fertile window and today. Maya is on day 18.", Sheet: () => <CalendarSheet /> },
-  { key: "history", name: "History", caption: "Every cycle you log, with its length and its period. Maya’s last five ran 27 to 30 days.", Sheet: HistorySheet },
-  { key: "backup", name: "Backup", caption: "Everything in one JSON file, whenever you want it, from Settings.", Sheet: BackupSheet },
+const OUTPUTS: { value: OutputKey; label: string; caption: string; Sheet: () => ReactNode }[] = [
+  { value: "log", label: "Day log", caption: "One sheet a day: flow, symptoms, mood, energy and a note. This is the first day of Maya’s period.", Sheet: DayLogSheet },
+  { value: "calendar", label: "Calendar", caption: "The month with period days, the estimated fertile window and today. Maya is on day 18.", Sheet: () => <CalendarSheet /> },
+  { value: "history", label: "History", caption: "Every cycle you log, with its length and its period. Maya’s last five ran 27 to 30 days.", Sheet: HistorySheet },
+  { value: "backup", label: "Backup", caption: "Everything in one JSON file, whenever you want it, from Settings.", Sheet: BackupSheet },
 ];
 
-const SWITCHES: { key: PartnerKey; label: string; claim: string; text: string }[] = [
-  { key: "headsup", label: "Cycle heads-up", claim: "A heads-up before your period.", text: "Your partner sees roughly when the next one is due." },
-  { key: "phase", label: "Today’s phase", claim: "The phase you’re in, in plain words.", text: "A soft label for the day, with the energy that phase tends to bring." },
-  { key: "symptoms", label: "Symptoms", claim: "What you’ve logged feeling.", text: "Today’s symptoms and the past week’s. The view shows symptoms only, not your notes." },
-  { key: "calendar", label: "Cycle calendar", claim: "The month, as you see it.", text: "Phases, period days and the estimated fertile window." },
-  { key: "quiet", label: "Quiet window", claim: "A pause, when you want one.", text: "On the days you choose, the partner view shows a pause message instead of your details, whatever else is on." },
+const SWITCHES: { key: PartnerKey; label: string; text: string }[] = [
+  { key: "headsup", label: "Cycle heads-up", text: "Roughly when your next period is due." },
+  { key: "phase", label: "Today’s phase", text: "The phase you’re in, in plain words, with the energy it tends to bring." },
+  { key: "symptoms", label: "Symptoms", text: "Today’s symptoms and the past week’s. The view shows symptoms only, not your notes." },
+  { key: "calendar", label: "Cycle calendar", text: "The month as you see it: phases, period days and the estimated fertile window." },
+  { key: "quiet", label: "Quiet window", text: "On the days you choose, the view shows a pause message instead, whatever else is on." },
 ];
-
-const NAMES = [
-  "Bull et al. 2019",
-  "Wilcox, Dunson & Baird 2000",
-  "Dunson et al. 1999",
-  "Pierson, Althoff & Leskovec 2018",
-  "Symul & Holmes 2022",
-  "Reed & Carr",
-  "Cleveland Clinic",
-];
+const ALL_OFF: Record<PartnerKey, boolean> = { headsup: false, phase: false, symptoms: false, calendar: false, quiet: false };
 
 const REFERENCES: { title: string; who: string; doi?: string }[] = [
   { title: "Real-world menstrual cycle characteristics of more than 600,000 menstrual cycles", who: "Bull, Rowland, Scherwitzl et al. NPJ Digital Medicine, 2019", doi: "10.1038/s41746-019-0152-7" },
@@ -150,7 +154,8 @@ export function Landing({ hosted, onStart, onSignIn }: LandingProps) {
   const [startKey, setStartKey] = useState("");
   const [lengthRaw, setLengthRaw] = useState("");
   const [output, setOutput] = useState<OutputKey>("log");
-  const [share, setShare] = useState<Record<PartnerKey, boolean>>({ headsup: true, phase: true, symptoms: false, calendar: false, quiet: false });
+  // Every switch starts off, as in the app: the visitor turns them on.
+  const [share, setShare] = useState(ALL_OFF);
   const [source, setSource] = useState(0);
 
   const cycleLength = cycleLengthFrom(lengthRaw);
@@ -158,16 +163,16 @@ export function Landing({ hosted, onStart, onSignIn }: LandingProps) {
   const estimate = result && "estimate" in result ? result.estimate : null;
   const error = result && "error" in result ? result.error : null;
   // A late period takes the menstrual colours (docs/DESIGN.md).
-  const livePhase: PhaseName = !estimate ? "menstrual" : estimate.daysToNext < 0 ? "menstrual" : estimate.phase;
-  const current = OUTPUTS.find((o) => o.key === output) ?? OUTPUTS[0];
+  const livePhase: PhaseName = !estimate || estimate.daysToNext < 0 ? "menstrual" : estimate.phase;
+  const current = OUTPUTS.find((o) => o.value === output) ?? OUTPUTS[0];
 
-  // One design in both themes: the page is the dark chapter design either way, and its app
-  // fragments show Rhea's light theme. The app's theme comes back when the landing closes.
+  // The page is designed light (pastel fields), so it shows Rhea's light theme in both; the
+  // app's theme comes back when the landing closes.
   useLayoutEffect(() => {
     const html = document.documentElement;
     html.classList.remove("dark");
-    const red = getComputedStyle(html).getPropertyValue("--menstrual-field").trim();
-    if (red) document.querySelector('meta[name="theme-color"]')?.setAttribute("content", red);
+    const ground = getComputedStyle(html).getPropertyValue("--background").trim();
+    if (ground) document.querySelector('meta[name="theme-color"]')?.setAttribute("content", ground);
     return () => applyTheme(readTheme());
   }, []);
 
@@ -192,91 +197,97 @@ export function Landing({ hosted, onStart, onSignIn }: LandingProps) {
 
   return (
     <div className="landing" id="top" ref={rootRef}>
-      <header className="l-hero">
+      <header className="l-top">
         <nav className="l-nav" aria-label="Rhea">
           <span className="l-brand">
-            <Mark /> Rhea
+            <Mark /> <span className="l-brand__name font-display">Rhea</span>
           </span>
           <div className="l-nav__links">
-            <a className="l-textlink" href="#your-cycle" onClick={jump}>
+            <a href="#your-cycle" onClick={jump}>
               Your cycle
             </a>
-            <a className="l-textlink" href="#partner-view" onClick={jump}>
+            <a href="#partner-view" onClick={jump}>
               Partner view
             </a>
-            <a className="l-textlink" href="#questions" onClick={jump}>
+            <a href="#questions" onClick={jump}>
               Questions
             </a>
           </div>
-          <Actions {...actions} />
+          <Actions {...actions} nav />
         </nav>
-        <h1 className="l-hero__name l-display">
-          <span className="l-line">
-            <span style={order(0)}>Rhea.</span>
-          </span>{" "}
-          <span className="l-line l-line--dark">
-            <span style={order(1)}>Period.</span>
-          </span>
-        </h1>
-        <p className="l-hero__line">A free, open-source period tracker that stores your logs on your device and works offline.</p>
+
+        <div className="l-hero">
+          <div className="l-hero__text">
+            <h1 className="l-h1">
+              Get to know your cycle, <em>gently</em>
+            </h1>
+            <p className="l-hero__line">
+              Rhea is a free, open-source period tracker that keeps your logs on your device and works offline.
+            </p>
+            <div className="l-hero__actions">
+              <Button size="lg" className="l-hero__start" onClick={onStart}>
+                {hosted ? "Create your account" : "Start tracking"}
+              </Button>
+              <a className={cn(buttonVariants({ variant: "ghost", size: "lg" }), "l-hero__try")} href="#your-cycle" onClick={jump}>
+                Try it with your own dates <ArrowDown size={18} aria-hidden="true" />
+              </a>
+            </div>
+          </div>
+          <div className="l-hero__stage" data-phase="menstrual">
+            <TodayCard estimate={SAMPLE_ESTIMATE} cycleLength={SAMPLE_ESTIMATE.cycleLength} today={SAMPLE_TODAY} sample />
+          </div>
+        </div>
       </header>
 
       <main>
-        <section className="l-about" aria-labelledby="about-title">
-          <h2 id="about-title" className="l-about__title" data-reveal>
-            Where your logs live
-          </h2>
-          <p className="l-about__text" data-reveal style={order(1)}>
-            <b>Rhea</b> is a period tracker that keeps <Hl phase="menstrual">every log on your device</Hl>, in your browser&rsquo;s own
-            storage. It <Hl phase="follicular">works offline</Hl>, so a day can be logged on a train or with no signal at all, and it{" "}
-            <Hl phase="ovulation">installs like an app</Hl> on a phone or a laptop. It is <Hl phase="luteal">free and open source</Hl> under
-            the MIT licence, so anyone can read what the code does with a log, and it carries <Hl phase="menstrual">no ads and no analytics</Hl>.{" "}
-            {hosted ? (
-              <>
-                When you sign in, <Hl phase="follicular">your logs sync to your account</Hl> over TLS so your devices agree; the synced
-                copy is not end-to-end encrypted, and the privacy policy says who can read it.
-              </>
-            ) : (
-              <>
-                This copy runs without a server: <Hl phase="follicular">nothing you log leaves this device</Hl>, and there is no account
-                to make.
-              </>
-            )}{" "}
-            Its estimates say what they are: a cycle day, a phase, a likely date for the next period, and a fertile window that is a
-            calendar estimate, not contraception.{" "}
-            <a className="l-about__try" href="#your-cycle" onClick={jump}>
-              See where you are today.
-            </a>
-          </p>
+        <section className="l-section l-about" aria-labelledby="about-title">
+          <div className="l-wrap">
+            <h2 id="about-title" className="l-h2" data-reveal>
+              Where your logs live
+            </h2>
+            <div className="l-about__text" data-reveal style={order(1)}>
+              <p>
+                Rhea keeps <Em phase="menstrual">every log on your device</Em>, in your browser&rsquo;s own storage. It{" "}
+                <Em phase="follicular">works offline</Em>, so a day can be logged on a train or with no signal at all, and it{" "}
+                <Em phase="ovulation">installs like an app</Em> on a phone or a laptop.
+              </p>
+              <p>
+                It is <Em phase="luteal">free and open source</Em> under the MIT licence, so anyone can read what the code does with a log,
+                and it carries no ads and no analytics.{" "}
+                {hosted
+                  ? "When you sign in, your logs sync to your account over TLS so your devices agree; the synced copy is not end-to-end encrypted, and the privacy policy says who can read it."
+                  : "This copy runs without a server: nothing you log leaves this device, and there is no account to make."}
+              </p>
+              <p>
+                Its estimates say what they are: a cycle day, a phase, a likely date for the next period, and a fertile window that is a
+                calendar estimate, not contraception.
+              </p>
+            </div>
+          </div>
         </section>
 
-        <section id="your-cycle" className="l-live" data-phase={livePhase} aria-labelledby="your-cycle-title">
-          <div className="l-live__sentence l-display" data-reveal>
-            <h2 id="your-cycle-title" className="l-live__h">
-              <label htmlFor="period-start">
-                My last period <br />
-                started
-              </label>
-            </h2>{" "}
-            <input
-              id="period-start"
-              className="l-blank"
-              type="date"
-              value={startKey}
-              max={toDateKey(now)}
-              data-empty={startKey ? undefined : ""}
-              aria-invalid={error ? true : undefined}
-              aria-describedby={error ? "your-cycle-error your-cycle-note" : "your-cycle-note"}
-              onChange={(e) => setStartKey(e.target.value)}
-            />
-          </div>
-          <div className="l-live__grid">
-            <div className="l-live__side" data-reveal style={order(1)}>
+        <section id="your-cycle" className="l-section l-chapter l-live" data-phase={livePhase} aria-labelledby="your-cycle-title">
+          <div className="l-wrap l-live__grid">
+            <div className="l-live__form" data-reveal>
+              <h2 id="your-cycle-title" className="l-h2">
+                <label htmlFor="period-start">My last period started</label>
+              </h2>
+              <input
+                id="period-start"
+                className="l-field l-field--date"
+                type="date"
+                value={startKey}
+                max={toDateKey(now)}
+                data-empty={startKey ? undefined : ""}
+                aria-invalid={error ? true : undefined}
+                aria-describedby={error ? "your-cycle-error your-cycle-note" : "your-cycle-note"}
+                onChange={(e) => setStartKey(e.target.value)}
+              />
               <p className="l-live__len">
                 <label htmlFor="cycle-length">My cycle is usually</label>{" "}
                 <input
                   id="cycle-length"
-                  className="l-blank l-blank--short"
+                  className="l-field l-field--short"
                   type="number"
                   inputMode="numeric"
                   min={MIN_CYCLE}
@@ -305,260 +316,207 @@ export function Landing({ hosted, onStart, onSignIn }: LandingProps) {
           </div>
         </section>
 
-        <section id="inside" className="l-show" aria-labelledby="inside-title">
-          <div className="l-show__index">
-            <h2 id="inside-title" className="l-show__h" data-reveal>
-              Inside Rhea, with a sample cycle
-            </h2>
-            <ul className="l-show__names">
-              {OUTPUTS.map((o, i) => (
-                <li key={o.key} data-reveal style={order(i + 1)}>
-                  <button type="button" className="l-display" aria-pressed={o.key === output} onClick={() => setOutput(o.key)}>
-                    {o.name}
-                  </button>
+        <section id="inside" className="l-section l-show" aria-labelledby="inside-title">
+          <div className="l-wrap l-show__grid">
+            <div className="l-show__index">
+              <h2 id="inside-title" className="l-h2" data-reveal>
+                Inside Rhea, with a sample cycle
+              </h2>
+              <Segmented
+                label="Screens"
+                value={output}
+                options={OUTPUTS}
+                onChange={(v) => v && setOutput(v)}
+                className="l-show__tabs [&>button]:min-h-11 [&>button]:text-[15px]"
+              />
+              <p className="l-show__caption" aria-live="polite">
+                {current.caption}
+              </p>
+            </div>
+            <div className="l-show__stage" data-reveal style={order(1)}>
+              <div key={output} className="l-show__sheet">
+                <current.Sheet />
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section id="partner-view" className="l-section l-chapter l-partner" data-phase="follicular" aria-labelledby="partner-title">
+          <div className="l-wrap l-partner__grid">
+            <div className="l-partner__head" data-reveal>
+              <h2 id="partner-title" className="l-h2">
+                A partner view, if you want one
+              </h2>
+              <p className="l-lead">
+                A partner links to your account with an invite code you create. Every switch starts off, and you choose what their view
+                shows, one at a time. The switches shape the view, not the server: a linked partner&rsquo;s account can technically read
+                your synced logs.
+              </p>
+              <p className="l-partner__try">Try them here: the card shows what Maya&rsquo;s partner would see.</p>
+            </div>
+            <div className="l-partner__card">
+              <PartnerCard on={share} />
+            </div>
+            <ul className="l-partner__list" aria-label="What the partner view shows">
+              {SWITCHES.map((s, i) => (
+                <li key={s.key} data-reveal style={order(i)}>
+                  <label className="l-switch" htmlFor={`share-${s.key}`}>
+                    <span>
+                      <span id={`share-${s.key}-label`} className="l-switch__label">
+                        {s.label}
+                      </span>
+                      <span id={`share-${s.key}-note`} className="l-switch__note">
+                        {s.text}
+                      </span>
+                    </span>
+                    <Switch
+                      id={`share-${s.key}`}
+                      checked={share[s.key]}
+                      aria-labelledby={`share-${s.key}-label`}
+                      aria-describedby={`share-${s.key}-note`}
+                      onCheckedChange={(on) => setShare((prev) => ({ ...prev, [s.key]: on }))}
+                    />
+                  </label>
                 </li>
               ))}
             </ul>
-            <p className="l-show__caption" aria-live="polite" data-reveal style={order(5)}>
-              {current.caption}
-            </p>
-          </div>
-          <div className="l-show__stage" data-reveal style={order(2)}>
-            <div key={output} className="l-show__sheet">
-              <current.Sheet />
-            </div>
           </div>
         </section>
 
-        <section id="partner-view" className="l-partner" aria-labelledby="partner-title">
-          <div className="l-partner__field">
-            <PartnerCard on={share} />
-          </div>
-          <div className="l-partner__column">
-            <h2 id="partner-title" className="l-partner__h l-display" data-reveal>
-              Partner view
-            </h2>
-            <p className="l-partner__lead" data-reveal style={order(1)}>
-              A partner links to your account with an invite code you create. Every switch starts off, and you choose what their view
-              shows, one at a time; Maya has turned on two. The switches shape the view, not the server: a linked partner&rsquo;s
-              account can technically read your synced logs.
-            </p>
-            {SWITCHES.map((s) => (
-              <div key={s.key} className="l-partner__block" data-reveal>
-                <h3 className="l-partner__claim">{s.claim}</h3>
-                <p className="l-partner__text">{s.text}</p>
-                <button
-                  type="button"
-                  role="switch"
-                  aria-checked={share[s.key]}
-                  className="l-switch"
-                  onClick={() => setShare((prev) => ({ ...prev, [s.key]: !prev[s.key] }))}
-                >
-                  <span>{s.label}</span>
-                  <span className="l-switch__track" aria-hidden="true">
-                    <span className="l-switch__thumb" />
-                  </span>
-                </button>
-              </div>
-            ))}
-          </div>
-        </section>
-
-        <figure className="l-moon">
-          <div className="l-moon__frame">
-            <img
-              src={img("rhea-full-globe.jpg")}
-              width={1440}
-              height={1440}
-              loading="lazy"
-              decoding="async"
-              alt="Rhea, a grey moon covered in craters, fully lit against black space"
-            />
-          </div>
-          <figcaption className="l-moon__caption">
-            Rhea, Saturn&rsquo;s second-largest moon, photographed by Cassini on 26 November 2005. The app is named after it.
-          </figcaption>
-        </figure>
-
-        <section id="research" className="l-proof" aria-labelledby="research-title">
-          <div className="l-proof__band">
-            <div className="l-marquee">
-              {[0, 1].map((copy) => (
-                <ul key={copy} className="l-marquee__track l-display" aria-hidden={copy === 1 ? true : undefined}>
-                  {NAMES.map((n) => (
-                    <li key={n}>
-                      {n}
-                      <span className="l-dot" />
-                    </li>
-                  ))}
-                </ul>
-              ))}
-            </div>
-          </div>
-          <div className="l-proof__row">
-            <div className="l-proof__intro">
-              <h2 id="research-title" className="l-proof__h" data-reveal>
+        <section id="research" className="l-section l-chapter" data-phase="ovulation" aria-labelledby="research-title">
+          <div className="l-wrap l-split">
+            <div data-reveal>
+              <h2 id="research-title" className="l-h2">
                 The research behind the estimates
               </h2>
-              <p className="l-proof__text" data-reveal style={order(1)}>
+              <p className="l-lead">
                 Cycle lengths from more than 600,000 real cycles, when the fertile window falls, and how much phases vary from person to
                 person. Rhea lists every source in the app, under Sources.
               </p>
             </div>
-            <ul className="l-proof__refs">
+            <ul className="l-refs">
               {REFERENCES.map((r, i) => (
-                <li key={r.title} data-reveal style={order(i % 4)}>
+                <li key={r.title} data-reveal style={order(i % 3)}>
                   {r.doi ? (
-                    <a className="l-textlink l-textlink--on" href={`https://doi.org/${r.doi}`} target="_blank" rel="noreferrer">
+                    <a className="l-link l-refs__title" href={`https://doi.org/${r.doi}`} target="_blank" rel="noreferrer">
                       {r.title}
                     </a>
                   ) : (
-                    r.title
+                    <span className="l-refs__title">{r.title}</span>
                   )}
-                  <span className="l-proof__who">{r.who}</span>
+                  <span className="l-refs__who">{r.who}</span>
                 </li>
               ))}
             </ul>
           </div>
         </section>
 
-        <section id="history" className="l-list" aria-labelledby="history-title">
-          <div className="l-list__head" data-reveal>
-            <h2 id="history-title" className="l-list__h l-display">
-              <span className="l-dim">Bring it all in.</span> <span>Take it with you.</span>
-            </h2>
-            <Actions {...actions} large />
-          </div>
-          <div className="l-list__body">
-            <div className="l-tabs" role="group" aria-label="Where your history comes from" data-reveal style={order(1)}>
-              {SOURCES.map((s, i) => (
-                <button key={s.name} type="button" className="l-tab" aria-pressed={i === source} onClick={() => setSource(i)}>
-                  <span className="l-tab__name">{s.name}</span>
-                  <span className="l-tab__note">{s.note}</span>
-                </button>
-              ))}
-            </div>
-            <ul className="l-bands" aria-label={`${SOURCES[source].name}: what happens`} data-reveal style={order(2)}>
-              {SOURCES[source].bands.map(([verb, title, note]) => (
-                <li key={verb + title} className="l-bandrow">
-                  <span className="l-bandrow__verb">{verb}</span>
-                  <span>
-                    <span className="l-bandrow__title">{title}</span>
-                    <span className="l-bandrow__note">{note}</span>
-                  </span>
-                </li>
-              ))}
-            </ul>
-          </div>
-        </section>
-
-        <section id="questions" className="l-faq" aria-labelledby="questions-title">
-          <div className="l-faq__head">
-            <h2 id="questions-title" className="l-display" data-reveal>
-              Straight answers
-            </h2>
-            <img
-              src={img("rhea-before-titan.jpg")}
-              width={1272}
-              height={955}
-              loading="lazy"
-              decoding="async"
-              data-reveal
-              style={order(1)}
-              alt="The cratered edge of Rhea in front of the larger, hazy disc of Titan, both lit from one side"
-            />
-          </div>
-          {FAQ.map(([q, a]) => (
-            <div key={q} className="l-faq__band">
-              <h3 data-reveal>{q}</h3>
-              <p data-reveal style={order(1)}>
-                {a}
-              </p>
-            </div>
-          ))}
-        </section>
-
-        <section className="l-cta" aria-labelledby="start-title">
-          <div className="l-cta__row">
-            <div className="l-cta__tile l-cta__tile--photo">
-              <img
-                src={img("rhea-over-saturn.jpg")}
-                width={1000}
-                height={1000}
-                loading="lazy"
-                decoding="async"
-                alt="Rhea as a small grey disc in front of the pale gold clouds of Saturn"
-              />
-            </div>
-            <div className="l-cta__tile l-cta__tile--main" data-reveal>
-              <h2 id="start-title" className="l-display">
-                Day one starts here.
+        <section id="history" className="l-section l-list" aria-labelledby="history-title">
+          <div className="l-wrap">
+            <div data-reveal>
+              <h2 id="history-title" className="l-h2">
+                Bring your history in. Take it with you.
               </h2>
-              <p>
-                {hosted
-                  ? "Create an account, log your last period, and the estimates begin from your own dates."
-                  : "Rhea opens on this device. Log your last period and the estimates begin from your own dates."}
-              </p>
-              <Actions {...actions} large />
+              <p className="l-lead">Start from the history you already have, and take all of it with you whenever you like.</p>
             </div>
-            <div className="l-cta__tile l-cta__tile--colour" />
+            <div className="l-list__body" data-reveal style={order(1)}>
+              <div className="l-tabs" role="group" aria-label="Where your history comes from">
+                {SOURCES.map((s, i) => (
+                  <button key={s.name} type="button" className="l-tab" aria-pressed={i === source} onClick={() => setSource(i)}>
+                    <span className="l-tab__name">{s.name}</span>
+                    <span className="l-tab__note">{s.note}</span>
+                  </button>
+                ))}
+              </div>
+              <ul className="l-bands" aria-label={`${SOURCES[source].name}: what happens`}>
+                {SOURCES[source].bands.map(([verb, title, note]) => (
+                  <li key={verb + title} className="l-bandrow">
+                    <span className="l-bandrow__verb font-display">{verb}</span>
+                    <span>
+                      <span className="l-bandrow__title">{title}</span>
+                      <span className="l-bandrow__note">{note}</span>
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          </div>
+        </section>
+
+        <section id="questions" className="l-section l-chapter" data-phase="luteal" aria-labelledby="questions-title">
+          <div className="l-wrap">
+            <h2 id="questions-title" className="l-h2" data-reveal>
+              Honest answers
+            </h2>
+            <div className="l-faq">
+              {FAQ.map(([q, a]) => (
+                <div key={q} className="l-faq__row" data-reveal>
+                  <h3 className="l-h3">{q}</h3>
+                  <p>{a}</p>
+                </div>
+              ))}
+            </div>
+          </div>
+        </section>
+
+        <section className="l-section l-chapter l-cta" data-phase="menstrual" aria-labelledby="start-title">
+          <div className="l-wrap l-cta__inner" data-reveal>
+            <div className="l-cta__ring" aria-hidden="true">
+              <CycleRing avgLength={DEFAULT_CYCLE_LENGTH} avgPeriodLength={PERIOD_LENGTH} cycleDay={1} size={136}>
+                <span className="l-cta__day font-display">Day 1</span>
+              </CycleRing>
+            </div>
+            <h2 id="start-title" className="l-h2">
+              Day one starts here
+            </h2>
+            <p className="l-lead">
+              {hosted
+                ? "Create an account, log your last period, and the estimates begin from your own dates."
+                : "Rhea opens on this device. Log your last period and the estimates begin from your own dates."}
+            </p>
+            <Actions {...actions} size="lg" />
           </div>
         </section>
       </main>
 
-      <footer className="l-footer">
-        <div className="l-footer__top">
-          <p className="l-brand">
-            <Mark /> Rhea, a free, open-source period tracker.
-          </p>
-          <p>MIT licence. Estimates, not medical advice.</p>
-          <a className="l-textlink l-textlink--on" href="#top" onClick={jump}>
-            Back to top
-          </a>
-        </div>
-        <img
-          className="l-footer__moon"
-          src={img("rhea-trailing-hemisphere.jpg")}
-          width={1164}
-          height={1164}
-          loading="lazy"
-          decoding="async"
-          alt="Rhea's trailing hemisphere, with bright fractures across grey cratered ice"
-        />
-        <a className="l-footer__line" href={REPO} target="_blank" rel="noreferrer">
-          <span className="l-footer__host">github.com/shravanibnikam/</span>
-          <span className="l-footer__repo">rhea-period-tracker</span>
-        </a>
-        <div className="l-footer__meta">
-          <p>
-            <a className="l-textlink l-textlink--on" href={REPO} target="_blank" rel="noreferrer">
-              Source
-            </a>{" "}
-            ·{" "}
-            <a className="l-textlink l-textlink--on" href={`${REPO}/blob/main/LICENSE`} target="_blank" rel="noreferrer">
-              MIT licence
-            </a>
-          </p>
-          <p className="l-credits">
-            Pictures from NASA&rsquo;s Cassini mission, public domain, via Wikimedia Commons:{" "}
-            <a className="l-textlink l-textlink--on" href={`${COMMONS}PIA07763_Rhea_full_globe5.jpg`} target="_blank" rel="noreferrer">
-              Rhea full globe
-            </a>{" "}
-            and{" "}
-            <a className="l-textlink l-textlink--on" href={`${COMMONS}Rhea_Before_Titan.jpg`} target="_blank" rel="noreferrer">
-              Rhea before Titan
-            </a>{" "}
-            by NASA/JPL/Space Science Institute;{" "}
-            <a className="l-textlink l-textlink--on" href={`${COMMONS}Rhea_Over_Saturn_from_Cassini.jpg`} target="_blank" rel="noreferrer">
-              Rhea over Saturn
-            </a>{" "}
-            by NASA/JPL, processed by Jcpag2012;{" "}
-            <a className="l-textlink l-textlink--on" href={`${COMMONS}Rhea_by_Cassini_21_Nov_2009.jpg`} target="_blank" rel="noreferrer">
-              Rhea, 21 November 2009
-            </a>{" "}
-            by NASA.
-          </p>
-          <p className="l-footer__year">2026</p>
+      <footer className="l-section l-footer">
+        <div className="l-wrap l-footer__grid">
+          <div className="l-footer__about">
+            <p className="l-brand">
+              <Mark /> <span className="l-brand__name font-display">Rhea</span>
+            </p>
+            <p>A free, open-source period tracker. MIT licence. Estimates, not medical advice.</p>
+            <p>
+              <a className="l-link" href={REPO} target="_blank" rel="noreferrer">
+                Source on GitHub
+              </a>{" "}
+              ·{" "}
+              <a className="l-link" href={`${REPO}/blob/main/LICENSE`} target="_blank" rel="noreferrer">
+                MIT licence
+              </a>{" "}
+              ·{" "}
+              <a className="l-link" href="#top" onClick={jump}>
+                Back to top
+              </a>
+            </p>
+          </div>
+          <figure className="l-moon">
+            <img
+              src={img("rhea-saturn.jpg")}
+              width={320}
+              height={320}
+              loading="lazy"
+              decoding="async"
+              alt="Rhea, a small grey cratered moon, in front of the pale gold clouds of Saturn"
+            />
+            <figcaption>
+              Why the name? Rhea is also a moon of Saturn, seen here by the Cassini spacecraft against the planet&rsquo;s clouds. Photograph:{" "}
+              <a className="l-link" href={PHOTO_PAGE} target="_blank" rel="noreferrer">
+                Rhea over Saturn
+              </a>
+              , NASA/JPL, processed by Jcpag2012, public domain, via Wikimedia Commons.
+            </figcaption>
+          </figure>
         </div>
       </footer>
     </div>

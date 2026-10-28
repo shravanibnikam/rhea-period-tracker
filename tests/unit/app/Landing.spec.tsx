@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 /**
- * Landing page (docs/DESIGN.md, "Colour chapters"). App renders it with
+ * Landing page (docs/DESIGN.md). App renders it with
  * `hosted` = accounts configured and nobody signed in. A local-only build must
  * show no button named exactly "Sign in" (tests/e2e/local-only.e2e.ts), and the
  * live thing must compute the visitor's day with Rhea's own cycle engine.
@@ -25,7 +25,7 @@ describe("Landing", () => {
   it("renders the page title as its one h1", () => {
     render(<Landing hosted={false} onStart={vi.fn()} />);
     expect(screen.getAllByRole("heading", { level: 1 })).toHaveLength(1);
-    expect(screen.getByRole("heading", { level: 1 }).textContent).toMatch(/Rhea\.\s*Period\./);
+    expect(screen.getByRole("heading", { level: 1 }).textContent).toMatch(/Get to know your cycle, gently/);
   });
 
   it("local mode: Start tracking enters the app and there is no Sign in button", () => {
@@ -62,6 +62,19 @@ describe("Landing", () => {
     fireEvent.change(screen.getByLabelText(/my cycle is usually/i), { target: { value: "35" } });
     expect(card.textContent).toMatch(/Day\s*18\s*of 35/);
     expect(card.textContent).toMatch(/Ovulation phase/);
+  });
+
+  it("the partner view starts with every switch off, and the card follows them", () => {
+    render(<Landing hosted={false} onStart={vi.fn()} />);
+    const switches = screen.getAllByRole("switch");
+    expect(switches.length).toBeGreaterThan(0);
+    for (const s of switches) expect(s.getAttribute("aria-checked")).toBe("false");
+    expect(screen.getByText("Nothing shared yet")).toBeTruthy();
+
+    fireEvent.click(screen.getByRole("switch", { name: "Cycle heads-up" }));
+    expect(screen.getByRole("switch", { name: "Cycle heads-up" }).getAttribute("aria-checked")).toBe("true");
+    expect(screen.queryByText("Nothing shared yet")).toBeNull();
+    expect(screen.getByText(/Period likely in/)).toBeTruthy();
   });
 
   it("refuses a start date after today", () => {

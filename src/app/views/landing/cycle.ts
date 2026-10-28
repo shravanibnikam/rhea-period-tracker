@@ -102,3 +102,8 @@ function buildSample(): DailyLog[] {
 export const SAMPLE_LOGS: DailyLog[] = buildSample();
 export const SAMPLE_STATE: CycleState = deriveCycleState(SAMPLE_LOGS, null, SAMPLE_TODAY);
 export const SAMPLE_BY_DATE = new Map(SAMPLE_LOGS.map((l) => [l.date, l]));
+
+/** Maya's day as the Today card shows it, through the visitor's own path (the hero's picture). */
+export const SAMPLE_ESTIMATE: Estimate = (
+  estimateCycle(toDateKey(SAMPLE_START), SAMPLE_STATE.avgCycleLength, SAMPLE_TODAY) as { estimate: Estimate }
+).estimate;
