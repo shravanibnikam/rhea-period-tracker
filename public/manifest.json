@@ -1,11 +1,11 @@
 {
-  "name": "Rhea — Cycle Tracker",
+  "name": "Rhea · Period Tracker",
   "short_name": "Rhea",
-  "description": "A local-first cycle tracker with account sync and partner sharing.",
+  "description": "A free, open-source, local-first period tracker that works offline, with account sync and a partner view you choose.",
   "start_url": "./",
   "display": "standalone",
-  "background_color": "#FDF8F5",
-  "theme_color": "#C4776A",
+  "background_color": "#F4F3F1",
+  "theme_color": "#F4F3F1",
   "orientation": "portrait",
   "icons": [
     {

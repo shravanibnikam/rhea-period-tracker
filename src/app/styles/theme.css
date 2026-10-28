@@ -1,86 +1,160 @@
 @custom-variant dark (&:is(.dark *));
 
+/*
+ * Rhea design tokens — see docs/DESIGN.md. Light is the default; `.dark` on
+ * <html> (useTheme) switches every role. Phase colours are data colours: each
+ * phase has a mark (≥3:1 on the card), a pale tint with the dark of its own
+ * hue as ink, and a saturated field (the landing page's chapters).
+ * `[data-phase]` scopes `--phase-*` to one phase for whatever sits inside it.
+ */
 :root {
+  --background: #F4F3F1;
+  --foreground: #191919;
+  --card: #FFFFFF;
+  --card-foreground: #191919;
+  --popover: #FFFFFF;
+  --popover-foreground: #191919;
+  --primary: #191919;
+  --primary-foreground: #FFFFFF;
+  --secondary: #ECEAE6;
+  --secondary-foreground: #191919;
+  --muted: #ECEAE6;
+  --muted-foreground: #66625C;
+  --accent: #FBE6E3;
+  --accent-foreground: #7E1D17;
+  --brand: #C8322B;
+  --destructive: #B42318;
+  --destructive-foreground: #FFFFFF;
+  --border: #E6E3DE;
+  --input: #D9D5CF;
+  --input-background: #FFFFFF;
+  --switch-background: #D9D5CF;
+  --ring: #191919;
+
+  --menstrual: #C8322B;
+  --menstrual-tint: #FBE6E3;
+  --menstrual-ink: #7E1D17;
+  --follicular: #2F7A4B;
+  --follicular-tint: #E2F1E6;
+  --follicular-ink: #1B4D2E;
+  --ovulation: #B7790A;
+  --ovulation-tint: #FCF0D2;
+  --ovulation-ink: #6A4500;
+  --luteal: #7E4479;
+  --luteal-tint: #F2E6F1;
+  --luteal-ink: #4C2449;
+
+  /* Saturated chapter fields — identical in both themes. */
+  --menstrual-field: #C8322B;
+  --menstrual-field-ink: #FFFFFF;
+  --follicular-field: #2F7A4B;
+  --follicular-field-ink: #FFFFFF;
+  --ovulation-field: #F2B53A;
+  --ovulation-field-ink: #111111;
+  --luteal-field: #6D3B6A;
+  --luteal-field-ink: #FFFFFF;
+  --charcoal: #191919;
+
+  /* The partner's own hue: one hue per person, ≥60° from every phase hue. */
+  --partner: #2B6CA3;
+  --partner-tint: #E1EDF8;
+  --partner-ink: #163F66;
+
+  --chart-1: var(--menstrual);
+  --chart-2: var(--follicular);
+  --chart-3: var(--ovulation);
+  --chart-4: var(--luteal);
+  --chart-5: var(--muted-foreground);
+
+  /* Defaults for an unscoped --phase-* (menstrual = the brand hue). */
+  --phase: var(--menstrual);
+  --phase-tint: var(--menstrual-tint);
+  --phase-ink: var(--menstrual-ink);
+  --phase-field: var(--menstrual-field);
+  --phase-field-ink: var(--menstrual-field-ink);
+
   --font-size: 16px;
-  --background: #FDF8F5;
-  --foreground: #2D1F1A;
-  --card: #FFFAF8;
-  --card-foreground: #2D1F1A;
-  --popover: #FFFAF8;
-  --popover-foreground: #2D1F1A;
-  --primary: #C4776A;
-  --primary-foreground: #ffffff;
-  --secondary: #F5EDE9;
-  --secondary-foreground: #2D1F1A;
-  --muted: #EDE5E0;
-  --muted-foreground: #8A7570;
-  --accent: #F2B5A0;
-  --accent-foreground: #2D1F1A;
-  --destructive: #d4183d;
-  --destructive-foreground: #ffffff;
-  --border: rgba(180, 140, 130, 0.18);
-  --input: transparent;
-  --input-background: #F5EDE9;
-  --switch-background: #D4B8B0;
   --font-weight-medium: 500;
   --font-weight-normal: 400;
-  --ring: #C4776A;
-  --chart-1: #BE5A5A;
-  --chart-2: #5E8A52;
-  --chart-3: #C9913A;
-  --chart-4: #8B6FA0;
-  --chart-5: #D4A8B8;
-  --radius: 0.75rem;
-  --sidebar: oklch(0.985 0 0);
-  --sidebar-foreground: oklch(0.145 0 0);
-  --sidebar-primary: #030213;
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.97 0 0);
-  --sidebar-accent-foreground: oklch(0.205 0 0);
-  --sidebar-border: oklch(0.922 0 0);
-  --sidebar-ring: oklch(0.708 0 0);
+  color-scheme: light;
 }
 
 .dark {
-  --background: oklch(0.145 0 0);
-  --foreground: oklch(0.985 0 0);
-  --card: oklch(0.145 0 0);
-  --card-foreground: oklch(0.985 0 0);
-  --popover: oklch(0.145 0 0);
-  --popover-foreground: oklch(0.985 0 0);
-  --primary: oklch(0.985 0 0);
-  --primary-foreground: oklch(0.205 0 0);
-  --secondary: oklch(0.269 0 0);
-  --secondary-foreground: oklch(0.985 0 0);
-  --muted: oklch(0.269 0 0);
-  --muted-foreground: oklch(0.708 0 0);
-  --accent: oklch(0.269 0 0);
-  --accent-foreground: oklch(0.985 0 0);
-  --destructive: oklch(0.396 0.141 25.723);
-  --destructive-foreground: oklch(0.637 0.237 25.331);
-  --border: oklch(0.269 0 0);
-  --input: oklch(0.269 0 0);
-  --ring: oklch(0.439 0 0);
-  --font-weight-medium: 500;
-  --font-weight-normal: 400;
-  --chart-1: oklch(0.488 0.243 264.376);
-  --chart-2: oklch(0.696 0.17 162.48);
-  --chart-3: oklch(0.769 0.188 70.08);
-  --chart-4: oklch(0.627 0.265 303.9);
-  --chart-5: oklch(0.645 0.246 16.439);
-  --sidebar: oklch(0.205 0 0);
-  --sidebar-foreground: oklch(0.985 0 0);
-  --sidebar-primary: oklch(0.488 0.243 264.376);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.269 0 0);
-  --sidebar-accent-foreground: oklch(0.985 0 0);
-  --sidebar-border: oklch(0.269 0 0);
-  --sidebar-ring: oklch(0.439 0 0);
+  --background: #141414;
+  --foreground: #F3F1EE;
+  --card: #1D1D1D;
+  --card-foreground: #F3F1EE;
+  --popover: #232323;
+  --popover-foreground: #F3F1EE;
+  --primary: #F3F1EE;
+  --primary-foreground: #141414;
+  --secondary: #262626;
+  --secondary-foreground: #F3F1EE;
+  --muted: #262626;
+  --muted-foreground: #A8A39C;
+  --accent: #3B1A17;
+  --accent-foreground: #F7C1BB;
+  --brand: #F0685F;
+  --destructive: #F97066;
+  --destructive-foreground: #141414;
+  --border: #2E2E2E;
+  --input: #3A3A3A;
+  --input-background: #1D1D1D;
+  --switch-background: #3A3A3A;
+  --ring: #F3F1EE;
+
+  --menstrual: #F0685F;
+  --menstrual-tint: #3B1A17;
+  --menstrual-ink: #F7C1BB;
+  --follicular: #5DBB7F;
+  --follicular-tint: #15301F;
+  --follicular-ink: #A9DDB8;
+  --ovulation: #F2B53A;
+  --ovulation-tint: #3A2C0B;
+  --ovulation-ink: #F5D78E;
+  --luteal: #C98BC4;
+  --luteal-tint: #33202F;
+  --luteal-ink: #E7C3E2;
+  --partner: #6AA6DB;
+  --partner-tint: #14283A;
+  --partner-ink: #B3D2EE;
+  color-scheme: dark;
+}
+
+[data-phase="menstrual"] {
+  --phase: var(--menstrual);
+  --phase-tint: var(--menstrual-tint);
+  --phase-ink: var(--menstrual-ink);
+  --phase-field: var(--menstrual-field);
+  --phase-field-ink: var(--menstrual-field-ink);
+}
+[data-phase="follicular"] {
+  --phase: var(--follicular);
+  --phase-tint: var(--follicular-tint);
+  --phase-ink: var(--follicular-ink);
+  --phase-field: var(--follicular-field);
+  --phase-field-ink: var(--follicular-field-ink);
+}
+[data-phase="ovulation"] {
+  --phase: var(--ovulation);
+  --phase-tint: var(--ovulation-tint);
+  --phase-ink: var(--ovulation-ink);
+  --phase-field: var(--ovulation-field);
+  --phase-field-ink: var(--ovulation-field-ink);
+}
+[data-phase="luteal"] {
+  --phase: var(--luteal);
+  --phase-tint: var(--luteal-tint);
+  --phase-ink: var(--luteal-ink);
+  --phase-field: var(--luteal-field);
+  --phase-field-ink: var(--luteal-field-ink);
 }
 
 @theme inline {
-  --font-sans: "DM Sans", sans-serif;
-  --font-serif: "Playfair Display", serif;
+  --font-sans: "Red Hat Text", ui-sans-serif, system-ui, sans-serif;
+  --font-display: "Red Hat Display", ui-sans-serif, system-ui, sans-serif;
+  /* ponytail: transitional alias so not-yet-migrated `font-serif` reads as display; drop once unused. */
+  --font-serif: "Red Hat Display", ui-sans-serif, system-ui, sans-serif;
   --color-background: var(--background);
   --color-foreground: var(--foreground);
   --color-card: var(--card);
@@ -95,6 +169,7 @@
   --color-muted-foreground: var(--muted-foreground);
   --color-accent: var(--accent);
   --color-accent-foreground: var(--accent-foreground);
+  --color-brand: var(--brand);
   --color-destructive: var(--destructive);
   --color-destructive-foreground: var(--destructive-foreground);
   --color-border: var(--border);
@@ -102,23 +177,43 @@
   --color-input-background: var(--input-background);
   --color-switch-background: var(--switch-background);
   --color-ring: var(--ring);
+  --color-charcoal: var(--charcoal);
   --color-chart-1: var(--chart-1);
   --color-chart-2: var(--chart-2);
   --color-chart-3: var(--chart-3);
   --color-chart-4: var(--chart-4);
   --color-chart-5: var(--chart-5);
-  --radius-sm: calc(var(--radius) - 4px);
-  --radius-md: calc(var(--radius) - 2px);
-  --radius-lg: var(--radius);
-  --radius-xl: calc(var(--radius) + 4px);
-  --color-sidebar: var(--sidebar);
-  --color-sidebar-foreground: var(--sidebar-foreground);
-  --color-sidebar-primary: var(--sidebar-primary);
-  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
-  --color-sidebar-accent: var(--sidebar-accent);
-  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
-  --color-sidebar-border: var(--sidebar-border);
-  --color-sidebar-ring: var(--sidebar-ring);
+  --color-phase: var(--phase);
+  --color-phase-tint: var(--phase-tint);
+  --color-phase-ink: var(--phase-ink);
+  --color-phase-field: var(--phase-field);
+  --color-phase-field-ink: var(--phase-field-ink);
+  --color-menstrual: var(--menstrual);
+  --color-menstrual-tint: var(--menstrual-tint);
+  --color-menstrual-ink: var(--menstrual-ink);
+  --color-menstrual-field: var(--menstrual-field);
+  --color-follicular: var(--follicular);
+  --color-follicular-tint: var(--follicular-tint);
+  --color-follicular-ink: var(--follicular-ink);
+  --color-follicular-field: var(--follicular-field);
+  --color-ovulation: var(--ovulation);
+  --color-ovulation-tint: var(--ovulation-tint);
+  --color-ovulation-ink: var(--ovulation-ink);
+  --color-ovulation-field: var(--ovulation-field);
+  --color-luteal: var(--luteal);
+  --color-luteal-tint: var(--luteal-tint);
+  --color-luteal-ink: var(--luteal-ink);
+  --color-luteal-field: var(--luteal-field);
+  --color-partner: var(--partner);
+  --color-partner-tint: var(--partner-tint);
+  --color-partner-ink: var(--partner-ink);
+  /* One large radius for cards (20px), stepping down inside: 12 / 10 / 8 / 5. */
+  --radius-sm: 5px;
+  --radius-md: 8px;
+  --radius-lg: 10px;
+  --radius-xl: 12px;
+  --radius-2xl: 20px;
+  --radius-3xl: 24px;
 }
 
 @layer base {
@@ -126,58 +221,48 @@
     @apply border-border outline-ring/50;
   }
 
-  body {
-    @apply bg-background text-foreground;
-  }
-
-  /**
-  * Default typography styles for HTML elements (h1-h4, p, label, button, input).
-  * These are in @layer base, so Tailwind utility classes (like text-sm, text-lg) automatically override them.
-  */
-
   html {
     font-size: var(--font-size);
+    -webkit-text-size-adjust: 100%;
   }
 
-  h1 {
-    font-size: var(--text-2xl);
+  body {
+    @apply bg-background text-foreground font-sans antialiased;
+  }
+
+  h1, h2, h3, h4 {
+    font-family: var(--font-display);
+    font-weight: 700;
+    letter-spacing: -0.015em;
+    line-height: 1.15;
+    text-wrap: balance;
+  }
+
+  h1 { font-size: var(--text-2xl); }
+  h2 { font-size: var(--text-xl); }
+  h3 { font-size: var(--text-lg); }
+  h4 { font-size: var(--text-base); }
+
+  label, button {
     font-weight: var(--font-weight-medium);
-    line-height: 1.5;
   }
 
-  h2 {
-    font-size: var(--text-xl);
-    font-weight: var(--font-weight-medium);
-    line-height: 1.5;
-  }
-
-  h3 {
-    font-size: var(--text-lg);
-    font-weight: var(--font-weight-medium);
-    line-height: 1.5;
-  }
-
-  h4 {
-    font-size: var(--text-base);
-    font-weight: var(--font-weight-medium);
-    line-height: 1.5;
-  }
-
-  label {
-    font-size: var(--text-base);
-    font-weight: var(--font-weight-medium);
-    line-height: 1.5;
-  }
-
-  button {
-    font-size: var(--text-base);
-    font-weight: var(--font-weight-medium);
-    line-height: 1.5;
-  }
-
-  input {
+  input, textarea, select {
     font-size: var(--text-base);
     font-weight: var(--font-weight-normal);
-    line-height: 1.5;
+  }
+
+  :focus-visible {
+    outline: 2px solid var(--ring);
+    outline-offset: 2px;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+      scroll-behavior: auto !important;
+    }
   }
 }

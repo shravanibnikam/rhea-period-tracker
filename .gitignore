@@ -12,3 +12,10 @@ test-results/
 # Supabase CLI local link state
 supabase/.temp/
 supabase/.branches/
+
+# design-taste-frontend working output (direction sheets + seed.js stay tracked)
+.taste-skill/*/
+!.taste-skill/app/
+.taste-skill/app/*
+!.taste-skill/app/direction.json
+graphify-out/.graphify_*

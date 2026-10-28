@@ -1,6 +1,8 @@
 // domain/phases.ts — THE single phase oracle (M1.3 / spec Chapter 4 §2) plus
 // phase copy/colors. PURE: imports domain types only. PhaseData carries copy
-// and colors ONLY; every day-range is DERIVED from getPhaseBoundaries — the
+// and colors ONLY (colours are CSS custom-property references into
+// app/styles/theme.css, so every consumer follows the theme); every day-range
+// is DERIVED from getPhaseBoundaries — the
 // three previously-conflicting engines (utils.getPhase, utils.getPhaseLengths,
 // cycle.getCurrentPhase) are unified here, with cycle.getCurrentPhase's
 // dynamic algorithm promoted as canonical.
@@ -14,10 +16,10 @@ export const PHASES: Record<PhaseName, PhaseData> = {
   menstrual: {
     name: "Menstrual",
     shortName: "Flow",
-    color: "#BE5A5A",
-    bg: "#FDF0F0",
-    text: "#7A2020",
-    border: "#EAAFAF",
+    color: "var(--menstrual)",
+    bg: "var(--menstrual-tint)",
+    text: "var(--menstrual-ink)",
+    border: "color-mix(in srgb, var(--menstrual) 35%, transparent)",
     emoji: "\u{1F311}",
     tagline: "Rest & Release",
     description:
@@ -43,10 +45,10 @@ export const PHASES: Record<PhaseName, PhaseData> = {
   follicular: {
     name: "Follicular",
     shortName: "Rising",
-    color: "#5E8A52",
-    bg: "#EBF0E7",
-    text: "#2A4A20",
-    border: "#A8C89E",
+    color: "var(--follicular)",
+    bg: "var(--follicular-tint)",
+    text: "var(--follicular-ink)",
+    border: "color-mix(in srgb, var(--follicular) 35%, transparent)",
     emoji: "\u{1F331}",
     tagline: "Rise & Bloom",
     description:
@@ -72,10 +74,10 @@ export const PHASES: Record<PhaseName, PhaseData> = {
   ovulation: {
     name: "Ovulation",
     shortName: "Peak",
-    color: "#C9913A",
-    bg: "#FBF0DC",
-    text: "#7A4A0A",
-    border: "#E8C88A",
+    color: "var(--ovulation)",
+    bg: "var(--ovulation-tint)",
+    text: "var(--ovulation-ink)",
+    border: "color-mix(in srgb, var(--ovulation) 35%, transparent)",
     emoji: "\u2600\uFE0F",
     tagline: "Peak & Shine",
     description:
@@ -106,10 +108,10 @@ export const PHASES: Record<PhaseName, PhaseData> = {
   luteal: {
     name: "Luteal",
     shortName: "Nesting",
-    color: "#8B6FA0",
-    bg: "#EEE8F4",
-    text: "#4A2A5A",
-    border: "#C0A8D8",
+    color: "var(--luteal)",
+    bg: "var(--luteal-tint)",
+    text: "var(--luteal-ink)",
+    border: "color-mix(in srgb, var(--luteal) 35%, transparent)",
     emoji: "\u{1F319}",
     tagline: "Turn Inward",
     description:
