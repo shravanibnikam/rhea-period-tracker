@@ -13,7 +13,7 @@ export const SHARE_KEYS: { key: ShareKey; label: string; description: string }[]
   {
     key: "cycle_headsup",
     label: "Cycle heads-up",
-    description: "Partner sees when your next periods are likely to start",
+    description: "When your next periods are likely to start",
   },
   {
     key: "todays_phase",
@@ -23,17 +23,17 @@ export const SHARE_KEYS: { key: ShareKey; label: string; description: string }[]
   {
     key: "calendar_view",
     label: "Cycle calendar",
-    description: "Partner sees the month view — phases, period days, fertile window",
+    description: "The month view: phases, period days and the fertile window",
   },
   {
     key: "mood_signal",
     label: "Today's mood",
-    description: "The mood you've logged today, like \"Calm\" or \"Irritable\"",
+    description: "The mood you've logged today, like “Calm” or “Irritable”",
   },
   {
     key: "symptom_details",
     label: "Symptoms",
-    description: "What you've logged feeling today and over the past week",
+    description: "The symptoms you've logged today and over the past week",
   },
   {
     key: "care_nudges",

@@ -51,6 +51,7 @@ function RedeemForm({
       <div className="flex gap-2 pt-1">
         <input
           id={id}
+          name="invite-code"
           type="text"
           value={code}
           onChange={(e) => onChange(e.target.value)}
@@ -74,6 +75,7 @@ function RedeemForm({
 export function PairingSection({ userId, role, onRoleChanged }: PairingSectionProps) {
   const [inviteCode, setInviteCode] = useState<string | null>(null);
   const [partnerLinked, setPartnerLinked] = useState(false);
+  const [confirmUnlink, setConfirmUnlink] = useState(false);
   const [redeemCode, setRedeemCode] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -139,7 +141,7 @@ export function PairingSection({ userId, role, onRoleChanged }: PairingSectionPr
       // NEVER mutate the code (case and internal characters preserved). A
       // wrong-looking code gets a clear message instead of a confusing rejection.
       if (!isValidInviteCode(code)) {
-        setError("That doesn't look like a valid invite code — paste the full code your partner shared.");
+        setError("That doesn't look like a valid invite code. Paste the whole code your partner sent.");
         return;
       }
       const err = await redeemInviteCode(code);
@@ -159,6 +161,7 @@ export function PairingSection({ userId, role, onRoleChanged }: PairingSectionPr
         setError(err);
       } else {
         setPartnerLinked(false);
+        setConfirmUnlink(false);
         setInviteCode(null);
         toast("Partner unlinked");
         onRoleChanged();
@@ -240,15 +243,34 @@ export function PairingSection({ userId, role, onRoleChanged }: PairingSectionPr
         )}
 
         {role === "owner" && partnerLinked && (
-          <Row
-            title="Partner linked"
-            description="Your partner can open the partner view. Unlinking ends their access on the server; anything already on their device may remain."
-            action={
-              <Button variant="destructive-outline" onClick={handleUnpair} disabled={busy}>
-                Unlink partner
-              </Button>
-            }
-          />
+          <>
+            <Row
+              title="Partner linked"
+              description="Your partner can open the partner view. Unlinking ends their access on the server; anything already on their device may remain."
+              action={
+                confirmUnlink ? undefined : (
+                  <Button variant="destructive-outline" onClick={() => setConfirmUnlink(true)} disabled={busy}>
+                    Unlink partner
+                  </Button>
+                )
+              }
+            />
+            {confirmUnlink && (
+              <div className="mb-4 space-y-3 rounded-xl bg-muted p-4">
+                <p className="text-sm text-foreground">
+                  Unlink your partner? You can link again later with a new invite code.
+                </p>
+                <div className="flex flex-wrap justify-end gap-2">
+                  <Button variant="ghost" onClick={() => setConfirmUnlink(false)} autoFocus>
+                    Cancel
+                  </Button>
+                  <Button variant="destructive" onClick={handleUnpair} disabled={busy}>
+                    Unlink partner
+                  </Button>
+                </div>
+              </div>
+            )}
+          </>
         )}
 
         {role === "partner" && !partnerLinked && redeem("Enter the invite code your partner shared with you.")}

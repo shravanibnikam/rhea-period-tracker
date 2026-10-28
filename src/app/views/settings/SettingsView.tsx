@@ -53,7 +53,12 @@ const MIN_CYCLE = 18;
 const MAX_CYCLE = 45;
 
 const linkRow =
-  "flex min-h-12 w-full items-center justify-between gap-4 px-5 py-3 text-left font-medium text-foreground transition-colors hover:bg-muted/60";
+  "flex min-h-12 w-full items-center justify-between gap-4 px-5 py-3 text-left font-medium text-foreground transition-colors hover:bg-muted/60 focus-visible:-outline-offset-2"; // the panel clips an outside ring
+
+const ROLE_LABEL: Record<NonNullable<UserRole>, string> = {
+  owner: "Tracking your cycle",
+  partner: "Joined as a partner",
+};
 
 export function SettingsView({
   onDataChanged,
@@ -240,13 +245,13 @@ export function SettingsView({
     <div className="mx-auto w-full max-w-5xl">
       <h1 className="text-3xl text-foreground">Settings</h1>
 
-      <div className="mt-2 divide-y divide-border">
+      <div className="mt-2">
         {userId && onSignOut ? (
           <Section title="Account">
             <Panel>
               <Row
                 title={<span className="break-all">{userEmail ?? "Signed in"}</span>}
-                description={role ? `Signed in as ${role}` : undefined}
+                description={role ? ROLE_LABEL[role] : undefined}
                 action={
                   <Button variant="outline" onClick={onSignOut}>
                     <LogOut size={16} aria-hidden="true" />
@@ -310,6 +315,7 @@ export function SettingsView({
               <div className="flex gap-2">
                 <input
                   id="cycle-length"
+                  name="cycle-length"
                   type="text"
                   inputMode="numeric"
                   autoComplete="off"
@@ -465,7 +471,7 @@ export function SettingsView({
               {confirmErase && (
                 <div className="mb-4 space-y-3 rounded-xl bg-muted p-4">
                   <p className="text-sm text-foreground">
-                    This deletes all your logs, settings, and cycle history on this device.
+                    This deletes all your logs, settings and cycle history on this device.
                     {userId &&
                       " It does not sign you out or delete data already synced to your account: that stays on the server and downloads again the next time the app syncs."}
                   </p>

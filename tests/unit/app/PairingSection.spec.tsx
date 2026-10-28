@@ -19,7 +19,7 @@ vi.mock("@/app/lib/pairing", async (importOriginal) => {
 });
 
 import { PairingSection } from "@/app/views/settings/PairingSection";
-import { redeemInviteCode } from "@/app/lib/pairing";
+import { getPartnerLink, redeemInviteCode, unpair } from "@/app/lib/pairing";
 
 afterEach(cleanup);
 beforeEach(() => vi.mocked(redeemInviteCode).mockClear());
@@ -67,5 +67,20 @@ describe("PairingSection redeem input preserves the invite code", () => {
   it("uses a neutral placeholder, not the old A1B2C3D4 example", async () => {
     const input = await renderRedeem("partner");
     expect(input.getAttribute("placeholder")).toBe("Paste invite code");
+  });
+});
+
+describe("PairingSection unlink asks first", () => {
+  it("unlinks only after the owner confirms", async () => {
+    vi.mocked(getPartnerLink).mockResolvedValueOnce({ ownerId: "u1", partnerId: "p1" });
+    vi.mocked(unpair).mockResolvedValue(null);
+    render(<PairingSection userId="u1" role="owner" onRoleChanged={vi.fn()} />);
+
+    fireEvent.click(await screen.findByRole("button", { name: "Unlink partner" }));
+    expect(unpair).not.toHaveBeenCalled();
+    expect(screen.getByText(/link again later/i)).toBeTruthy();
+
+    fireEvent.click(screen.getByRole("button", { name: "Unlink partner" }));
+    await waitFor(() => expect(unpair).toHaveBeenCalledWith("u1"));
   });
 });

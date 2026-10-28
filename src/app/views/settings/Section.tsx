@@ -8,7 +8,7 @@ export const formatDay = (key: string) => fmt(parseDate(key), { month: "short", 
 
 /**
  * One settings section: its title and help in the left two-fifths, its panels
- * on the right; stacked on a phone. Sections sit in a `divide-y` list.
+ * on the right; stacked on a phone. Space, not rules, separates sections.
  */
 export function Section({
   title,
@@ -21,9 +21,9 @@ export function Section({
 }) {
   const id = useId();
   return (
-    <section aria-labelledby={id} className="grid gap-4 py-8 md:grid-cols-[2fr_3fr] md:gap-10">
+    <section aria-labelledby={id} className="grid gap-4 py-6 md:grid-cols-[2fr_3fr] md:gap-10 md:py-8">
       <div className="md:sticky md:top-6 md:self-start md:pt-4">
-        <h2 id={id} className="text-lg text-foreground">
+        <h2 id={id} className="text-foreground">
           {title}
         </h2>
         {description ? <div className="mt-1.5 space-y-2 text-sm text-muted-foreground">{description}</div> : null}
@@ -63,6 +63,6 @@ export function Row({
   );
 }
 
-/** Text and date fields: 44px tall, white on any panel. */
+/** Text and date fields: 44px tall, white on any panel, a red edge while invalid. */
 export const fieldClass =
-  "h-11 w-full rounded-xl border border-input bg-input-background px-3.5 text-base text-foreground placeholder:text-muted-foreground";
+  "h-11 w-full rounded-xl border border-input bg-input-background px-3.5 text-base text-foreground placeholder:text-muted-foreground aria-[invalid=true]:border-destructive";

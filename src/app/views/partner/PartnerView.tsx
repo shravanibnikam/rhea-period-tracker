@@ -1,4 +1,5 @@
 import { useState, useEffect, type ReactNode } from "react";
+import { CalendarHeart, HeartHandshake, Moon, type LucideIcon } from "lucide-react";
 import type { PhaseData, PhaseName, CycleState, DailyLog } from "@/domain/types";
 import { PHASES, PHASE_ORDER, ENERGY_LABELS, getPhaseRangeLabel, anchorsFrom } from "@/domain/phases";
 import { diffDays, toDateKey } from "@/domain/dates";
@@ -30,7 +31,9 @@ interface PartnerViewProps {
 // Cards pair up from lg; a card alone in its row takes both columns.
 const CARD = "rounded-2xl border border-border bg-card p-5 sm:p-6 lg:only:col-span-2";
 const ROW = "grid gap-4 lg:grid-cols-2 empty:hidden";
-const H2 = "font-display text-lg font-bold text-foreground";
+const H2 = "text-xl text-foreground";
+// Small labels inside a card: the text face, not the display face.
+const LABEL = "font-sans text-sm font-semibold text-foreground [font-size-adjust:none]";
 
 /** A predicted start's distance from today: "In 7 days", "Tomorrow", "3 days ago". */
 function fromToday(days: number): string {
@@ -51,11 +54,16 @@ function Energy({ level }: { level: number }) {
   );
 }
 
-function Notice({ title, children }: { title: string; children: ReactNode }) {
+function Notice({ icon: Icon, title, children }: { icon: LucideIcon; title: string; children: ReactNode }) {
   return (
-    <section className={CARD}>
-      <h2 className={H2}>{title}</h2>
-      <p className="mt-2 text-base text-muted-foreground">{children}</p>
+    <section className={cn(CARD, "flex items-start gap-4")}>
+      <span className="flex size-11 shrink-0 items-center justify-center rounded-full bg-accent text-accent-foreground">
+        <Icon size={20} aria-hidden="true" />
+      </span>
+      <div className="min-w-0">
+        <h2 className={H2}>{title}</h2>
+        <p className="mt-1.5 text-base text-muted-foreground">{children}</p>
+      </div>
     </section>
   );
 }
@@ -116,28 +124,45 @@ export function PartnerView({
     );
   } else if (isGated && isQuiet) {
     body = (
-      <Notice title="Sharing paused">
+      <Notice icon={Moon} title="Sharing paused">
         She has paused sharing for a while. Her cycle details show here again when the pause ends.
       </Notice>
     );
   } else if (nothingShared) {
     body = (
-      <Notice title="Nothing shared yet">
-        {preview
-          ? "Turn on a sharing toggle in Settings and it shows here."
-          : "She hasn't turned on any sharing. When she does, it shows here."}
+      <Notice icon={HeartHandshake} title="Nothing shared yet">
+        {preview ? (
+          <>
+            Choose what to share in{" "}
+            <a href="#settings" className="font-semibold text-foreground underline underline-offset-4">
+              Settings
+            </a>
+            , and it shows here.
+          </>
+        ) : (
+          "She hasn't turned on any sharing. When she does, it shows here."
+        )}
       </Notice>
     );
   } else {
     body = (
       <div className="flex flex-col gap-4">
-        {(show.phase || show.headsup) && !hasCycle && (
-          <Notice title="No period logged">Her phase and predictions show here after she logs a period.</Notice>
+        {(show.phase || show.headsup || show.tips) && !hasCycle && (
+          <Notice icon={CalendarHeart} title="No period logged">
+            Her phase, predictions and ideas for helping show here after she logs a period.
+          </Notice>
         )}
 
         {show.phase && hasCycle && (
           <div className={ROW}>
-            <section className={cn(CARD, "flex flex-col items-start gap-5 sm:flex-row sm:items-center")}>
+            <section
+              className={cn(
+                CARD,
+                "flex flex-col items-start gap-5 sm:flex-row sm:items-center",
+                // Without the ring, the phase's own tint carries the card.
+                !show.headsup && "border-transparent bg-phase-tint text-phase-ink"
+              )}
+            >
               {/* Where she is in the cycle reveals when her period is due, so the
                   ring needs the heads-up toggle as well as the phase. */}
               {show.headsup && (
@@ -150,17 +175,19 @@ export function PartnerView({
                 >
                   <span aria-hidden="true" className="flex flex-col items-center">
                     <span className="text-sm text-muted-foreground">Day</span>
-                    <span className="font-display text-5xl font-black leading-none tabular-nums text-foreground">
+                    <span className="font-display text-5xl font-semibold leading-none tabular-nums text-foreground">
                       {state.cycleDay}
                     </span>
                   </span>
                 </CycleRing>
               )}
               <div className="min-w-0">
-                <h2 className="font-display text-2xl font-bold leading-tight text-foreground">
+                <h2 className={cn("text-2xl sm:text-3xl", show.headsup && "text-foreground")}>
                   She&apos;s in her {phaseData.name.toLowerCase()} phase
                 </h2>
-                <p className="mt-2 text-sm text-muted-foreground">{getPhaseRangeLabel(phase, anchors)} of her cycle</p>
+                <p className={cn("mt-2 text-sm", show.headsup && "text-muted-foreground")}>
+                  {getPhaseRangeLabel(phase, anchors)} of her cycle
+                </p>
               </div>
             </section>
 
@@ -191,7 +218,7 @@ export function PartnerView({
               <div className="mt-4 space-y-5">
                 {show.mood && (
                   <div>
-                    <h3 className="text-sm font-semibold text-foreground">Mood today</h3>
+                    <h3 className={LABEL}>Mood today</h3>
                     {todayMood ? (
                       <p className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1">
                         <span className="rounded-full bg-phase-tint px-3 py-1.5 text-sm font-medium text-phase-ink">
@@ -209,14 +236,14 @@ export function PartnerView({
             </section>
           )}
 
-          {show.tips && (
+          {show.tips && hasCycle && (
             <section className={CARD}>
               <h2 className={H2}>How you can help</h2>
               <ul className="mt-4 grid gap-2 sm:grid-cols-2 lg:grid-cols-1">
                 {phaseData.partnerTips.map((tip) => (
                   <li
                     key={tip}
-                    className="rounded-xl bg-(--partner-tint) px-4 py-3 text-sm leading-snug text-(color:--partner-ink)"
+                    className="rounded-xl bg-partner-tint px-4 py-3 text-sm leading-snug text-partner-ink"
                   >
                     {tip}
                   </li>
@@ -246,7 +273,7 @@ export function PartnerView({
                     <p className="text-sm font-medium">
                       {i > 0 ? "Period" : days < 0 ? "Period may be late" : "Next period"}
                     </p>
-                    <p className="mt-1 font-display text-xl font-bold tabular-nums">
+                    <p className="mt-1 font-display text-2xl font-semibold tabular-nums">
                       {fmt(pred.start, { month: "long", day: "numeric" })}
                     </p>
                     <p className="text-sm">{fromToday(days)}</p>
@@ -313,11 +340,8 @@ export function PartnerView({
   return (
     <div data-phase={phase} className="flex flex-col gap-6">
       <header>
-        <h1 className="font-display text-[28px] font-bold leading-tight text-foreground sm:text-[32px]">Her cycle</h1>
-        <p className="mt-1 text-sm text-muted-foreground">
-          {fmt(today, { weekday: "long", month: "long", day: "numeric" })}
-          {preview && " · what your partner sees, with your sharing settings"}
-        </p>
+        <h1 className="text-3xl text-foreground">Her cycle</h1>
+        <p className="mt-1 text-sm text-muted-foreground">{fmt(today, { weekday: "long", month: "long", day: "numeric" })}</p>
       </header>
       {body}
     </div>

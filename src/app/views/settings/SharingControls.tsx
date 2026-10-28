@@ -13,7 +13,8 @@ import {
   type ShareKey,
   type QuietWindow,
 } from "@/app/lib/sharing";
-import { toDateKey } from "@/domain/dates";
+import { parseDate, toDateKey } from "@/domain/dates";
+import { fmt } from "@/app/lib/format";
 import { Button } from "@/app/components/ui/Button";
 import { Switch } from "@/app/components/ui/controls";
 import { Section, Panel, fieldClass, formatDay } from "./Section";
@@ -22,12 +23,20 @@ interface SharingControlsProps {
   ownerId: string;
 }
 
-const span = (qw: QuietWindow) =>
-  qw.start_date === qw.end_date
-    ? formatDay(qw.start_date)
-    : `${formatDay(qw.start_date)} to ${formatDay(qw.end_date)}`;
+/** "Nov 9 to Nov 12, 2026": the year once when both days share it. */
+const span = ({ start_date: start, end_date: end }: Pick<QuietWindow, "start_date" | "end_date">) => {
+  if (start === end) return formatDay(start);
+  const first = start.slice(0, 4) === end.slice(0, 4) ? fmt(parseDate(start)) : formatDay(start);
+  return `${first} to ${formatDay(end)}`;
+};
 
-/** A switch with its title as the accessible name; the whole text block toggles it. */
+/** An activity entry's target as people read it: a share key's label, or a quiet window's days. */
+const targetText = (target: string) => {
+  const range = /^(\d{4}-\d{2}-\d{2}) to (\d{4}-\d{2}-\d{2})$/.exec(target);
+  return SHARE_KEYS.find((k) => k.key === target)?.label ?? (range ? span({ start_date: range[1], end_date: range[2] }) : target);
+};
+
+/** A switch with its title as the accessible name; the whole row toggles it. */
 function SwitchRow({
   id,
   label,
@@ -42,15 +51,15 @@ function SwitchRow({
   onCheckedChange: () => void;
 }) {
   return (
-    <div className="flex items-start justify-between gap-4 py-4">
-      <label htmlFor={id} className="min-w-0 flex-1 cursor-pointer">
+    <label htmlFor={id} className="flex cursor-pointer items-start justify-between gap-4 py-4">
+      <span className="min-w-0 flex-1">
         <span id={`${id}-label`} className="block text-foreground">
           {label}
         </span>
         <span id={`${id}-hint`} className="mt-0.5 block text-sm font-normal text-muted-foreground">
           {description}
         </span>
-      </label>
+      </span>
       <Switch
         id={id}
         checked={checked}
@@ -58,7 +67,7 @@ function SwitchRow({
         aria-labelledby={`${id}-label`}
         aria-describedby={`${id}-hint`}
       />
-    </div>
+    </label>
   );
 }
 
@@ -177,7 +186,7 @@ export function SharingControls({ ownerId }: SharingControlsProps) {
               ))}
             </ul>
           ) : (
-            <p className="py-4 text-sm text-muted-foreground">No quiet windows set.</p>
+            <p className="py-4 text-sm text-muted-foreground">No quiet windows yet.</p>
           )}
 
           {showAddQuiet ? (
@@ -255,25 +264,18 @@ export function SharingControls({ ownerId }: SharingControlsProps) {
                     <div className="min-w-0">
                       <p className="text-sm font-medium text-foreground">{formatAction(entry.action)}</p>
                       {entry.target && (
-                        <p className="text-sm text-muted-foreground">
-                          {SHARE_KEYS.find((k) => k.key === entry.target)?.label ?? entry.target}
-                        </p>
+                        <p className="text-sm text-muted-foreground">{targetText(entry.target)}</p>
                       )}
                     </div>
                     <time dateTime={entry.created_at} className="shrink-0 text-sm text-muted-foreground tabular-nums">
-                      {new Date(entry.created_at).toLocaleDateString("en-US", {
-                        month: "short",
-                        day: "numeric",
-                        hour: "numeric",
-                        minute: "2-digit",
-                      })}
+                      {fmt(new Date(entry.created_at), { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}
                     </time>
                   </li>
                 ))}
               </ol>
             ) : (
               <p id="activity-log" className="py-4 text-sm text-muted-foreground">
-                No activity recorded.
+                No changes recorded yet.
               </p>
             ))}
         </Panel>

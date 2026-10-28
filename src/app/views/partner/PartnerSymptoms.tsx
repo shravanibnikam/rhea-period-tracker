@@ -5,6 +5,8 @@ import { fmt } from "@/app/lib/format";
 
 /** Days of history shown behind today, when `symptom_details` is on. */
 const HISTORY_DAYS = 6;
+// Labels in the text face (PartnerView's LABEL): h3 would otherwise take the display face.
+const LABEL = "font-sans text-sm font-semibold text-foreground [font-size-adjust:none]";
 
 /**
  * The partner-side symptom list (gated on the owner's `symptom_details` toggle),
@@ -37,7 +39,7 @@ export function PartnerSymptoms({ logs, today }: { logs: DailyLog[]; today: Date
   return (
     <div className="space-y-5">
       <div>
-        <h3 className="text-sm font-semibold text-foreground">Symptoms today</h3>
+        <h3 className={LABEL}>Symptoms today</h3>
         {todaysSymptoms.length > 0 ? (
           <ul className="mt-2 flex flex-wrap gap-2">
             {todaysSymptoms.map((s) => (
@@ -52,7 +54,7 @@ export function PartnerSymptoms({ logs, today }: { logs: DailyLog[]; today: Date
       </div>
 
       <div>
-        <h3 className="text-sm font-semibold text-foreground">Earlier this week</h3>
+        <h3 className={LABEL}>Earlier this week</h3>
         {recentDays.length > 0 ? (
           <ul className="mt-2 space-y-2">
             {recentDays.map(({ date, symptoms }) => (

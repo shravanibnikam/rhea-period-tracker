@@ -8,7 +8,7 @@ interface PrivacyPolicyProps {
 function Section({ title, children }: { title: string; children: ReactNode }) {
   return (
     <section>
-      <h3 className="font-display text-base font-bold text-foreground">{title}</h3>
+      <h3 className="text-lg text-foreground">{title}</h3>
       <div className="mt-2 space-y-2">{children}</div>
     </section>
   );
@@ -26,7 +26,7 @@ export function PrivacyPolicy({ onClose }: PrivacyPolicyProps) {
       title="Privacy policy"
       description="Last updated: October 2026"
     >
-      <div className="space-y-6 text-sm leading-6 text-foreground">
+      <div className="space-y-7 text-base leading-relaxed text-foreground">
         <Section title="What Rhea is">
           <p>
             Rhea is a period and cycle tracker. It keeps your logs on your device, syncs them to your

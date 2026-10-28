@@ -23,7 +23,7 @@ const REFERENCES: Reference[] = [
   },
   {
     authors: "Wilcox AJ, Dunson D, Baird DD.",
-    title: "The timing of the 'fertile window' in the menstrual cycle: day specific estimates from a prospective study.",
+    title: "The timing of the ‘fertile window’ in the menstrual cycle: day specific estimates from a prospective study.",
     journal: "BMJ. 2000.",
     doi: "10.1136/bmj.321.7271.1259",
     note: "The fertile window is hard to predict; calendar methods are estimates, not contraception.",
