@@ -14,6 +14,8 @@ test("fresh deep link loads the 404 shell with project-scoped assets", async ({ 
     const response = await page.goto("http://127.0.0.1:4175/rhea-period-tracker/calendar");
     expect(response?.status()).toBe(404); // GitHub Pages serves the shell with 404 status.
     console.log("Pages assets:", await page.locator("script[src]").evaluateAll(scripts => scripts.map(script => script.getAttribute("src"))));
+    // A first visit opens on the landing page.
+    await page.getByRole("button", { name: /Start tracking/ }).first().click();
     await expect(page.getByRole("heading", { name: "Get started", exact: true })).toBeVisible();
     const logo = page.getByAltText("Rhea", { exact: true });
     await expect.poll(() => logo.evaluate(image => (image as HTMLImageElement).naturalWidth)).toBeGreaterThan(0);
@@ -36,16 +38,17 @@ test("installed project shell opens on a new tab offline and retains logs", asyn
   page.on("pageerror", error => console.error("Pages runtime error:", error.message));
   await page.goto("./");
   await page.evaluate(async () => { await navigator.serviceWorker.ready; });
+  await page.getByRole("button", { name: /Start tracking/ }).first().click(); // first visit: the landing page
   await page.getByRole("button", { name: /Log today/ }).click();
   await page.getByRole("button", { name: "Medium", exact: true }).first().click();
   await page.getByRole("button", { name: "Save Log", exact: true }).click();
-  await expect(page.getByRole("tab", { name: "calendar", exact: true })).toBeVisible();
+  await expect(page.getByText(/Day \d+ of \d+/)).toBeVisible(); // the tracker, not onboarding
   const scope = await page.evaluate(async () => (await navigator.serviceWorker.ready).scope);
   expect(scope).toBe("http://127.0.0.1:4175/rhea-period-tracker/");
   await context.setOffline(true);
   const offline = await context.newPage();
   await offline.goto("http://127.0.0.1:4175/rhea-period-tracker/");
-  await expect(offline.getByRole("tab", { name: "calendar", exact: true })).toBeVisible();
+  await expect(offline.getByText(/Day \d+ of \d+/)).toBeVisible();
   await offline.getByRole("button", { name: "Log today", exact: true }).click();
   await expect(offline.getByRole("button", { name: /Delete this log/ })).toBeVisible();
 });

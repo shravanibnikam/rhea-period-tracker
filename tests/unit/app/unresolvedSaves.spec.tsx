@@ -179,14 +179,15 @@ async function editLoadedDayAndSave(loadedNote: string, newNote: string) {
 }
 
 /**
- * The calendar cell for `date`. Scoped to the day grid under the weekday header,
- * so no other button with the same number can match; the grid shows only the
- * displayed month's own days, so the number is unique there.
+ * The calendar cell for `date`. Scoped to the day grid under the weekday header;
+ * each cell is named for its full date first ("Tuesday, October 27, today, …"),
+ * so the date picks exactly one cell.
  */
-function calendarDayButton(date: Date): HTMLElement {
-  const grid = screen.getByText("Su").parentElement?.nextElementSibling;
+async function calendarDayButton(date: Date): Promise<HTMLElement> {
+  const grid = (await screen.findByText("Su")).parentElement?.nextElementSibling;
   if (!(grid instanceof HTMLElement)) throw new Error("calendar day grid not found");
-  return within(grid).getByRole("button", { name: String(date.getDate()) });
+  const label = date.toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric" });
+  return within(grid).getByRole("button", { name: (name) => name === label || name.startsWith(`${label},`) });
 }
 
 /** Offline cold start: a stored session, the role lookup fails; the user edits today. */
@@ -226,6 +227,7 @@ beforeEach(() => {
 afterEach(async () => {
   cleanup();
   vi.restoreAllMocks();
+  history.replaceState(null, "", "/"); // the route lives in the hash: start every test on Today
   for (const c of open.splice(0)) {
     await c.stopOwnerSync();
     await c.closeDB();
@@ -301,8 +303,8 @@ describe("a store that has served a partner session (lastKnownRole=partner)", ()
     // Open the owner's cached day from the calendar, wait for her row to load,
     // edit it (keeping her note in the text) and save.
     const edited = `${OWNER_NOTE} (edited offline)`;
-    fireEvent.click(await screen.findByRole("tab", { name: /calendar/i }));
-    fireEvent.click(calendarDayButton(now));
+    fireEvent.click(await screen.findByRole("link", { name: "Calendar" }));
+    fireEvent.click(await calendarDayButton(now));
     await editLoadedDayAndSave(OWNER_NOTE, edited);
 
     // The edit WAS stored locally (not refused) — and nothing was queued.

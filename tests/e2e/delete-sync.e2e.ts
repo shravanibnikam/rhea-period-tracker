@@ -16,7 +16,8 @@ test("UI delete persists a tombstone and removes the log from another device", a
   const uid = signup.data.user!.id;
   const date = new Date().toISOString().slice(0, 10);
   const signIn = async (target: Page) => {
-    await target.goto("http://127.0.0.1:4173/rhea-period-tracker/");
+    // #today opens the app directly (a fresh browser would get the landing page).
+    await target.goto("http://127.0.0.1:4173/rhea-period-tracker/#today");
     await target.getByPlaceholder("you@example.com").fill(email);
     await target.getByPlaceholder("Your password").fill(password);
     await target.getByRole("button", { name: "Sign in", exact: true }).click();
