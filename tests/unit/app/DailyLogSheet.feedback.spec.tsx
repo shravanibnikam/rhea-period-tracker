@@ -36,7 +36,15 @@ function props(over: Partial<Props> = {}): Props {
 
 const saveButton = () => screen.getByRole("button", { name: "Save Log" }) as HTMLButtonElement;
 const closeButton = () => screen.getByRole("button", { name: "Close" }) as HTMLButtonElement;
-const backdrop = () => document.querySelector("[aria-hidden='true'].absolute") as HTMLElement;
+/**
+ * Press the Sheet's overlay. Radix starts listening for outside presses one
+ * tick after it opens, and asks to close through onOpenChange(false), the same
+ * path as Escape and the X.
+ */
+async function pressBackdrop() {
+  await act(() => new Promise<void>((resolve) => setTimeout(resolve, 0)));
+  fireEvent.pointerDown(document.querySelector("[data-state='open'].inset-0") as HTMLElement);
+}
 
 describe("DailyLogSheet: a load failure is shown (review item 4)", () => {
   it("shows the load error as an alert and disables Save", () => {
@@ -60,7 +68,7 @@ describe("DailyLogSheet: no closing while a save or delete runs (review item 8)"
     fireEvent.click(saveButton());
 
     fireEvent.keyDown(window, { key: "Escape" });
-    fireEvent.click(backdrop());
+    await pressBackdrop();
     expect(p.onClose).not.toHaveBeenCalled();
     expect(closeButton().disabled).toBe(true);
     fireEvent.click(closeButton());
@@ -72,6 +80,15 @@ describe("DailyLogSheet: no closing while a save or delete runs (review item 8)"
     });
     expect(p.onClose).toHaveBeenCalledTimes(1);
     expect(closeButton().disabled).toBe(false);
+  });
+
+  it("when nothing is running, the backdrop and Escape close the sheet (once each)", async () => {
+    const p = props();
+    render(<DailyLogSheet {...p} />);
+    await pressBackdrop();
+    expect(p.onClose).toHaveBeenCalledTimes(1);
+    fireEvent.keyDown(screen.getByRole("dialog"), { key: "Escape" }); // seen by Radix and by window
+    expect(p.onClose).toHaveBeenCalledTimes(2);
   });
 
   it("Escape does nothing while a delete runs", async () => {
