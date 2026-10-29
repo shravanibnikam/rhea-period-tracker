@@ -220,6 +220,8 @@ function ComingUp({ state, today }: { state: CycleState; today: Date }) {
   // Only a window that is still running or ahead; a past one is history.
   const fertile = fw && daysFrom(today, fw.end) >= 0 ? fw : null;
   const toFertile = fertile ? daysFrom(today, fertile.start) : 0;
+  // The periods after the next one, from today on: a late period's passed dates aren't "coming up".
+  const upcoming = state.predictions.slice(1).filter((p) => daysFrom(today, p.start) >= 0).slice(0, 3);
   return (
     <section aria-labelledby="coming-up" className={CARD}>
       <h2 id="coming-up" className="text-xl">
@@ -237,7 +239,7 @@ function ComingUp({ state, today }: { state: CycleState; today: Date }) {
         </div>
       )}
       <ul className="mt-2">
-        {state.predictions.slice(1, 4).map((p) => (
+        {upcoming.map((p) => (
           <li key={p.cycleNumber} className="flex items-center gap-3 border-b border-border py-3 last:border-0">
             <div className="min-w-0 flex-1">
               <p className="text-base">{fmt(p.start, DATE)}</p>

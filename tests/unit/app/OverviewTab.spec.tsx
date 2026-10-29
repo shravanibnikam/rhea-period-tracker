@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { describe, it, expect, vi, afterEach } from "vitest";
-import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import { OverviewTab } from "@/app/views/tracker/OverviewTab";
 import { deriveCycleState } from "@/domain/cycle";
 import { parseDate } from "@/domain/dates";
@@ -41,5 +41,18 @@ describe("Today: My period started today", () => {
     rerender(ui("none")); // later set back to none
     const button = screen.getByRole("button", { name: "My period started today" }) as HTMLButtonElement;
     expect(button.disabled).toBe(false);
+  });
+});
+
+describe("Today: Coming up", () => {
+  it("lists no date already past when the period is very late", () => {
+    const { state, props } = today("2026-06-01"); // predictions May 21 (passed), June 18, July 16
+    expect(state.isLate).toBe(true);
+    render(<OverviewTab {...props} />);
+    const comingUp = screen.getByRole("region", { name: "Coming up" });
+    expect(within(comingUp).queryByText("May 21")).toBeNull();
+    expect(within(comingUp).queryByText(/ago/)).toBeNull();
+    expect(within(comingUp).getByText("June 18")).toBeTruthy();
+    expect(within(comingUp).getByText("July 16")).toBeTruthy();
   });
 });
