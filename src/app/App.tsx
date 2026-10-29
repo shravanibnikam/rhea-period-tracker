@@ -1,10 +1,11 @@
-import { useState, useMemo, useCallback, useEffect, useRef, type ReactNode } from "react";
+import { useState, useCallback, useEffect, useRef, type ReactNode } from "react";
 import { Toaster } from "sonner";
 import type { DailyLog } from "@/domain/types";
 import { PHASES } from "@/domain/phases";
 import { toDateKey } from "@/domain/dates";
 import { useCycleData } from "@/app/hooks/useCycleData";
 import { useAuth } from "@/app/hooks/useAuth";
+import { useToday } from "@/app/hooks/useToday";
 import { useLogger, LOAD_FAILED_MESSAGE } from "@/app/hooks/useLogger";
 import { initialSync, pushLog, subscribeToLogs, unsubscribe } from "@/app/lib/sync";
 import { supabase } from "@/app/lib/supabase";
@@ -59,12 +60,8 @@ function AppScreens() {
   const [showLanding, setShowLanding] = useState(wantsLanding);
   const [authMode, setAuthMode] = useState<"signin" | "signup">("signin");
 
-  // Local midnight: diffDays floors, so a time-of-day "today" read every "in N days" one short.
-  const today = useMemo(() => {
-    const d = new Date();
-    d.setHours(0, 0, 0, 0);
-    return d;
-  }, []);
+  // Local midnight, and it moves on at midnight (an app left open or resumed).
+  const today = useToday();
 
   // ── Auth / DI ──
   const container = useContainer();
@@ -84,7 +81,7 @@ function AppScreens() {
   // would keep showing the previous account's rows. Also re-read when the
   // store's partner marker is read or changes: an ex-partner confirmed as owner
   // has the previous owner's cache purged first (useAuth), and a screen must
-  // never show rows read before that.
+  // never show rows read before that. And on a new day, for the cycle day.
   // The main UI waits until the read for this key has landed (loading gate).
   const accountId = auth.user?.id ?? null;
   const dataKey = `${accountId}|${auth.storeMarkedPartner}`;
@@ -97,7 +94,7 @@ function AppScreens() {
     return () => {
       current = false;
     };
-  }, [dataKey, refresh]);
+  }, [dataKey, refresh, today]);
 
   const activeLogDate = logSheetDate ?? today;
   const {
