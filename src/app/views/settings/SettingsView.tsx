@@ -60,6 +60,9 @@ const ROLE_LABEL: Record<NonNullable<UserRole>, string> = {
   partner: "Joined as a partner",
 };
 
+/** "1 day", "12 days". */
+const nDays = (n: number) => `${n} ${n === 1 ? "day" : "days"}`;
+
 export function SettingsView({
   onDataChanged,
   cycleLengthOverride,
@@ -74,6 +77,10 @@ export function SettingsView({
 }: SettingsViewProps) {
   const container = useContainer();
   const { theme, setTheme } = useTheme();
+  // Only the account's own logs are exported, imported or given a cycle
+  // length here. A partner's store is the owner's cache, ungated by the share
+  // switches; an unresolved role (say, a partner offline) may be one too.
+  const ownsStore = !userId || role === "owner";
 
   const [override, setOverride] = useState(cycleLengthOverride);
   const [lengthInput, setLengthInput] = useState(cycleLengthOverride ? String(cycleLengthOverride) : "");
@@ -158,7 +165,7 @@ export function SettingsView({
     const logs = await container.getAllLogs();
     if (logs.length === 0) return void toast("Nothing to export: no days are logged on this device.");
     downloadText(logsToCSV(logs), `rhea-logs-${today()}.csv`, "text/csv;charset=utf-8");
-    toast(`Exported ${logs.length} ${logs.length === 1 ? "day" : "days"}`);
+    toast(`Exported ${nDays(logs.length)}`);
   });
 
   const exportCalendar = run(READ_FAILED, async () => {
@@ -193,8 +200,8 @@ export function SettingsView({
     await readOverride(); // a backup restores settings too
     toast(
       skipped > 0
-        ? `Imported ${imported} days (${skipped} already up to date)`
-        : `Imported ${imported} days from your Rhea backup`
+        ? `Imported ${nDays(imported)} (${skipped} already up to date)`
+        : `Imported ${nDays(imported)} from your Rhea backup`
     );
   };
 
@@ -225,7 +232,7 @@ export function SettingsView({
     // Merge into existing logs (never blind-overwrite a rich local entry).
     const { imported } = await container.importParsedLogs(importPreview.logs);
     onDataChanged();
-    toast(`Imported ${imported} days from ${sourceLabel(importPreview.source)}`);
+    toast(`Imported ${nDays(imported)} from ${sourceLabel(importPreview.source)}`);
     setImportPreview(null);
   });
 
@@ -281,70 +288,72 @@ export function SettingsView({
           </Panel>
         </Section>
 
-        <Section
-          title="Cycle"
-          description={
-            <p>Set a length if you know your cycle better than your logs do, for example with only a few cycles logged.</p>
-          }
-        >
-          <Panel>
-            <Row
-              title="Cycle length"
-              description={
-                override ? (
-                  <>
-                    Predictions use a <span className="font-medium text-foreground tabular-nums">{override}-day</span>{" "}
-                    cycle that you set.
-                  </>
-                ) : (
-                  "Predictions use the average of your logged cycles."
-                )
-              }
-              action={
-                override ? (
-                  <Button variant="outline" onClick={() => applyLength(null)}>
-                    Clear
+        {ownsStore && (
+          <Section
+            title="Cycle"
+            description={
+              <p>Set a length if you know your cycle better than your logs do, for example with only a few cycles logged.</p>
+            }
+          >
+            <Panel>
+              <Row
+                title="Cycle length"
+                description={
+                  override ? (
+                    <>
+                      Predictions use a <span className="font-medium text-foreground tabular-nums">{override}-day</span>{" "}
+                      cycle that you set.
+                    </>
+                  ) : (
+                    "Predictions use the average of your logged cycles."
+                  )
+                }
+                action={
+                  override ? (
+                    <Button variant="outline" onClick={() => applyLength(null)}>
+                      Clear
+                    </Button>
+                  ) : undefined
+                }
+              />
+              <form onSubmit={saveLength} noValidate className="space-y-2 py-4">
+                <label htmlFor="cycle-length" className="block text-sm text-foreground">
+                  Length in days
+                </label>
+                <div className="flex gap-2">
+                  <input
+                    id="cycle-length"
+                    name="cycle-length"
+                    type="text"
+                    inputMode="numeric"
+                    autoComplete="off"
+                    placeholder="28"
+                    value={lengthInput}
+                    onChange={(e) => {
+                      setLengthInput(e.target.value);
+                      setLengthError(null);
+                    }}
+                    aria-invalid={lengthError !== null}
+                    aria-describedby={lengthError ? "cycle-length-error" : "cycle-length-hint"}
+                    className={cn(fieldClass, "w-28 tabular-nums")}
+                  />
+                  <Button type="submit" variant="outline">
+                    Save
                   </Button>
-                ) : undefined
-              }
-            />
-            <form onSubmit={saveLength} noValidate className="space-y-2 py-4">
-              <label htmlFor="cycle-length" className="block text-sm text-foreground">
-                Length in days
-              </label>
-              <div className="flex gap-2">
-                <input
-                  id="cycle-length"
-                  name="cycle-length"
-                  type="text"
-                  inputMode="numeric"
-                  autoComplete="off"
-                  placeholder="28"
-                  value={lengthInput}
-                  onChange={(e) => {
-                    setLengthInput(e.target.value);
-                    setLengthError(null);
-                  }}
-                  aria-invalid={lengthError !== null}
-                  aria-describedby={lengthError ? "cycle-length-error" : "cycle-length-hint"}
-                  className={cn(fieldClass, "w-28 tabular-nums")}
-                />
-                <Button type="submit" variant="outline">
-                  Save
-                </Button>
-              </div>
-              {lengthError ? (
-                <p id="cycle-length-error" role="alert" className="text-sm text-destructive">
-                  {lengthError}
-                </p>
-              ) : (
-                <p id="cycle-length-hint" className="text-sm text-muted-foreground">
-                  From {MIN_CYCLE} to {MAX_CYCLE} days. Leave it empty to use your average.
-                </p>
-              )}
-            </form>
-          </Panel>
-        </Section>
+                </div>
+                {lengthError ? (
+                  <p id="cycle-length-error" role="alert" className="text-sm text-destructive">
+                    {lengthError}
+                  </p>
+                ) : (
+                  <p id="cycle-length-hint" className="text-sm text-muted-foreground">
+                    From {MIN_CYCLE} to {MAX_CYCLE} days. Leave it empty to use your average.
+                  </p>
+                )}
+              </form>
+            </Panel>
+          </Section>
+        )}
 
         <Section
           title="Your data"
@@ -352,12 +361,13 @@ export function SettingsView({
             <p>
               {role === "partner"
                 ? "This device keeps a copy of your partner's synced logs for the partner view. Erasing it here is undone the next time the app syncs."
-                : "Your logs are stored on this device. Take a copy in the format you need, bring days in from another app, or erase this device."}
+                : ownsStore
+                  ? "Your logs are stored on this device. Take a copy in the format you need, bring days in from another app, or erase this device."
+                  : "Exporting and importing wait until Rhea can confirm your account. Check your connection."}
             </p>
           }
         >
-          {/* A partner's store is the owner's cache, ungated by the share switches: never export or import it. */}
-          {role !== "partner" && (
+          {ownsStore && (
             <>
               <Panel>
                 <Row
@@ -422,7 +432,7 @@ export function SettingsView({
                     <div className="mb-4 space-y-3 rounded-xl bg-muted p-4">
                       <div>
                         <p className="font-medium text-foreground">
-                          {importPreview.logs.length} days found in {sourceLabel(importPreview.source)}
+                          {nDays(importPreview.logs.length)} found in {sourceLabel(importPreview.source)}
                         </p>
                         <p className="mt-0.5 text-sm text-muted-foreground">
                           {day(previewDates[0])} to {day(previewDates[previewDates.length - 1])}.
@@ -439,7 +449,7 @@ export function SettingsView({
                           Cancel
                         </Button>
                         <Button onClick={confirmImport} disabled={busy}>
-                          Import {importPreview.logs.length} days
+                          Import {nDays(importPreview.logs.length)}
                         </Button>
                       </div>
                     </div>
@@ -471,8 +481,11 @@ export function SettingsView({
               {confirmErase && (
                 <div className="mb-4 space-y-3 rounded-xl bg-muted p-4">
                   <p className="text-sm text-foreground">
-                    This deletes all your logs, settings and cycle history on this device.
+                    {role === "partner"
+                      ? "This deletes this device's copy of your partner's logs, and your settings here. It does not sign you out or unlink you: your partner's synced logs download again the next time the app syncs."
+                      : "This deletes all your logs, settings and cycle history on this device."}
                     {userId &&
+                      role !== "partner" &&
                       " It does not sign you out or delete data already synced to your account: that stays on the server and downloads again the next time the app syncs."}
                   </p>
                   <div className="flex flex-wrap justify-end gap-2">
