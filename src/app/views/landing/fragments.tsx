@@ -2,6 +2,7 @@
 // "Shape, space and depth"): white panels, phase tints with the dark of their hue as ink, 24px corners.
 // They are pictures of the app, so nothing in them is a working control. Data: cycle.ts.
 import { FileJson } from "lucide-react";
+import { isSupabaseConfigured } from "@/app/lib/supabase";
 import { CycleRing } from "@/app/components/shared/CycleRing";
 import { cn } from "@/app/lib/cn";
 import { ALL_SYMPTOMS } from "@/app/lib/constants";
@@ -189,7 +190,11 @@ export function DayLogSheet() {
         <div className="mt-5">
           <Label>Notes</Label>
           <p className="rounded-xl bg-muted px-4 py-3 text-sm">{FIRST_DAY.notes}</p>
-          <p className="mt-1.5 text-sm text-muted-foreground">Not end-to-end encrypted; a linked partner&rsquo;s account can read it.</p>
+          <p className="mt-1.5 text-sm text-muted-foreground">
+            {isSupabaseConfigured()
+              ? "Not end-to-end encrypted; a linked partner’s account can read it."
+              : "Stored only on this device."}
+          </p>
         </div>
         <span className="mt-5 flex min-h-12 items-center justify-center rounded-full bg-primary text-base font-medium text-primary-foreground">
           Save log

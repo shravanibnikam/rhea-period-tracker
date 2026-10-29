@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState, type FormEvent, type ReactNode } from "react";
+import { isSupabaseConfigured } from "@/app/lib/supabase";
 import { flushSync } from "react-dom";
 import { ChevronDown, Plus, Trash2, X } from "lucide-react";
 import type { DailyLog, MedicationEntry, PhaseData } from "@/domain/types";
@@ -376,8 +377,9 @@ export function DailyLogSheet({
             className={cn(FIELD, "h-auto resize-none py-3")}
           />
           <p id="log-privacy" className="text-sm text-muted-foreground">
-            Notes, medication and intimacy aren&apos;t end-to-end encrypted. Your partner&apos;s view
-            doesn&apos;t show them, but a linked partner&apos;s account can read synced logs.
+            {isSupabaseConfigured()
+              ? "Notes, medication and intimacy aren’t end-to-end encrypted. Your partner’s view doesn’t show them, but a linked partner’s account can read synced logs."
+              : "Notes, medication and intimacy are stored only on this device."}
           </p>
 
           <button
