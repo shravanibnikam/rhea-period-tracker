@@ -514,9 +514,10 @@ function AppScreens() {
   }
 
   return (
-    // The shell carries the current phase: chips, tints and marks inside follow it.
+    // The shell carries the current phase: chips, tints and marks inside follow
+    // it. Never for a partner: the cached cycle is the owner's, shown only as shared.
     <div
-      data-phase={state.cycles.length > 0 ? phase : undefined}
+      data-phase={!isPartner && state.cycles.length > 0 ? phase : undefined}
       className="min-h-dvh bg-background font-sans text-foreground lg:pl-14"
     >
       <a

@@ -486,3 +486,24 @@ describe("resolved owner (controls: the gate opens once the role is known)", () 
     expectNeverQueued();
   });
 });
+
+describe("the app shell's phase tint", () => {
+  const shell = () => document.getElementById("main-content")?.parentElement;
+
+  it("is never the owner's phase on a partner's screens (the cache is the owner's cycle)", async () => {
+    h.state.links.partner_id = [{ owner_id: "owner-1" }];
+    renderApp();
+    await signIn("partner-1");
+    await screen.findByTestId("partner-view");
+
+    expect(shell()?.hasAttribute("data-phase")).toBe(false);
+  });
+
+  it("follows the owner's own phase on the owner's screens (control)", async () => {
+    renderApp();
+    await signIn("owner-1");
+    await screen.findByRole("button", { name: "Log today" });
+
+    expect(shell()?.getAttribute("data-phase")).toBeTruthy();
+  });
+});
