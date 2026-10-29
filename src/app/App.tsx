@@ -12,6 +12,7 @@ import { isOwnerEngineSync, ownerOutboxMode } from "@/app/lib/flags";
 import { useContainer } from "@/app/di";
 import { AppNav, readRoute, type Route } from "@/app/components/layout/AppNav";
 import { RheaMark } from "@/app/components/shared/RheaMark";
+import { Button } from "@/app/components/ui/Button";
 import { OverviewTab } from "@/app/views/tracker/OverviewTab";
 import { CalendarTab } from "@/app/views/tracker/CalendarTab";
 import { InsightsTab } from "@/app/views/tracker/InsightsTab";
@@ -79,19 +80,23 @@ function AppScreens() {
   // Data follows the account (P0-06): re-read the local store whenever the
   // signed-in account changes, whatever its role — the sync paths below refresh
   // only once a role is resolved, so a new account whose lookup fails or hangs
-  // would keep showing the previous account's rows. The main UI waits until
-  // that account's read has landed (see the loading gate).
+  // would keep showing the previous account's rows. Also re-read when the
+  // store's partner marker is read or changes: an ex-partner confirmed as owner
+  // has the previous owner's cache purged first (useAuth), and a screen must
+  // never show rows read before that.
+  // The main UI waits until the read for this key has landed (loading gate).
   const accountId = auth.user?.id ?? null;
-  const [dataAccount, setDataAccount] = useState<string | null | undefined>(undefined);
+  const dataKey = `${accountId}|${auth.storeMarkedPartner}`;
+  const [dataFor, setDataFor] = useState<string | undefined>(undefined);
   useEffect(() => {
     let current = true;
     void refresh().then(() => {
-      if (current) setDataAccount(accountId);
+      if (current) setDataFor(dataKey);
     });
     return () => {
       current = false;
     };
-  }, [accountId, refresh]);
+  }, [dataKey, refresh]);
 
   const activeLogDate = logSheetDate ?? today;
   const {
@@ -127,11 +132,11 @@ function AppScreens() {
       },
       [auth.user, auth.role, refresh, container]
     ),
-    // Re-read the active day whenever the account changes (P0-N1): this hook
-    // mounts before auth resolves, so its first read is the local-only store.
-    // useAuth scopes the container before exposing the user, so accountId
-    // always names the store the container reads at this render.
-    accountId
+    // Re-read the active day whenever the account (or its store, see dataKey)
+    // changes (P0-N1): this hook mounts before auth resolves, so its first read
+    // is the local-only store. useAuth scopes the container before exposing the
+    // user, so accountId always names the store the container reads at this render.
+    dataKey
   );
 
   // Keep the active log in step with the store (P0-N2). After a sync (or an
@@ -322,7 +327,7 @@ function AppScreens() {
   );
 
   // ── Loading ──
-  if (auth.loading || dataLoading || dataAccount !== accountId) {
+  if (auth.loading || dataLoading || dataFor !== dataKey) {
     return (
       <div className="flex min-h-dvh items-center justify-center bg-background font-sans">
         <div role="status" className="flex flex-col items-center gap-4">
@@ -355,6 +360,13 @@ function AppScreens() {
   // ── Auth gate ──
   if (auth.isConfigured && !auth.user) {
     return <AuthScreen onSignUp={auth.signUp} onSignIn={auth.signIn} initialMode={authMode} />;
+  }
+
+  // ── Fail closed (P0-06) ── this store has served a partner session, so its
+  // rows may be the owner's cache. Until the account is confirmed (as partner,
+  // or as owner, which purges them first), show none of it — e.g. offline.
+  if (auth.storeMarkedPartner && auth.role === null) {
+    return <AccountUnconfirmed onRetry={auth.refreshRole} onSignOut={auth.signOut} />;
   }
 
   // ── Role selection (new user, no data, no partner link, hasn't chosen yet) ──
@@ -553,5 +565,43 @@ function AppScreens() {
       {showSources && <SourcesView onClose={() => setShowSources(false)} />}
       {showPrivacy && <PrivacyPolicy onClose={() => setShowPrivacy(false)} />}
     </div>
+  );
+}
+
+/**
+ * P0-06: this device's store has served a partner session and the account's
+ * role can't be checked (e.g. offline), so nothing from the store is shown.
+ */
+function AccountUnconfirmed({
+  onRetry,
+  onSignOut,
+}: {
+  onRetry: () => Promise<void>;
+  onSignOut: () => Promise<void>;
+}) {
+  const [checking, setChecking] = useState(false);
+  const retry = async () => {
+    setChecking(true);
+    await onRetry();
+    setChecking(false);
+  };
+  return (
+    <main className="flex min-h-dvh items-center justify-center bg-background px-4 font-sans">
+      <div role="status" className="w-full max-w-md rounded-2xl border border-border bg-card p-6 sm:p-8">
+        <h1 className="text-2xl">Can&apos;t confirm your account</h1>
+        <p className="mt-2 text-base text-muted-foreground">
+          Rhea couldn&apos;t check this account with the server, so it isn&apos;t showing any cycle
+          data yet. Check your connection and try again.
+        </p>
+        <div className="mt-6 flex flex-wrap gap-3">
+          <Button onClick={retry} disabled={checking}>
+            {checking ? "Checking…" : "Try again"}
+          </Button>
+          <Button variant="outline" onClick={() => void onSignOut()}>
+            Sign out
+          </Button>
+        </div>
+      </div>
+    </main>
   );
 }

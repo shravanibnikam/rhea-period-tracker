@@ -81,7 +81,10 @@ import { isSyncReadOnly, setSyncReadOnly } from "@/app/lib/sync";
 function fakeContainer() {
   return {
     setAccount: vi.fn(),
+    /** meta.lastKnownRole of the active store (unmarked unless a test says so). */
+    getMeta: vi.fn((_key: string): Promise<unknown> => Promise.resolve(undefined)),
     setMeta: vi.fn((_key: string, _value: unknown) => Promise.resolve()),
+    claimForOwner: vi.fn(() => Promise.resolve()),
     wipeLocalData: vi.fn(() => Promise.resolve()),
   };
 }
@@ -714,5 +717,95 @@ describe("multi-link row sets (.limit(2), N11)", () => {
     });
 
     expect(fake.wipeLocalData).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("a store that has served a partner session (lastKnownRole=partner, P0-06)", () => {
+  it("offline start (lookup fails): role unresolved, the store reported as marked, and sign-out wipes it", async () => {
+    fake.getMeta.mockResolvedValue("partner");
+    h.state.links.partner_id = "error";
+    const { result } = renderAuth();
+    await signIn("u1");
+
+    expect(result.current.loading).toBe(false);
+    expect(capability(result.current.role)).toEqual(CLOSED);
+    expect(result.current.storeMarkedPartner).toBe(true);
+    expect(fake.getMeta).toHaveBeenCalledWith("lastKnownRole");
+
+    await act(async () => {
+      await result.current.signOut();
+    });
+    expect(fake.wipeLocalData).toHaveBeenCalledTimes(1);
+    expect(result.current.storeMarkedPartner).toBe(false);
+  });
+
+  it("an owner's offline start (unmarked store) is not marked, and sign-out keeps the owner's own data (control)", async () => {
+    h.state.links.partner_id = "error";
+    const { result } = renderAuth();
+    await signIn("u1");
+
+    expect(result.current.role).toBeNull();
+    expect(result.current.storeMarkedPartner).toBe(false);
+    await act(async () => {
+      await result.current.signOut();
+    });
+    expect(fake.wipeLocalData).not.toHaveBeenCalled();
+  });
+
+  it("an unreadable marker counts as marked (fail closed)", async () => {
+    fake.getMeta.mockRejectedValue(new Error("IndexedDB failure"));
+    h.state.links.partner_id = "error";
+    const { result } = renderAuth();
+    await signIn("u1");
+
+    expect(result.current.storeMarkedPartner).toBe(true);
+  });
+
+  it("an owner answer purges the cached rows BEFORE role owner is exposed", async () => {
+    fake.getMeta.mockResolvedValue("partner");
+    let purged!: () => void;
+    fake.claimForOwner.mockImplementation(
+      () =>
+        new Promise<void>((resolve) => {
+          purged = resolve;
+        })
+    );
+    const { result } = renderAuth();
+    const pending = beginSignIn("ex-partner"); // no links any more → owner
+    await waitFor(() => expect(fake.claimForOwner).toHaveBeenCalledTimes(1));
+
+    // Mid-purge: no owner capability, the splash holds, the store still counts as marked.
+    expect(capability(result.current.role)).toEqual(CLOSED);
+    expect(result.current.loading).toBe(true);
+    expect(result.current.storeMarkedPartner).toBe(true);
+
+    await act(async () => {
+      purged();
+      await pending;
+    });
+    expect(capability(result.current.role)).toEqual({ role: "owner", ownerEngine: true, readOnly: false });
+    expect(result.current.storeMarkedPartner).toBe(false);
+  });
+
+  it("a failed purge grants nothing: the role stays unresolved and the store stays marked", async () => {
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    fake.getMeta.mockResolvedValue("partner");
+    fake.claimForOwner.mockRejectedValue(new Error("quota exceeded"));
+    const { result } = renderAuth();
+    await signIn("ex-partner");
+
+    expect(result.current.loading).toBe(false);
+    expect(capability(result.current.role)).toEqual(CLOSED);
+    expect(result.current.storeMarkedPartner).toBe(true);
+  });
+
+  it("a partner answer reports the store as marked", async () => {
+    h.state.links.partner_id = [{ owner_id: "owner-1" }];
+    const { result } = renderAuth();
+    await signIn("u1");
+
+    expect(result.current.role).toBe("partner");
+    expect(result.current.storeMarkedPartner).toBe(true);
+    expect(fake.claimForOwner).not.toHaveBeenCalled();
   });
 });

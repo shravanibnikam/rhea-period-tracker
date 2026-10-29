@@ -131,6 +131,7 @@ function fakeContainer() {
     getAllLogs: vi.fn(() => Promise.resolve(CACHED)),
     getMeta: vi.fn((_key: string) => Promise.resolve(undefined)),
     setMeta: vi.fn((_key: string, _value: unknown) => Promise.resolve()),
+    claimForOwner: vi.fn(() => Promise.resolve()),
     getLog: vi.fn((_date: string) => Promise.resolve(undefined)),
     saveLog: vi.fn((_log: DailyLog) => Promise.resolve()),
     deleteLog: vi.fn((_date: string) => Promise.resolve()),
