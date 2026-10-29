@@ -31,12 +31,14 @@ import {
 /**
  * Whether writes QUEUE in the durable outbox (P0-06). Queueing is local only —
  * nothing leaves the device until the engine starts for a confirmed owner.
- * - "owner": a confirmed owner (or its running engine) — every write queues.
- * - "unresolved": signed in, role not yet known — writes queue, EXCEPT in a
- *   store that has served a partner session (meta.lastKnownRole = "partner"):
- *   its rows may be the owner's cache, and an edit to one must never be queued
- *   for a later upload under this account.
+ * - "owner": a confirmed owner (or its running engine) — writes queue.
+ * - "unresolved": signed in, role not yet known — writes queue too, so an
+ *   offline start doesn't lose the owner's logging.
  * - "off": partner, no user, or legacy mode — nothing queues.
+ * In NO mode does a write queue in a store that has served a partner session
+ * (meta.lastKnownRole = "partner"): its rows may be the owner's cache, and an
+ * edit to one must never be queued for a later upload under this account.
+ * claimForOwner() purges such a store before its account acts as owner.
  */
 export type OutboxMode = "owner" | "unresolved" | "off";
 
@@ -114,23 +116,38 @@ export class Container {
 
   /** Apply the OutboxMode to THIS store (the marker lives in its own meta). */
   private async queuesWrites(driver: StorageDriver): Promise<boolean> {
-    if (this.outboxMode !== "unresolved") return this.outboxMode === "owner";
+    if (this.outboxMode === "off") return false;
     const marked = (await driver.get<string>("meta", META_LAST_KNOWN_ROLE)) === "partner";
-    // The mode may have moved on during the read: only a still-unresolved role
-    // consults the marker.
-    const mode = this.currentOutboxMode();
-    return mode === "owner" || (mode === "unresolved" && !marked);
+    // The mode may have moved on during the read.
+    return !marked && this.currentOutboxMode() !== "off";
   }
 
   /**
    * The mode as it is NOW. A method call on purpose: after the early return in
-   * queuesWrites, TypeScript narrows `this.outboxMode` to "unresolved" and keeps
-   * that narrowing across the await, so reading the field directly there would
-   * not type-check as a re-read. The re-read matters: a partner answer can set
-   * "off" (and clear the outbox) while the marker read is in flight.
+   * queuesWrites, TypeScript narrows `this.outboxMode` to exclude "off" and
+   * keeps that narrowing across the await, so reading the field directly there
+   * would not type-check as a re-read. The re-read matters: a partner answer
+   * can set "off" (and clear the outbox) while the marker read is in flight.
    */
   private currentOutboxMode(): OutboxMode {
     return this.outboxMode;
+  }
+
+  /**
+   * The account is confirmed as OWNER (P0-06). If its store has served a
+   * partner session, the rows in it are the previous owner's cache, not this
+   * account's: purge them, and everything queued for or derived from them, then
+   * mark the store as this owner's own. A no-op for an unmarked store. useAuth
+   * calls it BEFORE exposing role owner, so nothing renders, queues or syncs
+   * from the cache. The marker flips last: an interrupted purge reruns.
+   */
+  async claimForOwner(): Promise<void> {
+    const d = await this.driver();
+    if ((await d.get<string>("meta", META_LAST_KNOWN_ROLE)) !== "partner") return;
+    for (const store of ["logs", "tombstones", "outbox", "projections", "sync_cursors"] as const) {
+      await d.clear(store);
+    }
+    await d.put("meta", "owner", META_LAST_KNOWN_ROLE);
   }
 
   async meta(): Promise<MetaRepository> {

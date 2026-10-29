@@ -77,7 +77,8 @@ export const META_NEEDS_INITIAL_SEED = "needsInitialSeed";
 export const META_DB_SCHEMA_VERSION = "dbSchemaVersion";
 /**
  * "partner" once this account's store has served a partner session (P0-06):
- * its `logs` then hold another person's cached rows. Only "partner" is ever
- * written, and it is never downgraded when the account later resolves as owner.
+ * its `logs` then hold another person's cached rows, and nothing queues or
+ * seeds from it. When the account is later confirmed as owner,
+ * Container.claimForOwner purges those rows and only then writes "owner".
  */
 export const META_LAST_KNOWN_ROLE = "lastKnownRole";
