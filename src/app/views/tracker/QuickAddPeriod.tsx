@@ -27,12 +27,16 @@ export function QuickAddPeriod({ onClose, saveLogs }: QuickAddPeriodProps) {
   const [error, setError] = useState<string | null>(null);
   // A typed date can pass `max`; an empty or future start would write nonsense days.
   const valid = /^\d{4}-\d{2}-\d{2}$/.test(startDate) && startDate <= todayKey;
+  // Only days up to today are logged: a day that hasn't happened isn't logged
+  // flow (it would feed the calendar, averages and exports as fact).
+  const logs = valid ? buildPeriodLogs(startDate, duration).filter((l) => l.date <= todayKey) : [];
+  const ahead = valid ? duration - logs.length : 0;
 
   const handleSave = async () => {
     setSaving(true);
     setError(null);
     try {
-      await saveLogs(buildPeriodLogs(startDate, duration), { mode: "merge-defined" });
+      await saveLogs(logs, { mode: "merge-defined" });
     } catch (err) {
       // The batch is one transaction, so a failed write leaves nothing
       // half-saved. Stay open so the user can retry.
@@ -61,7 +65,7 @@ export function QuickAddPeriod({ onClose, saveLogs }: QuickAddPeriodProps) {
             </p>
           )}
           <Button size="lg" className="w-full" onClick={handleSave} disabled={saving || !valid} aria-busy={saving}>
-            {`Add ${duration}-day period`}
+            {ahead > 0 ? `Log ${logs.length} ${logs.length === 1 ? "day" : "days"} so far` : `Add ${duration}-day period`}
           </Button>
         </div>
       }
@@ -98,7 +102,11 @@ export function QuickAddPeriod({ onClose, saveLogs }: QuickAddPeriodProps) {
             onChange={(v) => v && setDuration(Number(v))}
             className="grid grid-cols-4 sm:grid-cols-8"
           />
-          <p className="text-sm text-muted-foreground">You can change any day&apos;s flow later from the calendar.</p>
+          <p className="text-sm text-muted-foreground">
+            {ahead > 0
+              ? `Only days up to today are logged. Log the other ${ahead === 1 ? "day" : `${ahead} days`} as they come, or change any day later from the calendar.`
+              : "You can change any day’s flow later from the calendar."}
+          </p>
         </section>
       </div>
     </Sheet>

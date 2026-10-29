@@ -17,6 +17,7 @@ import { useLogger } from "@/app/hooks/useLogger";
 import { DailyLogSheet } from "@/app/views/tracker/DailyLogSheet";
 import { QuickAddPeriod } from "@/app/views/tracker/QuickAddPeriod";
 import { PHASES } from "@/domain/phases";
+import { addDays, toDateKey } from "@/domain/dates";
 import { emptyLog, type DailyLog } from "@/domain/types";
 
 // INV-WRITE-ACK (P0-04): no UI affordance reports success before its persisting
@@ -196,6 +197,8 @@ describe("QuickAddPeriod awaits the save (INV-WRITE-ACK)", () => {
     );
 
     const write = await failNextWrite(c);
+    // A start ten days back: every day of the period has happened (days after today are never logged).
+    fireEvent.change(screen.getByLabelText("First day"), { target: { value: toDateKey(addDays(new Date(), -10)) } });
     const addButton = screen.getByRole("button", { name: "Add 5-day period" }) as HTMLButtonElement;
     fireEvent.click(addButton);
     await waitFor(() => expect(write).toHaveBeenCalledTimes(1));
