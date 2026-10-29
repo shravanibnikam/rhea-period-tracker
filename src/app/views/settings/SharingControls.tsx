@@ -1,4 +1,5 @@
-import { useState, useEffect, type FormEvent } from "react";
+import { useState, useEffect, useRef, type FormEvent } from "react";
+import { flushSync } from "react-dom";
 import { Moon } from "lucide-react";
 import { toast } from "sonner";
 import { logAudit, getAuditLog, formatAction, type AuditEntry } from "@/app/lib/audit";
@@ -31,10 +32,16 @@ const span = ({ start_date: start, end_date: end }: Pick<QuietWindow, "start_dat
   return `${first} to ${formatDay(end)}`;
 };
 
-/** An activity entry's target as people read it: a share key's label, or a quiet window's days. */
+/**
+ * An activity entry's target as people read it: a share key's label, a quiet
+ * window's days, or a retired key in words ("shared_notes" → "Shared notes").
+ */
 const targetText = (target: string) => {
   const range = /^(\d{4}-\d{2}-\d{2}) to (\d{4}-\d{2}-\d{2})$/.exec(target);
-  return SHARE_KEYS.find((k) => k.key === target)?.label ?? (range ? span({ start_date: range[1], end_date: range[2] }) : target);
+  if (range) return span({ start_date: range[1], end_date: range[2] });
+  const label = SHARE_KEYS.find((k) => k.key === target)?.label;
+  if (label) return label;
+  return /^[a-z]+(_[a-z]+)+$/.test(target) ? target[0].toUpperCase() + target.slice(1).replace(/_/g, " ") : target;
 };
 
 /** A change the server didn't take: logged, and said out loud. */
@@ -90,24 +97,35 @@ export function SharingControls({ ownerId }: SharingControlsProps) {
   const [loadFailed, setLoadFailed] = useState(false);
   const [attempt, setAttempt] = useState(0);
   const [auditEntries, setAuditEntries] = useState<AuditEntry[]>([]);
+  const [auditFailed, setAuditFailed] = useState(false);
   const [showAudit, setShowAudit] = useState(false);
+  // Switches whose save is in flight. A ref, not state: a second tap must see
+  // the first at once, whatever has rendered.
+  const savingKeys = useRef(new Set<ShareKey>());
+  const addQuietButton = useRef<HTMLButtonElement>(null);
+  const quietStartField = useRef<HTMLInputElement>(null);
+  const auditToggle = useRef<HTMLButtonElement>(null);
 
   useEffect(() => {
     let current = true;
     Promise.all([getShareSettings(ownerId), getQuietWindows(ownerId)])
       .then(([s, qw]) => {
         if (!current) return;
-        setSettings(s);
-        setQuietWindows(qw);
-        setLoadFailed(false);
+        flushSync(() => {
+          setSettings(s);
+          setQuietWindows(qw);
+          setLoadFailed(false);
+          setLoading(false);
+        });
+        // After Try again, focus goes to the first switch, not the page.
+        if (attempt > 0) document.getElementById(`share-${SHARE_KEYS[0].key}`)?.focus();
       })
       .catch((err) => {
         // Unknown choices: show none rather than all-off switches.
         console.error("Failed to load sharing settings:", err);
-        if (current) setLoadFailed(true);
-      })
-      .finally(() => {
-        if (current) setLoading(false);
+        if (!current) return;
+        setLoadFailed(true);
+        setLoading(false);
       });
     return () => {
       current = false;
@@ -115,7 +133,10 @@ export function SharingControls({ ownerId }: SharingControlsProps) {
   }, [ownerId, attempt]);
 
   const handleToggle = async (key: ShareKey) => {
-    if (!settings) return;
+    // One save per switch: a tap while its save is in flight is ignored, so a
+    // failure always reverts to the value the server still has.
+    if (!settings || savingKeys.current.has(key)) return;
+    savingKeys.current.add(key);
     const newValue = !settings[key];
     const showValue = (value: boolean) => setSettings((s) => s && { ...s, [key]: value });
     showValue(newValue);
@@ -126,31 +147,48 @@ export function SharingControls({ ownerId }: SharingControlsProps) {
       showValue(!newValue);
       saveFailed(err);
       return;
+    } finally {
+      savingKeys.current.delete(key);
     }
     await logAudit(ownerId, newValue ? "share.toggle_on" : "share.toggle_off", key);
   };
 
   // Date keys compare as strings (YYYY-MM-DD); both days are included.
+  const startInvalid = !quietStart;
+  const endInvalid = !quietEnd || (!startInvalid && quietEnd < quietStart);
   const rangeError =
-    !quietStart || !quietEnd
+    startInvalid || !quietEnd
       ? "Choose a first and a last day."
-      : quietEnd < quietStart
+      : endInvalid
         ? "The last day is before the first day. Choose a last day on or after the first."
         : null;
 
+  /** Closes the add form; focus goes back to the button that opens it. */
+  const closeQuietForm = () => {
+    flushSync(() => setShowAddQuiet(false));
+    addQuietButton.current?.focus();
+  };
+
   const handleAddQuiet = async (e: FormEvent) => {
     e.preventDefault();
-    if (rangeError) return;
+    if (rangeError || saving) return;
     setSaving(true);
     try {
       await addQuietWindow(ownerId, quietStart, quietEnd);
-      await logAudit(ownerId, "quiet.added", `${quietStart} to ${quietEnd}`);
-      setQuietWindows(await getQuietWindows(ownerId));
-      setShowAddQuiet(false);
     } catch (err) {
-      saveFailed(err);
-    } finally {
       setSaving(false);
+      saveFailed(err);
+      return;
+    }
+    // Saved: the form closes whatever happens next, so trying again can't add it twice.
+    setSaving(false);
+    closeQuietForm();
+    await logAudit(ownerId, "quiet.added", `${quietStart} to ${quietEnd}`);
+    try {
+      setQuietWindows(await getQuietWindows(ownerId));
+    } catch (err) {
+      console.error("Failed to refresh quiet windows:", err);
+      toast("Quiet window added, but the list couldn't refresh. Reopen Settings to see it.");
     }
   };
 
@@ -162,30 +200,50 @@ export function SharingControls({ ownerId }: SharingControlsProps) {
       return;
     }
     await logAudit(ownerId, "quiet.removed", `${qw.start_date} to ${qw.end_date}`);
+    // Its Remove button goes with it: focus moves to the open form, or the button that opens one.
+    (quietStartField.current ?? addQuietButton.current)?.focus();
     setQuietWindows((prev) => prev.filter((w) => w.id !== qw.id));
   };
 
+  /** Reads the activity log; a failure shows a retry, never an empty log. */
+  const loadAudit = async () => {
+    try {
+      setAuditEntries(await getAuditLog(ownerId));
+      setAuditFailed(false);
+      return true;
+    } catch (err) {
+      console.error("Failed to load the activity log:", err);
+      setAuditFailed(true);
+      return false;
+    }
+  };
+
   const toggleAudit = async () => {
-    if (!showAudit) setAuditEntries(await getAuditLog(ownerId));
+    if (!showAudit) await loadAudit();
     setShowAudit(!showAudit);
   };
 
-  if (loading || loadFailed || !settings) {
+  if (loadFailed || !settings) {
     return (
       <Section title="Partner view">
         <Panel>
-          {loading ? (
-            <p role="status" className="py-4 text-sm text-muted-foreground">
-              Loading your sharing choices…
-            </p>
-          ) : (
+          {loadFailed ? (
             <RetryRow
-              message="Couldn't load your sharing choices. Check your connection and try again."
+              message={
+                loading
+                  ? "Loading your sharing choices…"
+                  : "Couldn't load your sharing choices. Check your connection and try again."
+              }
+              busy={loading}
               onRetry={() => {
                 setLoading(true);
                 setAttempt((n) => n + 1);
               }}
             />
+          ) : (
+            <p role="status" className="py-4 text-sm text-muted-foreground">
+              Loading your sharing choices…
+            </p>
           )}
         </Panel>
       </Section>
@@ -255,11 +313,15 @@ export function SharingControls({ ownerId }: SharingControlsProps) {
                     First day
                   </label>
                   <input
+                    ref={quietStartField}
                     id="quiet-start"
                     type="date"
                     required
+                    autoFocus
                     value={quietStart}
                     onChange={(e) => setQuietStart(e.target.value)}
+                    aria-invalid={startInvalid}
+                    aria-describedby={startInvalid ? "quiet-error" : undefined}
                     className={fieldClass}
                   />
                 </div>
@@ -274,8 +336,8 @@ export function SharingControls({ ownerId }: SharingControlsProps) {
                     min={quietStart || undefined}
                     value={quietEnd}
                     onChange={(e) => setQuietEnd(e.target.value)}
-                    aria-invalid={rangeError !== null}
-                    aria-describedby={rangeError ? "quiet-error" : undefined}
+                    aria-invalid={endInvalid}
+                    aria-describedby={endInvalid ? "quiet-error" : undefined}
                     className={fieldClass}
                   />
                 </div>
@@ -286,17 +348,17 @@ export function SharingControls({ ownerId }: SharingControlsProps) {
                 </p>
               )}
               <div className="flex flex-wrap justify-end gap-2">
-                <Button variant="ghost" onClick={() => setShowAddQuiet(false)}>
+                <Button variant="ghost" onClick={closeQuietForm}>
                   Cancel
                 </Button>
-                <Button type="submit" disabled={rangeError !== null || saving}>
+                <Button type="submit" disabled={rangeError !== null} aria-disabled={saving || undefined}>
                   Add quiet window
                 </Button>
               </div>
             </form>
           ) : (
             <div className="py-4">
-              <Button variant="outline" onClick={() => setShowAddQuiet(true)}>
+              <Button ref={addQuietButton} variant="outline" onClick={() => setShowAddQuiet(true)}>
                 Add quiet window
               </Button>
             </div>
@@ -310,12 +372,28 @@ export function SharingControls({ ownerId }: SharingControlsProps) {
       >
         <Panel>
           <div className="py-4">
-            <Button variant="outline" onClick={toggleAudit} aria-expanded={showAudit} aria-controls="activity-log">
+            <Button
+              ref={auditToggle}
+              variant="outline"
+              onClick={toggleAudit}
+              aria-expanded={showAudit}
+              aria-controls="activity-log"
+            >
               {showAudit ? "Hide activity" : "Show activity"}
             </Button>
           </div>
           {showAudit &&
-            (auditEntries.length > 0 ? (
+            (auditFailed ? (
+              <div id="activity-log">
+                <RetryRow
+                  message="Couldn't load the activity log. Check your connection and try again."
+                  onRetry={async () => {
+                    // Try again goes with the failure: focus moves to the log's toggle.
+                    if (await loadAudit()) auditToggle.current?.focus();
+                  }}
+                />
+              </div>
+            ) : auditEntries.length > 0 ? (
               <ol id="activity-log" className="max-h-80 divide-y divide-border overflow-y-auto">
                 {auditEntries.map((entry) => (
                   <li key={entry.id} className="flex items-start justify-between gap-4 py-3">
