@@ -28,6 +28,8 @@ const h = vi.hoisted(() => {
     authCb: null as ((event: string, session: unknown) => Promise<void>) | null,
     /** Keyed "<column>=<value>" (per user) or "<column>" (any user). */
     links: {} as Record<string, LinkBehaviour>,
+    /** What sign-in / sign-up return as `error`. */
+    authError: null as { message: string } | null,
   };
   const settle = (key: string, fallback: string, shape: (rows: LinkRows) => LinkResult) => {
     const b = state.links[key] ?? state.links[fallback] ?? [];
@@ -65,6 +67,8 @@ vi.mock("@/app/lib/supabase", () => ({
         return { data: { subscription: { unsubscribe: () => {} } } };
       },
       signOut: () => Promise.resolve({ error: null }),
+      signInWithPassword: () => Promise.resolve({ data: {}, error: h.state.authError }),
+      signUp: () => Promise.resolve({ data: {}, error: h.state.authError }),
     },
     from: (_table: string) => ({
       select: (_cols: string) => ({
@@ -150,6 +154,7 @@ const CLOSED = { role: null, ownerEngine: false, readOnly: true };
 beforeEach(() => {
   h.state.links = {};
   h.state.authCb = null;
+  h.state.authError = null;
   loadingSeen = [];
   fake = fakeContainer();
   // The legacy write guard's module default: writes allowed. A fail-open
@@ -807,5 +812,37 @@ describe("a store that has served a partner session (lastKnownRole=partner, P0-0
     expect(result.current.role).toBe("partner");
     expect(result.current.storeMarkedPartner).toBe(true);
     expect(fake.claimForOwner).not.toHaveBeenCalled();
+  });
+});
+
+describe("sign-in and sign-up errors are plain sentences", () => {
+  it("a network failure reads as a connection problem, not the raw client text", async () => {
+    h.state.authError = { message: "Failed to fetch" };
+    const { result } = renderAuth();
+
+    let signInError: string | null = null;
+    let signUpError: string | null = null;
+    await act(async () => {
+      signInError = await result.current.signIn("a@example.test", "pw");
+      signUpError = await result.current.signUp("a@example.test", "pw");
+    });
+
+    expect(signInError).toBe("Couldn't reach the server. Check your connection and try again.");
+    expect(signUpError).toBe("Couldn't reach the server. Check your connection and try again.");
+  });
+
+  it("wrong credentials and an existing account get their plain messages; success is null", async () => {
+    const { result } = renderAuth();
+
+    h.state.authError = { message: "Invalid login credentials" };
+    await expect(result.current.signIn("a@example.test", "pw")).resolves.toBe(
+      "That email and password don't match an account."
+    );
+    h.state.authError = { message: "User already registered" };
+    await expect(result.current.signUp("a@example.test", "pw")).resolves.toBe(
+      "There's already an account with that email. Sign in instead."
+    );
+    h.state.authError = null;
+    await expect(result.current.signIn("a@example.test", "pw")).resolves.toBeNull();
   });
 });

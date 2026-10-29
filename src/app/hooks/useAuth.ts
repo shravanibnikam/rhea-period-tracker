@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { supabase, isSupabaseConfigured } from "@/app/lib/supabase";
 import { setSyncReadOnly } from "@/app/lib/sync";
+import { plainError } from "@/app/lib/errors";
 import { useContainer } from "@/app/di";
 import { META_LAST_KNOWN_ROLE } from "@/data/schema";
 import type { User, Session, SupabaseClient } from "@supabase/supabase-js";
@@ -270,7 +271,7 @@ export function useAuth(): UseAuthReturn {
     async (email: string, password: string): Promise<string | null> => {
       if (!supabase) return "Supabase not configured";
       const { error } = await supabase.auth.signUp({ email, password });
-      return error?.message ?? null;
+      return error ? plainError(error.message) : null;
     },
     []
   );
@@ -282,7 +283,7 @@ export function useAuth(): UseAuthReturn {
         email,
         password,
       });
-      return error?.message ?? null;
+      return error ? plainError(error.message) : null;
     },
     []
   );
