@@ -1,4 +1,4 @@
-import { useState, useMemo, type ReactNode } from "react";
+import { useState, useMemo, useRef, type ReactNode } from "react";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import type { PhaseName, Cycle, DailyLog, FertileWindow } from "@/domain/types";
 import {
@@ -45,23 +45,29 @@ function getDatePhase(
   cycles: Cycle[],
   avg: number,
   anchors: PhaseAnchors,
-  withPredictions: boolean
+  withPredictions: boolean,
+  today: Date
 ): { phase: PhaseName; day: number; predicted: boolean } | null {
   const sorted = [...cycles].sort((a, b) => (a.periodStart < b.periodStart ? -1 : 1));
+  const last = sorted[sorted.length - 1];
 
   for (let i = sorted.length - 1; i >= 0; i--) {
     const start = parseDate(sorted[i].periodStart);
     const len = sorted[i].cycleLength ?? avg;
-    const end = addDays(start, len - 1);
+    let end = addDays(start, len - 1);
+    // A late period: the current cycle runs on to today, as Today counts it ("Day 36 of 28"),
+    // not into a predicted cycle that has already passed.
+    if (sorted[i] === last && last.cycleLength === null && end < today) end = today;
     if (date >= start && date <= end) {
       const day = diffDays(date, start) + 1;
       return { phase: getPhaseForDay(day, anchors), day, predicted: false };
     }
   }
 
-  const last = sorted[sorted.length - 1];
   if (!last || !withPredictions) return null;
   let nextStart = addDays(parseDate(last.periodStart), last.cycleLength ?? avg);
+  // While late, the next period is predicted from tomorrow on, never in the past.
+  if (nextStart <= today) nextStart = addDays(today, 1);
   for (let i = 0; i < 6; i++) {
     const end = addDays(nextStart, avg - 1);
     if (date >= nextStart && date <= end) {
@@ -150,6 +156,7 @@ export function CalendarTab({
   const anchors = anchorsFrom(avgLength, avgPeriodLength);
   // A very short cycle squeezes a phase to no days: the legend leaves it out.
   const lengths = getPhaseLengths(anchors);
+  const monthRef = useRef<HTMLSelectElement>(null);
   const [calMonth, setCalMonth] = useState(
     () => new Date(today.getFullYear(), today.getMonth(), 1)
   );
@@ -192,7 +199,7 @@ export function CalendarTab({
     for (let d = 1; d <= daysInMonth; d++) {
       const date = new Date(calMonth.getFullYear(), calMonth.getMonth(), d);
       const key = toDateKey(date);
-      const info = cycles.length > 0 ? getDatePhase(date, cycles, avgLength, anchors, !hidePredictions) : null;
+      const info = cycles.length > 0 ? getDatePhase(date, cycles, avgLength, anchors, !hidePredictions, today) : null;
       const isFuture = date > today;
       const periodLogged = flowDates.has(key);
       days.push({
@@ -228,6 +235,7 @@ export function CalendarTab({
           <div className="flex flex-wrap items-center gap-x-1 gap-y-2">
             <div className="mr-auto flex items-center">
               <select
+                ref={monthRef}
                 aria-label="Month"
                 value={calMonth.getMonth()}
                 onChange={(e) => setCalMonth((m) => new Date(m.getFullYear(), Number(e.target.value), 1))}
@@ -251,9 +259,12 @@ export function CalendarTab({
             {!isThisMonth && (
               <Button
                 variant="outline"
-                size="sm"
                 className="@max-md:order-last"
-                onClick={() => setCalMonth(new Date(today.getFullYear(), today.getMonth(), 1))}
+                onClick={() => {
+                  setCalMonth(new Date(today.getFullYear(), today.getMonth(), 1));
+                  // The button goes away on this month: keep focus in the header.
+                  monthRef.current?.focus();
+                }}
               >
                 Today
               </Button>
