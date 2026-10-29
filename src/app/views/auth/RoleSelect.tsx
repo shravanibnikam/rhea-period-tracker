@@ -24,6 +24,7 @@ export function RoleSelect({ onChooseOwner, onPaired }: RoleSelectProps) {
 
   const handleRedeem = async (e: FormEvent) => {
     e.preventDefault();
+    if (submitting) return; // busy: the button is aria-disabled, not disabled, so it keeps focus
     const trimmed = code.trim();
     if (!trimmed) return;
     // The secret is a case-sensitive base64url string — validate against the
@@ -94,7 +95,13 @@ export function RoleSelect({ onChooseOwner, onPaired }: RoleSelectProps) {
                 </p>
               )}
 
-              <Button type="submit" size="lg" className="w-full" disabled={submitting || !code.trim()}>
+              <Button
+                type="submit"
+                size="lg"
+                className="w-full"
+                disabled={!code.trim()}
+                aria-disabled={submitting || undefined}
+              >
                 {submitting ? "Connecting…" : "Connect"}
               </Button>
             </form>

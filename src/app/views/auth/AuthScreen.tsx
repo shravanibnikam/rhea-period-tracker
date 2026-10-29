@@ -1,4 +1,4 @@
-import { useState, type FormEvent, type ReactNode } from "react";
+import { useEffect, useRef, useState, type FormEvent, type ReactNode } from "react";
 import { Eye, EyeOff } from "lucide-react";
 import { Button } from "@/app/components/ui/Button";
 import { cn } from "@/app/lib/cn";
@@ -18,15 +18,34 @@ export const AUTH_INPUT =
   "h-12 w-full rounded-xl border border-input bg-input-background px-4 text-base text-foreground placeholder:text-muted-foreground";
 export const AUTH_LINK = "font-semibold text-foreground underline underline-offset-4 hover:text-foreground/75";
 
-/** The auth card: a soft pastel header (the mark, the title, one kind sentence) over its body. */
-export function AuthCard({ title, intro, children }: { title: string; intro: ReactNode; children: ReactNode }) {
+/**
+ * The auth card: a soft pastel header (the mark, the title, one kind sentence) over its body.
+ * `focusTitle` moves focus to the title on mount, so a screen that replaces a form is announced.
+ */
+export function AuthCard({
+  title,
+  intro,
+  children,
+  focusTitle = false,
+}: {
+  title: string;
+  intro: ReactNode;
+  children: ReactNode;
+  focusTitle?: boolean;
+}) {
+  const heading = useRef<HTMLHeadingElement>(null);
+  useEffect(() => {
+    if (focusTitle) heading.current?.focus();
+  }, [focusTitle]);
   return (
     <div className="overflow-hidden rounded-3xl border border-border bg-card shadow-soft">
       <header className="bg-accent px-6 pt-8 pb-7 text-center text-accent-foreground">
         <span className="mx-auto flex size-14 items-center justify-center rounded-full bg-card shadow-soft">
           <RheaMark size={32} label="Rhea" />
         </span>
-        <h1 className="mt-5 text-3xl text-foreground">{title}</h1>
+        <h1 ref={heading} tabIndex={focusTitle ? -1 : undefined} className="mt-5 text-3xl text-foreground outline-none">
+          {title}
+        </h1>
         <p className="mx-auto mt-2 max-w-xs text-base">{intro}</p>
       </header>
       <div className="p-5 sm:p-6">{children}</div>
@@ -60,6 +79,7 @@ export function AuthScreen({ onSignUp, onSignIn, initialMode = "signin" }: AuthS
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
+    if (submitting) return; // busy: the button is aria-disabled, not disabled, so it keeps focus
     setError(null);
     setSubmitting(true);
     const err = signup ? await onSignUp(email, password) : await onSignIn(email, password);
@@ -78,6 +98,7 @@ export function AuthScreen({ onSignUp, onSignIn, initialMode = "signin" }: AuthS
       <main className={AUTH_SCREEN}>
         <div className="w-full max-w-sm">
           <AuthCard
+            focusTitle
             title="Check your email"
             intro={
               <>
@@ -174,7 +195,7 @@ export function AuthScreen({ onSignUp, onSignIn, initialMode = "signin" }: AuthS
               </p>
             )}
 
-            <Button type="submit" size="lg" className="w-full" disabled={submitting}>
+            <Button type="submit" size="lg" className="w-full" aria-disabled={submitting || undefined}>
               {submitting
                 ? signup
                   ? "Creating account…"
@@ -194,6 +215,14 @@ export function AuthScreen({ onSignUp, onSignIn, initialMode = "signin" }: AuthS
         </p>
 
         <PrivacyNote />
+        <p className="text-center text-sm">
+          <a
+            href="#welcome"
+            className="inline-flex min-h-11 items-center text-muted-foreground underline underline-offset-4 hover:text-foreground"
+          >
+            What is Rhea?
+          </a>
+        </p>
       </div>
     </main>
   );
