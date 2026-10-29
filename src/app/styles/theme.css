@@ -27,9 +27,12 @@
   --destructive: #B3261E;
   --destructive-foreground: #FFFFFF;
   --border: #EEE4E3;
-  --input: #E2D6D7;
+  /* Control boundaries (field borders, the off switch track) are >= 3:1 on the
+     card and the ground (WCAG 1.4.11): 3.39:1 on --card, 3.18:1 on --background,
+     and the white thumb is 3.39:1 on the off track. */
+  --input: #9C868C;
   --input-background: #FFFFFF;
-  --switch-background: #E2D6D7;
+  --switch-background: #9C868C;
   --ring: #9E3F5B;
   /* Soft elevation for cards and floating surfaces (never a hard drop shadow). */
   --elevation: 0 1px 2px rgb(47 34 41 / 0.04), 0 8px 24px rgb(47 34 41 / 0.05);
@@ -101,9 +104,10 @@
   --destructive: #F2867D;
   --destructive-foreground: #2A0F0C;
   --border: #3A2E35;
-  --input: #4A3C44;
+  /* 3.42:1 on --card, 3.74:1 on --background; the light thumb is 4.19:1 on the off track. */
+  --input: #846C72;
   --input-background: #251D22;
-  --switch-background: #4A3C44;
+  --switch-background: #846C72;
   --ring: #EFA3B5;
   --elevation: 0 1px 2px rgb(0 0 0 / 0.2), 0 8px 24px rgb(0 0 0 / 0.25);
 
