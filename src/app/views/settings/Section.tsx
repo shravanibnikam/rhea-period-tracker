@@ -64,18 +64,29 @@ export function Row({
   );
 }
 
-/** A load that failed, in a panel: what went wrong, and a way to try again. */
-export function RetryRow({ message, onRetry }: { message: string; onRetry: () => void }) {
+/**
+ * A load that failed, in a panel: what went wrong, and a way to try again.
+ * `busy` while the retry runs: the row stays, so Try again keeps focus.
+ */
+export function RetryRow({ message, onRetry, busy = false }: { message: string; onRetry: () => void; busy?: boolean }) {
   return (
     <div className="flex flex-col gap-3 py-4 sm:flex-row sm:items-center sm:justify-between sm:gap-6">
       <p role="status" className="text-sm text-foreground">
         {message}
       </p>
-      <Button variant="outline" onClick={onRetry}>
+      <Button variant="outline" onClick={busy ? undefined : onRetry} aria-disabled={busy || undefined}>
         Try again
       </Button>
     </div>
   );
+}
+
+/**
+ * Focus for when the control that had it is replaced: the first enabled
+ * button or field in `el`, else `el` itself (give it tabIndex -1).
+ */
+export function focusFirstControl(el: HTMLElement | null) {
+  (el?.querySelector<HTMLElement>("button:not(:disabled), input:not(:disabled)") ?? el)?.focus();
 }
 
 /** Text and date fields: 44px tall, white on any panel, a red edge while invalid. */
