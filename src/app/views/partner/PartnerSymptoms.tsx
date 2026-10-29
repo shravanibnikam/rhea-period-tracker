@@ -10,8 +10,8 @@ const LABEL = "font-sans text-sm font-semibold text-foreground [font-size-adjust
 
 /**
  * The partner-side symptom list (gated on the owner's `symptom_details` toggle),
- * rendered inside PartnerView's "How they're feeling" card. Chips take the tint
- * of the nearest `[data-phase]` scope.
+ * rendered inside PartnerView's "How they’re feeling" card. Chips take the
+ * partner hue, never a phase tint, so they don't reveal the phase.
  *
  * Deliberately narrow: symptoms ONLY. Free-text notes, medication, and intimacy
  * live on the same DailyLog and are never rendered here — they are not symptoms,
@@ -43,7 +43,7 @@ export function PartnerSymptoms({ logs, today }: { logs: DailyLog[]; today: Date
         {todaysSymptoms.length > 0 ? (
           <ul className="mt-2 flex flex-wrap gap-2">
             {todaysSymptoms.map((s) => (
-              <li key={s} className="rounded-full bg-phase-tint px-3 py-1.5 text-sm font-medium text-phase-ink">
+              <li key={s} className="rounded-full bg-partner-tint px-3 py-1.5 text-sm font-medium text-partner-ink">
                 {s}
               </li>
             ))}

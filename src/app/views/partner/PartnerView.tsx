@@ -2,12 +2,13 @@ import { useState, useEffect, type ReactNode } from "react";
 import { CalendarHeart, CloudOff, HeartHandshake, Moon, type LucideIcon } from "lucide-react";
 import type { PhaseData, PhaseName, CycleState, DailyLog } from "@/domain/types";
 import { PHASES, PHASE_ORDER, ENERGY_LABELS, getPhaseRangeLabel, anchorsFrom } from "@/domain/phases";
-import { diffDays, toDateKey } from "@/domain/dates";
+import { toDateKey } from "@/domain/dates";
 import { fmt } from "@/app/lib/format";
 import { cn } from "@/app/lib/cn";
 import { Button } from "@/app/components/ui/Button";
 import { CycleRing } from "@/app/components/shared/CycleRing";
 import { CalendarTab } from "@/app/views/tracker/CalendarTab";
+import { daysFrom } from "@/app/views/tracker/dateText";
 import { PartnerSymptoms } from "@/app/views/partner/PartnerSymptoms";
 import {
   getShareSettings,
@@ -60,14 +61,17 @@ function Notice({
   title,
   children,
   action,
+  role,
 }: {
   icon: LucideIcon;
   title: string;
   children: ReactNode;
   action?: ReactNode;
+  /** "alert" for a notice that replaces content after a failure: it is announced. */
+  role?: "alert";
 }) {
   return (
-    <section className={cn(CARD, "flex items-start gap-4")}>
+    <section role={role} className={cn(CARD, "flex items-start gap-4")}>
       <span className="flex size-11 shrink-0 items-center justify-center rounded-full bg-accent text-accent-foreground">
         <Icon size={20} aria-hidden="true" />
       </span>
@@ -154,7 +158,8 @@ export function PartnerView({
     body = (
       <Notice
         icon={CloudOff}
-        title="Couldn't load the partner view"
+        title="Couldn’t load the partner view"
+        role="alert"
         action={
           <Button
             variant="outline"
@@ -189,7 +194,7 @@ export function PartnerView({
             , and it shows here.
           </>
         ) : (
-          "Your partner hasn't turned on any sharing yet. When they do, it shows here."
+          "Your partner hasn’t turned on any sharing yet. When they do, it shows here."
         )}
       </Notice>
     );
@@ -232,7 +237,7 @@ export function PartnerView({
               )}
               <div className="min-w-0">
                 <h2 className={cn("text-2xl sm:text-3xl", show.headsup && "text-foreground")}>
-                  They&apos;re in their {phaseData.name.toLowerCase()} phase
+                  They’re in their {phaseData.name.toLowerCase()} phase
                 </h2>
                 <p className={cn("mt-2 text-sm", show.headsup && "text-muted-foreground")}>
                   {getPhaseRangeLabel(phase, anchors)} of their cycle
@@ -241,7 +246,7 @@ export function PartnerView({
             </section>
 
             <section className={CARD}>
-              <h2 className={H2}>What&apos;s happening in their body</h2>
+              <h2 className={H2}>What’s happening in their body</h2>
               <p className="mt-2 text-base leading-relaxed text-foreground">{phaseData.partnerDesc}</p>
               <dl className="mt-5 grid gap-4 text-sm sm:grid-cols-2">
                 <div>
@@ -263,14 +268,14 @@ export function PartnerView({
         <div className={ROW}>
           {(show.mood || show.symptoms) && (
             <section className={CARD}>
-              <h2 className={H2}>How they&apos;re feeling</h2>
+              <h2 className={H2}>How they’re feeling</h2>
               <div className="mt-4 space-y-5">
                 {show.mood && (
                   <div>
                     <h3 className={LABEL}>Mood today</h3>
                     {todayMood ? (
                       <p className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1">
-                        <span className="rounded-full bg-phase-tint px-3 py-1.5 text-sm font-medium text-phase-ink">
+                        <span className="rounded-full bg-partner-tint px-3 py-1.5 text-sm font-medium text-partner-ink">
                           {todayMood}
                         </span>
                         <span className="text-sm text-muted-foreground">Logged by your partner</span>
@@ -304,13 +309,13 @@ export function PartnerView({
 
         {show.headsup && hasCycle && (
           <section className={CARD}>
-            <h2 className={H2}>What&apos;s coming next</h2>
+            <h2 className={H2}>What’s coming next</h2>
             <p className="mt-1 text-sm text-muted-foreground">
               Estimated from their logged cycles, so dates can shift by a few days.
             </p>
             <ul className="mt-4 grid gap-2 sm:grid-cols-3">
               {state.predictions.slice(0, 3).map((pred, i) => {
-                const days = diffDays(pred.start, today);
+                const days = daysFrom(today, pred.start); // calendar days: DST-safe
                 return (
                   <li
                     key={pred.cycleNumber}
@@ -344,6 +349,7 @@ export function PartnerView({
               logs={logs}
               fertileWindow={state.fertileWindow}
               readOnly
+              hidePredictions={!show.headsup}
             />
           </section>
         )}
@@ -386,10 +392,14 @@ export function PartnerView({
     );
   }
 
+  // The phase tint is set only where the phase is shown: elsewhere a colour
+  // would reveal what the owner hasn't shared.
+  const phaseShown = !loading && !loadFailed && show.phase && hasCycle;
+
   return (
-    <div data-phase={phase} className="flex flex-col gap-6">
+    <div data-phase={phaseShown ? phase : undefined} className="flex flex-col gap-6">
       <header>
-        <h1 className="text-3xl text-foreground">Your partner&apos;s cycle</h1>
+        <h1 className="text-3xl text-foreground">Your partner’s cycle</h1>
         <p className="mt-1 text-sm text-muted-foreground">{fmt(today, { weekday: "long", month: "long", day: "numeric" })}</p>
       </header>
       {body}

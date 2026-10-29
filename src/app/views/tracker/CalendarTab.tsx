@@ -31,13 +31,20 @@ interface CalendarTabProps {
    * target that could never save anything would just be a dead affordance.
    */
   readOnly?: boolean;
+  /**
+   * Leave out predicted periods: no predicted cycles after the last logged
+   * one and no "Period, predicted" marks. The partner view sets it unless the
+   * owner shares the cycle heads-up, which is what governs predictions.
+   */
+  hidePredictions?: boolean;
 }
 
 function getDatePhase(
   date: Date,
   cycles: Cycle[],
   avg: number,
-  anchors: PhaseAnchors
+  anchors: PhaseAnchors,
+  withPredictions: boolean
 ): { phase: PhaseName; day: number; predicted: boolean } | null {
   const sorted = [...cycles].sort((a, b) => (a.periodStart < b.periodStart ? -1 : 1));
 
@@ -52,7 +59,7 @@ function getDatePhase(
   }
 
   const last = sorted[sorted.length - 1];
-  if (!last) return null;
+  if (!last || !withPredictions) return null;
   let nextStart = addDays(parseDate(last.periodStart), last.cycleLength ?? avg);
   for (let i = 0; i < 6; i++) {
     const end = addDays(nextStart, avg - 1);
@@ -128,7 +135,17 @@ function dayName(day: Day): string {
   return parts.join(", ");
 }
 
-export function CalendarTab({ cycles, avgLength, avgPeriodLength, today, logs, onDayClick, fertileWindow, readOnly = false }: CalendarTabProps) {
+export function CalendarTab({
+  cycles,
+  avgLength,
+  avgPeriodLength,
+  today,
+  logs,
+  onDayClick,
+  fertileWindow,
+  readOnly = false,
+  hidePredictions = false,
+}: CalendarTabProps) {
   const anchors = anchorsFrom(avgLength, avgPeriodLength);
   const [calMonth, setCalMonth] = useState(
     () => new Date(today.getFullYear(), today.getMonth(), 1)
@@ -172,7 +189,7 @@ export function CalendarTab({ cycles, avgLength, avgPeriodLength, today, logs, o
     for (let d = 1; d <= daysInMonth; d++) {
       const date = new Date(calMonth.getFullYear(), calMonth.getMonth(), d);
       const key = toDateKey(date);
-      const info = cycles.length > 0 ? getDatePhase(date, cycles, avgLength, anchors) : null;
+      const info = cycles.length > 0 ? getDatePhase(date, cycles, avgLength, anchors, !hidePredictions) : null;
       const isFuture = date > today;
       const periodLogged = flowDates.has(key);
       days.push({
@@ -186,13 +203,13 @@ export function CalendarTab({ cycles, avgLength, avgPeriodLength, today, logs, o
         periodLogged,
         // Expected bleed days with nothing logged: a predicted cycle's period
         // (past ones too, while a period is late) or the rest of this one's.
-        periodPredicted: !periodLogged && info?.phase === "menstrual" && (info.predicted || isFuture),
+        periodPredicted: !hidePredictions && !periodLogged && info?.phase === "menstrual" && (info.predicted || isFuture),
         isFertile: fertileWindow != null && date >= fertileWindow.start && date <= fertileWindow.end,
         isOvulation: fertileWindow != null && date.toDateString() === fertileWindow.ovulationDate.toDateString(),
       });
     }
     return { days, firstDay };
-  }, [calMonth, avgLength, avgPeriodLength, today, cycles, loggedDates, flowDates, entryDates, fertileWindow]);
+  }, [calMonth, avgLength, avgPeriodLength, today, cycles, loggedDates, flowDates, entryDates, fertileWindow, hidePredictions]);
 
   const isThisMonth =
     calMonth.getFullYear() === today.getFullYear() && calMonth.getMonth() === today.getMonth();
