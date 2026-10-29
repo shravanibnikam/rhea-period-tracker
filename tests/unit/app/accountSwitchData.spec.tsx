@@ -10,7 +10,7 @@
  */
 import "fake-indexeddb/auto";
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { render, screen, act, waitFor, cleanup } from "@testing-library/react";
+import { render, screen, fireEvent, act, waitFor, cleanup } from "@testing-library/react";
 import { ContainerProvider } from "@/app/di/context";
 import { Container } from "@/app/di/Container";
 import type { SyncEngine } from "@/sync";
@@ -217,5 +217,35 @@ describe("account switch: the screen shows the NEW account's own store", () => {
 
     expect(trackerOf()).toBeNull();
     expect(roleSelect()).toBeTruthy(); // B's (unreadable) store shows as empty
+  });
+});
+
+describe("the role question (new account, no data, no partner link)", () => {
+  it("is asked per account: A answers it and signs out, and B is asked again", async () => {
+    const c = renderApp();
+    await settle();
+    await emit("INITIAL_SESSION", fresh("A"));
+    await waitFor(() => expect(c.syncEngine()).not.toBeNull());
+    fireEvent.click(await screen.findByRole("button", { name: /I'm tracking my cycle/ }));
+    expect(await screen.findByRole("heading", { name: "Get started" })).toBeTruthy();
+
+    await emit("SIGNED_OUT", null);
+    await settle();
+    await emit("SIGNED_IN", fresh("B"));
+    await settle(50);
+
+    expect(roleSelect()).toBeTruthy();
+  });
+
+  it("is not asked of an owner who has a linked partner but no logs yet", async () => {
+    const c = renderApp();
+    await settle();
+    const a = fresh("A");
+    h.links[`owner_id=${a}`] = [{ partner_id: "p1" }];
+    await emit("INITIAL_SESSION", a);
+    await waitFor(() => expect(c.syncEngine()).not.toBeNull());
+
+    expect(await screen.findByRole("heading", { name: "Get started" })).toBeTruthy();
+    expect(roleSelect()).toBeNull();
   });
 });

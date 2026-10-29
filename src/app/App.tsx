@@ -53,7 +53,8 @@ function AppScreens() {
   const [logSheetDate, setLogSheetDate] = useState<Date | null>(null);
   const [showSources, setShowSources] = useState(false);
   const [showPrivacy, setShowPrivacy] = useState(false);
-  const [roleChosen, setRoleChosen] = useState(false);
+  // The account that answered the role question: the next account is asked again.
+  const [roleChosenFor, setRoleChosenFor] = useState<string | null>(null);
   const [symptomError, setSymptomError] = useState<string | null>(null);
   const [showLanding, setShowLanding] = useState(wantsLanding);
   const [authMode, setAuthMode] = useState<"signin" | "signup">("signin");
@@ -370,10 +371,17 @@ function AppScreens() {
   }
 
   // ── Role selection (new user, no data, no partner link, hasn't chosen yet) ──
-  if (auth.isConfigured && auth.user && !hasData && !isPartner && !roleChosen) {
+  if (
+    auth.isConfigured &&
+    auth.user &&
+    !hasData &&
+    !isPartner &&
+    !auth.hasPartnerLinked &&
+    roleChosenFor !== accountId
+  ) {
     return (
       <RoleSelect
-        onChooseOwner={() => setRoleChosen(true)}
+        onChooseOwner={() => setRoleChosenFor(accountId)}
         onPaired={() => {
           auth.refreshRole();
         }}
