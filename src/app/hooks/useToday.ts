@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 
-/** Local midnight: diffDays floors, so a time-of-day "today" reads every "in N days" one short. */
+/** Local midnight today: day counts and saves name the calendar day, not this moment. */
 function localMidnight(): Date {
   const d = new Date();
   d.setHours(0, 0, 0, 0);

@@ -56,6 +56,14 @@ describe("Today: My period started today", () => {
   });
 });
 
+describe("Today: My period started today, on a spotting day", () => {
+  it("is still offered: spotting alone doesn't start a period", () => {
+    const { props } = today("2026-04-21");
+    render(<OverviewTab {...props} onPeriodStarted={vi.fn(() => Promise.resolve())} todayFlow="spotting" />);
+    expect(screen.getByRole("button", { name: "My period started today" })).toBeTruthy();
+  });
+});
+
 describe("Today: Coming up", () => {
   it("lists no date already past when the period is very late", () => {
     const { state, props } = today("2026-06-01"); // predictions May 21 (passed), June 18, July 16

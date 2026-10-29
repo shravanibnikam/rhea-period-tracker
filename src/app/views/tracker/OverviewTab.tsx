@@ -64,7 +64,7 @@ export function OverviewTab({
   const toNext = next ? daysFrom(today, next) : 0;
   const [starting, setStarting] = useState(false);
   const [startError, setStartError] = useState<string | null>(null);
-  const offerStart = !!onPeriodStarted && next !== null && todayFlow === "none" && toNext <= 3;
+  const offerStart = !!onPeriodStarted && next !== null && (todayFlow === "none" || todayFlow === "spotting") && toNext <= 3;
 
   const periodStarted = async () => {
     setStarting(true);
