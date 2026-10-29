@@ -8,6 +8,7 @@
  */
 
 import type { DailyLog } from "@/domain/types";
+import { toDateKey } from "@/domain/dates";
 import type { SyncedRow } from "./envelope";
 import {
   META_DEVICE_ID,
@@ -86,7 +87,10 @@ export function downloadJSON(data: ExportDataV2): void {
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
   a.href = url;
-  a.download = `rhea-backup-${data.exportedAt.slice(0, 10)}.json`;
+  // Today's local date: exportedAt is UTC, a day ahead on a US evening.
+  a.download = `rhea-backup-${toDateKey(new Date())}.json`;
   a.click();
-  URL.revokeObjectURL(url);
+  // Revoked later, not at once: Safari can drop a download whose URL is revoked
+  // in the same tick.
+  setTimeout(() => URL.revokeObjectURL(url), 40_000);
 }
