@@ -3,23 +3,27 @@ import { ArrowDown } from "lucide-react";
 import { CycleRing } from "@/app/components/shared/CycleRing";
 import { Button, buttonVariants } from "@/app/components/ui/Button";
 import { Segmented, Switch } from "@/app/components/ui/controls";
-import { applyTheme, readTheme } from "@/app/hooks/useTheme";
+import { holdLightTheme } from "@/app/hooks/useTheme";
 import { cn } from "@/app/lib/cn";
+import { SHARE_KEYS, type ShareKey } from "@/app/lib/sharing";
+import { PrivacyPolicy } from "@/app/views/settings/PrivacyPolicy";
 import { DEFAULT_CYCLE_LENGTH } from "@/domain/constants";
 import { toDateKey } from "@/domain/dates";
 import type { PhaseName } from "@/domain/types";
 import { MAX_CYCLE, MIN_CYCLE, PERIOD_LENGTH, SAMPLE_ESTIMATE, SAMPLE_TODAY, cycleLengthFrom, estimateCycle } from "./cycle";
-import { BackupSheet, CalendarSheet, DayLogSheet, HistorySheet, PartnerCard, TodayCard, type PartnerKey } from "./fragments";
+import { BackupSheet, CalendarSheet, DayLogSheet, HistorySheet, PartnerCard, TodayCard } from "./fragments";
 // The one italic phrase (the hero's "gently"); main.tsx loads the upright face only.
 import "@fontsource-variable/cormorant-garamond/wght-italic.css";
 import "./landing.css";
 
 interface LandingProps {
-  /** A build with accounts (Supabase configured): the primary action creates an account. */
+  /** A build that syncs to accounts (Supabase configured). It alone chooses the privacy copy. */
   hosted: boolean;
-  /** Primary action: enter the app (local) or go to account creation (hosted). */
+  /** A session exists: the primary action opens the app, and there is no Sign in. */
+  signedIn?: boolean;
+  /** Primary action: enter the app (local, or signed in) or go to account creation (hosted). */
   onStart: () => void;
-  /** Hosted only: go to sign-in. */
+  /** Hosted and signed out only: go to sign-in. */
   onSignIn?: () => void;
 }
 
@@ -30,13 +34,16 @@ const order = (i: number) => ({ "--i": i }) as CSSProperties;
 
 /**
  * In-page links scroll without touching location.hash: App reads the hash as a route
- * (#today, #partner, #welcome), so a changed hash would leave the landing page.
+ * (#today, #partner, #welcome), so a changed hash would leave the landing page. Focus moves
+ * too (targets carry tabIndex -1), so the next Tab continues from the target.
  */
 function jump(e: MouseEvent<HTMLAnchorElement>) {
   e.preventDefault();
   const target = document.getElementById(e.currentTarget.hash.slice(1));
+  if (!target) return;
   const calm = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
-  target?.scrollIntoView({ behavior: calm ? "auto" : "smooth", block: "start" });
+  target.scrollIntoView({ behavior: calm ? "auto" : "smooth", block: "start" });
+  target.focus({ preventScroll: true });
 }
 
 function Mark() {
@@ -48,14 +55,17 @@ function Mark() {
   );
 }
 
-/** The primary action, plus Sign in on a hosted build. The nav puts Sign in first. */
-function Actions({ hosted, onStart, onSignIn, size = "md", nav = false }: LandingProps & { size?: "md" | "lg"; nav?: boolean }) {
+const startLabel = ({ hosted, signedIn }: LandingProps) => (!hosted ? "Start tracking" : signedIn ? "Open Rhea" : "Create your account");
+
+/** The primary action, plus Sign in on a hosted build when signed out. The nav puts Sign in first. */
+function Actions({ size = "md", nav = false, ...props }: LandingProps & { size?: "md" | "lg"; nav?: boolean }) {
+  const { hosted, signedIn, onStart, onSignIn } = props;
   const start = (
     <Button size={size} className="l-start" onClick={onStart}>
-      {hosted ? "Create your account" : "Start tracking"}
+      {startLabel(props)}
     </Button>
   );
-  const signIn = hosted && onSignIn && (
+  const signIn = hosted && !signedIn && onSignIn && (
     <Button variant="ghost" size={size} onClick={onSignIn}>
       Sign in
     </Button>
@@ -87,22 +97,20 @@ const OUTPUTS: { value: OutputKey; label: string; caption: string; Sheet: () => 
   { value: "backup", label: "Backup", caption: "Everything in one JSON file, whenever you want it, from Settings.", Sheet: BackupSheet },
 ];
 
-const SWITCHES: { key: PartnerKey; label: string; text: string }[] = [
-  { key: "headsup", label: "Cycle heads-up", text: "Roughly when your next period is due." },
-  { key: "phase", label: "Today’s phase", text: "The phase you’re in, in plain words, with the energy it tends to bring." },
-  { key: "symptoms", label: "Symptoms", text: "Today’s symptoms and the past week’s. The view shows symptoms only, not your notes." },
-  { key: "calendar", label: "Cycle calendar", text: "The month as you see it: phases, period days and the estimated fertile window." },
-  { key: "quiet", label: "Quiet window", text: "On the days you choose, the view shows a pause message instead, whatever else is on." },
-];
-const ALL_OFF: Record<PartnerKey, boolean> = { headsup: false, phase: false, symptoms: false, calendar: false, quiet: false };
+// The app's own share keys, labels and descriptions; a quiet window is a separate control there too.
+const ALL_OFF = Object.fromEntries(SHARE_KEYS.map((s) => [s.key, false])) as Record<ShareKey, boolean>;
 
-const REFERENCES: { title: string; who: string; doi?: string }[] = [
+const REFERENCES: { title: string; who: string; doi?: string; url?: string }[] = [
   { title: "Real-world menstrual cycle characteristics of more than 600,000 menstrual cycles", who: "Bull, Rowland, Scherwitzl et al. NPJ Digital Medicine, 2019", doi: "10.1038/s41746-019-0152-7" },
   { title: "The timing of the fertile window in the menstrual cycle", who: "Wilcox, Dunson, Baird. BMJ, 2000", doi: "10.1136/bmj.321.7271.1259" },
   { title: "Day-specific probabilities of clinical pregnancy", who: "Dunson, Baird, Wilcox, Weinberg. Human Reproduction, 1999", doi: "10.1093/humrep/14.7.1835" },
   { title: "Modeling individual cyclic variation in human behavior", who: "Pierson, Althoff, Leskovec. WWW Conference, 2018", doi: "10.1145/3178876.3186052" },
   { title: "Labeling self-tracked menstrual health records with hidden semi-Markov models", who: "Symul, Holmes. IEEE Journal of Biomedical and Health Informatics, 2022", doi: "10.1109/JBHI.2021.3110716" },
-  { title: "The normal menstrual cycle and the control of ovulation", who: "Reed, Carr. Endotext, NIH/NCBI" },
+  {
+    title: "The normal menstrual cycle and the control of ovulation",
+    who: "Reed, Carr. Endotext, NIH/NCBI",
+    url: "https://www.ncbi.nlm.nih.gov/books/NBK279054/",
+  },
   { title: "Menstrual cycle: overview and phases; follicular and luteal phase", who: "Cleveland Clinic, clinical reference" },
 ];
 
@@ -136,19 +144,36 @@ const SOURCES: { name: string; note: string; bands: [string, string, string][] }
   },
 ];
 
-const FAQ: [string, string][] = [
-  ["Is there end-to-end encryption?", "No. Your logs are stored on your device. When you sign in, they sync to your account over TLS, and the synced copy is not end-to-end encrypted: the database operator could technically read it. A copy of Rhea run without a server keeps everything on the device."],
-  ["Does it work offline?", "Yes. Rhea installs like an app and opens without a connection. What you log offline is saved on the device and, if you are signed in, syncs when you are back online."],
+// [question, answer, what a build without a server says instead (null: not asked there)]
+const FAQ: [string, string, (string | null)?][] = [
+  [
+    "Is there end-to-end encryption?",
+    "No. Your logs are stored on your device. When you sign in, they sync to your account over TLS, and the synced copy is not end-to-end encrypted: the database operator could technically read it. A copy of Rhea run without a server keeps everything on the device.",
+    "No. This copy of Rhea runs without a server: your logs stay in this browser’s storage on this device, and nothing is synced.",
+  ],
+  [
+    "Does it work offline?",
+    "Yes. Rhea installs like an app and opens without a connection. What you log offline is saved on the device and, if you are signed in, syncs when you are back online.",
+    "Yes. Rhea installs like an app and opens without a connection. Everything you log is saved on this device.",
+  ],
   ["Is it contraception?", "No. The fertile window is a calendar estimate from your cycle length, and ovulation moves from cycle to cycle (Wilcox et al. 2000). Don’t rely on it to prevent pregnancy."],
-  ["What can my partner see?", "In the partner view, only what you turn on, and nothing until you do; a quiet window pauses it. The app applies those switches, not the server: a linked partner’s account can technically read your synced logs, notes included."],
-  ["Can I leave with my data?", "Yes. Export a JSON backup of every log from Settings at any time. Erasing data clears this device only; logs already synced to your account stay on the server."],
+  [
+    "What can my partner see?",
+    "In the partner view, only what you turn on, and nothing until you do; a quiet window pauses it. The app applies those switches, not the server: a linked partner’s account can technically read your synced logs, notes included.",
+    null,
+  ],
+  [
+    "Can I leave with my data?",
+    "Yes. Export a JSON backup of every log from Settings at any time. Erasing data clears this device only; logs already synced to your account stay on the server.",
+    "Yes. Export a JSON backup of every log from Settings at any time. Erasing data clears this device.",
+  ],
   ["What does it cost?", "Nothing. Rhea is free and open source under the MIT licence, with no ads and no analytics. The code is on GitHub."],
 ];
 
 // ─── Page ────────────────────────────────────────────────────────────────────
 
-export function Landing({ hosted, onStart, onSignIn }: LandingProps) {
-  const actions = { hosted, onStart, onSignIn };
+export function Landing(actions: LandingProps) {
+  const { hosted, signedIn, onStart } = actions;
   const rootRef = useRef<HTMLDivElement>(null);
   const now = useMemo(() => new Date(), []);
   const [startKey, setStartKey] = useState("");
@@ -156,7 +181,9 @@ export function Landing({ hosted, onStart, onSignIn }: LandingProps) {
   const [output, setOutput] = useState<OutputKey>("log");
   // Every switch starts off, as in the app: the visitor turns them on.
   const [share, setShare] = useState(ALL_OFF);
+  const [quiet, setQuiet] = useState(false);
   const [source, setSource] = useState(0);
+  const [policy, setPolicy] = useState(false);
 
   const cycleLength = cycleLengthFrom(lengthRaw);
   const result = useMemo(() => estimateCycle(startKey, cycleLength, now), [startKey, cycleLength, now]);
@@ -166,15 +193,9 @@ export function Landing({ hosted, onStart, onSignIn }: LandingProps) {
   const livePhase: PhaseName = !estimate || estimate.daysToNext < 0 ? "menstrual" : estimate.phase;
   const current = OUTPUTS.find((o) => o.value === output) ?? OUTPUTS[0];
 
-  // The page is designed light (pastel fields), so it shows Rhea's light theme in both; the
-  // app's theme comes back when the landing closes.
-  useLayoutEffect(() => {
-    const html = document.documentElement;
-    html.classList.remove("dark");
-    const ground = getComputedStyle(html).getPropertyValue("--background").trim();
-    if (ground) document.querySelector('meta[name="theme-color"]')?.setAttribute("content", ground);
-    return () => applyTheme(readTheme());
-  }, []);
+  // The page is designed light (pastel fields), so it holds Rhea's light theme, even through an
+  // OS theme change; the app's theme comes back when the landing closes.
+  useLayoutEffect(() => holdLightTheme(), []);
 
   // Section entrances: hidden only once this runs (data-motion), shown once, never replayed.
   useEffect(() => {
@@ -196,9 +217,10 @@ export function Landing({ hosted, onStart, onSignIn }: LandingProps) {
   }, []);
 
   return (
-    <div className="landing" id="top" ref={rootRef}>
+    <div className="landing" id="top" tabIndex={-1} ref={rootRef}>
       <header className="l-top">
-        <nav className="l-nav" aria-label="Rhea">
+        {/* Two buttons need the room the section links take below about 840px. */}
+        <nav className={cn("l-nav", hosted && !signedIn && "l-nav--two")} aria-label="Rhea">
           <span className="l-brand">
             <Mark /> <span className="l-brand__name font-display">Rhea</span>
           </span>
@@ -206,40 +228,44 @@ export function Landing({ hosted, onStart, onSignIn }: LandingProps) {
             <a href="#your-cycle" onClick={jump}>
               Your cycle
             </a>
-            <a href="#partner-view" onClick={jump}>
-              Partner view
-            </a>
+            {hosted && (
+              <a href="#partner-view" onClick={jump}>
+                Partner view
+              </a>
+            )}
             <a href="#questions" onClick={jump}>
               Questions
             </a>
           </div>
           <Actions {...actions} nav />
         </nav>
-
-        <div className="l-hero">
-          <div className="l-hero__text">
-            <h1 className="l-h1">
-              Get to know your cycle, <em>gently</em>
-            </h1>
-            <p className="l-hero__line">
-              Rhea is a free, open-source period tracker that keeps your logs on your device and works offline.
-            </p>
-            <div className="l-hero__actions">
-              <Button size="lg" className="l-hero__start" onClick={onStart}>
-                {hosted ? "Create your account" : "Start tracking"}
-              </Button>
-              <a className={cn(buttonVariants({ variant: "ghost", size: "lg" }), "l-hero__try")} href="#your-cycle" onClick={jump}>
-                Try it with your own dates <ArrowDown size={18} aria-hidden="true" />
-              </a>
-            </div>
-          </div>
-          <div className="l-hero__stage" data-phase="menstrual">
-            <TodayCard estimate={SAMPLE_ESTIMATE} cycleLength={SAMPLE_ESTIMATE.cycleLength} today={SAMPLE_TODAY} sample />
-          </div>
-        </div>
       </header>
 
       <main>
+        <div className="l-top">
+          <div className="l-hero">
+            <div className="l-hero__text">
+              <h1 className="l-h1">
+                Get to know your cycle, <em>gently</em>
+              </h1>
+              <p className="l-hero__line">
+                Rhea is a free, open-source period tracker that keeps your logs on your device and works offline.
+              </p>
+              <div className="l-hero__actions">
+                <Button size="lg" className="l-hero__start" onClick={onStart}>
+                  {startLabel(actions)}
+                </Button>
+                <a className={cn(buttonVariants({ variant: "ghost", size: "lg" }), "l-hero__try")} href="#your-cycle" onClick={jump}>
+                  Try it with your own dates <ArrowDown size={18} aria-hidden="true" />
+                </a>
+              </div>
+            </div>
+            <div className="l-hero__stage" data-phase="menstrual">
+              <TodayCard estimate={SAMPLE_ESTIMATE} cycleLength={SAMPLE_ESTIMATE.cycleLength} today={SAMPLE_TODAY} sample />
+            </div>
+          </div>
+        </div>
+
         <section className="l-section l-about" aria-labelledby="about-title">
           <div className="l-wrap">
             <h2 id="about-title" className="l-h2" data-reveal>
@@ -254,9 +280,18 @@ export function Landing({ hosted, onStart, onSignIn }: LandingProps) {
               <p>
                 It is <Em phase="luteal">free and open source</Em> under the MIT licence, so anyone can read what the code does with a log,
                 and it carries no ads and no analytics.{" "}
-                {hosted
-                  ? "When you sign in, your logs sync to your account over TLS so your devices agree; the synced copy is not end-to-end encrypted, and the privacy policy says who can read it."
-                  : "This copy runs without a server: nothing you log leaves this device, and there is no account to make."}
+                {hosted ? (
+                  <>
+                    When you sign in, your logs sync to your account over TLS so your devices agree; the synced copy is not end-to-end
+                    encrypted, and the{" "}
+                    <button type="button" className="l-link" onClick={() => setPolicy(true)}>
+                      privacy policy
+                    </button>{" "}
+                    says who can read it.
+                  </>
+                ) : (
+                  "This copy runs without a server: nothing you log leaves this device, and there is no account to make."
+                )}
               </p>
               <p>
                 Its estimates say what they are: a cycle day, a phase, a likely date for the next period, and a fertile window that is a
@@ -266,7 +301,7 @@ export function Landing({ hosted, onStart, onSignIn }: LandingProps) {
           </div>
         </section>
 
-        <section id="your-cycle" className="l-section l-chapter l-live" data-phase={livePhase} aria-labelledby="your-cycle-title">
+        <section id="your-cycle" tabIndex={-1} className="l-section l-chapter l-live" data-phase={livePhase} aria-labelledby="your-cycle-title">
           <div className="l-wrap l-live__grid">
             <div className="l-live__form" data-reveal>
               <h2 id="your-cycle-title" className="l-h2">
@@ -300,7 +335,7 @@ export function Landing({ hosted, onStart, onSignIn }: LandingProps) {
               </p>
               {lengthRaw !== "" && cycleLengthFrom(lengthRaw) !== Number(lengthRaw) && (
                 <p className="l-live__hint">
-                  Rhea takes {MIN_CYCLE} to {MAX_CYCLE} days, so this uses {DEFAULT_CYCLE_LENGTH}.
+                  Rhea takes whole days from {MIN_CYCLE} to {MAX_CYCLE}, so this uses {DEFAULT_CYCLE_LENGTH}.
                 </p>
               )}
               {error && (
@@ -341,47 +376,50 @@ export function Landing({ hosted, onStart, onSignIn }: LandingProps) {
           </div>
         </section>
 
-        <section id="partner-view" className="l-section l-chapter l-partner" data-phase="follicular" aria-labelledby="partner-title">
-          <div className="l-wrap l-partner__grid">
-            <div className="l-partner__head" data-reveal>
-              <h2 id="partner-title" className="l-h2">
-                A partner view, if you want one
-              </h2>
-              <p className="l-lead">
-                A partner links to your account with an invite code you create. Every switch starts off, and you choose what their view
-                shows, one at a time. The switches shape the view, not the server: a linked partner&rsquo;s account can technically read
-                your synced logs.
-              </p>
-              <p className="l-partner__try">Try them here: the card shows what Maya&rsquo;s partner would see.</p>
-            </div>
-            <div className="l-partner__card">
-              <PartnerCard on={share} />
-            </div>
-            <ul className="l-partner__list" aria-label="What the partner view shows">
-              {SWITCHES.map((s, i) => (
-                <li key={s.key} data-reveal style={order(i)}>
-                  <label className="l-switch" htmlFor={`share-${s.key}`}>
-                    <span>
-                      <span id={`share-${s.key}-label`} className="l-switch__label">
-                        {s.label}
-                      </span>
-                      <span id={`share-${s.key}-note`} className="l-switch__note">
-                        {s.text}
-                      </span>
-                    </span>
-                    <Switch
+        {/* A build without a server has no accounts, so no partner to link. */}
+        {hosted && (
+          <section id="partner-view" tabIndex={-1} className="l-section l-chapter l-partner" data-phase="follicular" aria-labelledby="partner-title">
+            <div className="l-wrap l-partner__grid">
+              <div className="l-partner__head" data-reveal>
+                <h2 id="partner-title" className="l-h2">
+                  A partner view, if you want one
+                </h2>
+                <p className="l-lead">
+                  A partner links to your account with an invite code you create. Every switch starts off, and you choose what their
+                  view shows, one at a time. The switches shape the view, not the server: a linked partner&rsquo;s account can
+                  technically read your synced logs.
+                </p>
+                <p className="l-partner__try">Try them here: the card shows what Maya&rsquo;s partner would see.</p>
+              </div>
+              <div className="l-partner__card">
+                <PartnerCard on={share} quiet={quiet} />
+              </div>
+              <ul className="l-partner__list" aria-label="What the partner view shows">
+                {SHARE_KEYS.map((s, i) => (
+                  <li key={s.key} data-reveal style={order(i)}>
+                    <ShareSwitch
                       id={`share-${s.key}`}
+                      label={s.label}
+                      note={s.description}
                       checked={share[s.key]}
-                      aria-labelledby={`share-${s.key}-label`}
-                      aria-describedby={`share-${s.key}-note`}
-                      onCheckedChange={(on) => setShare((prev) => ({ ...prev, [s.key]: on }))}
+                      onChange={(on) => setShare((prev) => ({ ...prev, [s.key]: on }))}
                     />
-                  </label>
-                </li>
-              ))}
-            </ul>
-          </div>
-        </section>
+                  </li>
+                ))}
+              </ul>
+              <div className="l-partner__quiet" data-reveal>
+                <h3 className="l-h3 l-partner__quiet-title">Quiet windows</h3>
+                <ShareSwitch
+                  id="share-quiet"
+                  label="A quiet window today"
+                  note="In the app you pick the days. During one, the view shows a pause message, whatever is turned on above."
+                  checked={quiet}
+                  onChange={setQuiet}
+                />
+              </div>
+            </div>
+          </section>
+        )}
 
         <section id="research" className="l-section l-chapter" data-phase="ovulation" aria-labelledby="research-title">
           <div className="l-wrap l-split">
@@ -397,8 +435,8 @@ export function Landing({ hosted, onStart, onSignIn }: LandingProps) {
             <ul className="l-refs">
               {REFERENCES.map((r, i) => (
                 <li key={r.title} data-reveal style={order(i % 3)}>
-                  {r.doi ? (
-                    <a className="l-link l-refs__title" href={`https://doi.org/${r.doi}`} target="_blank" rel="noreferrer">
+                  {r.doi || r.url ? (
+                    <a className="l-link l-refs__title" href={r.url ?? `https://doi.org/${r.doi}`} target="_blank" rel="noreferrer">
                       {r.title}
                     </a>
                   ) : (
@@ -415,7 +453,7 @@ export function Landing({ hosted, onStart, onSignIn }: LandingProps) {
           <div className="l-wrap">
             <div data-reveal>
               <h2 id="history-title" className="l-h2">
-                Bring your history in. Take it with you.
+                Bring your history in, and take it with you
               </h2>
               <p className="l-lead">Start from the history you already have, and take all of it with you whenever you like.</p>
             </div>
@@ -443,18 +481,23 @@ export function Landing({ hosted, onStart, onSignIn }: LandingProps) {
           </div>
         </section>
 
-        <section id="questions" className="l-section l-chapter" data-phase="luteal" aria-labelledby="questions-title">
+        <section id="questions" tabIndex={-1} className="l-section l-chapter" data-phase="luteal" aria-labelledby="questions-title">
           <div className="l-wrap">
             <h2 id="questions-title" className="l-h2" data-reveal>
               Honest answers
             </h2>
             <div className="l-faq">
-              {FAQ.map(([q, a]) => (
-                <div key={q} className="l-faq__row" data-reveal>
-                  <h3 className="l-h3">{q}</h3>
-                  <p>{a}</p>
-                </div>
-              ))}
+              {FAQ.map(([q, a, local]) => {
+                const answer = hosted || local === undefined ? a : local;
+                return (
+                  answer && (
+                    <div key={q} className="l-faq__row" data-reveal>
+                      <h3 className="l-h3">{q}</h3>
+                      <p>{answer}</p>
+                    </div>
+                  )
+                );
+              })}
             </div>
           </div>
         </section>
@@ -470,9 +513,11 @@ export function Landing({ hosted, onStart, onSignIn }: LandingProps) {
               Day one starts here
             </h2>
             <p className="l-lead">
-              {hosted
-                ? "Create an account, log your last period, and the estimates begin from your own dates."
-                : "Rhea opens on this device. Log your last period and the estimates begin from your own dates."}
+              {!hosted
+                ? "Rhea opens on this device. Log your last period and the estimates begin from your own dates."
+                : signedIn
+                  ? "You’re signed in. Open Rhea and carry on from your own dates."
+                  : "Create an account, log your last period, and the estimates begin from your own dates."}
             </p>
             <Actions {...actions} size="lg" />
           </div>
@@ -519,6 +564,24 @@ export function Landing({ hosted, onStart, onSignIn }: LandingProps) {
           </figure>
         </div>
       </footer>
+      {policy && <PrivacyPolicy onClose={() => setPolicy(false)} />}
     </div>
+  );
+}
+
+/** One switch row of the partner demo, labelled and described as in the app's Settings. */
+function ShareSwitch({ id, label, note, checked, onChange }: { id: string; label: string; note: string; checked: boolean; onChange: (on: boolean) => void }) {
+  return (
+    <label className="l-switch" htmlFor={id}>
+      <span>
+        <span id={`${id}-label`} className="l-switch__label">
+          {label}
+        </span>
+        <span id={`${id}-note`} className="l-switch__note">
+          {note}
+        </span>
+      </span>
+      <Switch id={id} checked={checked} aria-labelledby={`${id}-label`} aria-describedby={`${id}-note`} onCheckedChange={onChange} />
+    </label>
   );
 }
