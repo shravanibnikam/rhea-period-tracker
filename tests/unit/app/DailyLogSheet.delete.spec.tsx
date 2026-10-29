@@ -76,3 +76,43 @@ describe("DailyLogSheet — Delete action", () => {
     expect(deleteBtn()).not.toBeNull();
   });
 });
+
+describe("DailyLogSheet — delete confirmation and the keyboard", () => {
+  it("Escape backs out of the confirmation, not the sheet", () => {
+    const props = renderSheet({ canDelete: true, onDelete: vi.fn() });
+    fireEvent.click(deleteBtn()!);
+    fireEvent.keyDown(screen.getByRole("dialog"), { key: "Escape" }); // seen by Radix
+    expect(confirmBtn()).toBeNull();
+    expect(deleteBtn()).not.toBeNull();
+    fireEvent.click(deleteBtn()!);
+    fireEvent.keyDown(window, { key: "Escape" }); // one Radix never sees
+    expect(confirmBtn()).toBeNull();
+    expect(props.onClose).not.toHaveBeenCalled();
+    fireEvent.keyDown(screen.getByRole("dialog"), { key: "Escape" }); // nothing to back out of: closes
+    expect(props.onClose).toHaveBeenCalledTimes(1);
+  });
+
+  it("Cancel and Escape hand focus back to the Delete button", () => {
+    renderSheet({ canDelete: true, onDelete: vi.fn() });
+    fireEvent.click(deleteBtn()!);
+    fireEvent.click(screen.getByRole("button", { name: /^cancel$/i }));
+    expect(document.activeElement).toBe(deleteBtn());
+    fireEvent.click(deleteBtn()!);
+    fireEvent.keyDown(screen.getByRole("dialog"), { key: "Escape" });
+    expect(document.activeElement).toBe(deleteBtn());
+  });
+});
+
+describe("DailyLogSheet — Medication and intimacy disclosure", () => {
+  it("controls an element that exists, hidden, while collapsed", () => {
+    renderSheet();
+    const toggle = screen.getByRole("button", { name: "Medication and intimacy" });
+    const target = document.getElementById(toggle.getAttribute("aria-controls")!);
+    expect(target).not.toBeNull();
+    expect(target!.hidden).toBe(true);
+    expect(screen.queryByRole("switch", { name: "Had sex" })).toBeNull();
+    fireEvent.click(toggle);
+    expect(target!.hidden).toBe(false);
+    expect(toggle.getAttribute("aria-expanded")).toBe("true");
+  });
+});

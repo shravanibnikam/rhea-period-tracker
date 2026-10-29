@@ -113,9 +113,28 @@ export function DailyLogSheet({
   const latestSave = useRef(onSave);
   latestSave.current = onSave;
 
+  // Backing out of the delete confirmation hands focus back to the Delete
+  // button it replaced (the Cancel button that had it is gone).
+  const deleteButton = useRef<HTMLButtonElement>(null);
+  const refocusDelete = useRef(false);
+  const cancelDelete = useCallback(() => {
+    refocusDelete.current = true;
+    setConfirming(false);
+  }, []);
+  useEffect(() => {
+    if (confirming || !refocusDelete.current) return;
+    refocusDelete.current = false;
+    deleteButton.current?.focus();
+  }, [confirming]);
+
+  // Escape, the overlay and the X (Sheet's onOpenChange(false), refusable):
+  // while the delete confirmation is open they back out of it, so the day's
+  // edits are never dropped with it.
   const requestClose = useCallback(() => {
-    if (!busy.current) onClose();
-  }, [onClose]);
+    if (busy.current) return;
+    if (confirming) cancelDelete();
+    else onClose();
+  }, [confirming, cancelDelete, onClose]);
 
   // Radix handles Escape inside the dialog (and preventDefaults it); this also
   // catches an Escape dispatched on window, which Radix never sees.
@@ -145,9 +164,9 @@ export function DailyLogSheet({
         err instanceof Error ? err.message : "Couldn't delete this log. Please try again."
       );
       setDeleting(false);
-      setConfirming(false);
+      cancelDelete();
     }
-  }, [onDelete]);
+  }, [onDelete, cancelDelete]);
 
   const runSave = useCallback(async () => {
     // A medication typed but not added is part of what the person is saving.
@@ -242,7 +261,7 @@ export function DailyLogSheet({
             variant="secondary"
             size="lg"
             className="flex-1 sm:flex-none"
-            onClick={() => setConfirming(false)}
+            onClick={cancelDelete}
             disabled={deleting || saving}
           >
             Cancel
@@ -263,6 +282,7 @@ export function DailyLogSheet({
         <div key="actions" className="flex gap-2">
           {showDelete && (
             <Button
+              ref={deleteButton}
               variant="destructive-outline"
               size="lg"
               onClick={() => {
@@ -375,129 +395,128 @@ export function DailyLogSheet({
             />
           </button>
 
-          {showMore && (
-            <div id="log-more" className="space-y-7 pt-3">
-              <Section title="Medication">
-                {meds.length > 0 && (
-                  <ul className="divide-y divide-border rounded-xl border border-border">
-                    {meds.map((m, i) => (
-                      <li key={`${i}:${m.name}`} className="flex min-h-12 items-center justify-between gap-2 py-1 pr-1 pl-4">
-                        <span className="min-w-0">
-                          <span className="font-semibold">{m.name}</span>
-                          {(m.dose || m.takenAt) && (
-                            <span className="text-muted-foreground">
-                              {" · "}
-                              {[m.dose, m.takenAt && clock(m.takenAt)].filter(Boolean).join(" · ")}
-                            </span>
-                          )}
-                        </span>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          aria-label={`Remove ${m.name}`}
-                          onClick={() => setField("medication", meds.filter((_, j) => j !== i))}
-                        >
-                          <X size={18} aria-hidden="true" />
-                        </Button>
-                      </li>
-                    ))}
-                  </ul>
-                )}
-                <div className="flex flex-wrap gap-2">
-                  {MEDICATION_SUGGESTIONS.filter((s) => !taken.has(s.toLowerCase())).map((s) => (
-                    <Button
-                      key={s}
-                      variant="secondary"
-                      size="sm"
-                      className={CHIP_TARGET}
-                      aria-label={`Add ${s}`}
-                      onClick={() => addMedication({ name: s })}
-                    >
-                      <Plus size={16} aria-hidden="true" />
-                      {s}
-                    </Button>
+          {/* Always rendered, hidden while collapsed: aria-controls must point at an element. */}
+          <div id="log-more" hidden={!showMore} className="space-y-7 pt-3">
+            <Section title="Medication">
+              {meds.length > 0 && (
+                <ul className="divide-y divide-border rounded-xl border border-border">
+                  {meds.map((m, i) => (
+                    <li key={`${i}:${m.name}`} className="flex min-h-12 items-center justify-between gap-2 py-1 pr-1 pl-4">
+                      <span className="min-w-0">
+                        <span className="font-semibold">{m.name}</span>
+                        {(m.dose || m.takenAt) && (
+                          <span className="text-muted-foreground">
+                            {" · "}
+                            {[m.dose, m.takenAt && clock(m.takenAt)].filter(Boolean).join(" · ")}
+                          </span>
+                        )}
+                      </span>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        aria-label={`Remove ${m.name}`}
+                        onClick={() => setField("medication", meds.filter((_, j) => j !== i))}
+                      >
+                        <X size={18} aria-hidden="true" />
+                      </Button>
+                    </li>
                   ))}
-                </div>
-                <form onSubmit={submitDraft} noValidate className="grid grid-cols-2 gap-3">
-                  <label className="col-span-2 space-y-1.5 text-sm font-semibold">
-                    <span>Other medication</span>
-                    <input
-                      value={draft.name}
-                      onChange={(e) => {
-                        setDraft({ ...draft, name: e.target.value });
-                        setDraftError(null);
-                      }}
-                      maxLength={60}
-                      autoComplete="off"
-                      aria-invalid={draftError ? true : undefined}
-                      aria-describedby={draftError ? "med-error" : undefined}
-                      className={FIELD}
-                    />
-                  </label>
-                  <label className="space-y-1.5 text-sm font-semibold">
-                    <span>Dose (optional)</span>
-                    <input
-                      value={draft.dose}
-                      onChange={(e) => setDraft({ ...draft, dose: e.target.value })}
-                      maxLength={30}
-                      placeholder="200 mg"
-                      autoComplete="off"
-                      className={FIELD}
-                    />
-                  </label>
-                  <label className="space-y-1.5 text-sm font-semibold">
-                    <span>Time (optional)</span>
-                    <input
-                      type="time"
-                      value={draft.takenAt}
-                      onChange={(e) => setDraft({ ...draft, takenAt: e.target.value })}
-                      className={FIELD}
-                    />
-                  </label>
-                  {draftError && (
-                    <p id="med-error" className="col-span-2 text-sm text-destructive">
-                      {draftError}
-                    </p>
-                  )}
-                  <Button type="submit" variant="outline" className="col-span-2">
-                    Add medication
+                </ul>
+              )}
+              <div className="flex flex-wrap gap-2">
+                {MEDICATION_SUGGESTIONS.filter((s) => !taken.has(s.toLowerCase())).map((s) => (
+                  <Button
+                    key={s}
+                    variant="secondary"
+                    size="sm"
+                    className={CHIP_TARGET}
+                    aria-label={`Add ${s}`}
+                    onClick={() => addMedication({ name: s })}
+                  >
+                    <Plus size={16} aria-hidden="true" />
+                    {s}
                   </Button>
-                </form>
-              </Section>
-
-              <Section title="Intimacy">
-                <label
-                  htmlFor="log-had-sex"
-                  className="flex min-h-11 items-center justify-between gap-4 rounded-xl border border-border px-4"
-                >
-                  <span className="font-semibold">Had sex</span>
-                  <Switch
-                    id="log-had-sex"
-                    checked={intimacy !== null}
-                    onCheckedChange={(on) => setField("intimacy", on ? { occurred: true } : null)}
+                ))}
+              </div>
+              <form onSubmit={submitDraft} noValidate className="grid grid-cols-2 gap-3">
+                <label className="col-span-2 space-y-1.5 text-sm font-semibold">
+                  <span>Other medication</span>
+                  <input
+                    value={draft.name}
+                    onChange={(e) => {
+                      setDraft({ ...draft, name: e.target.value });
+                      setDraftError(null);
+                    }}
+                    maxLength={60}
+                    autoComplete="off"
+                    aria-invalid={draftError ? true : undefined}
+                    aria-describedby={draftError ? "med-error" : undefined}
+                    className={FIELD}
                   />
                 </label>
-                {intimacy && (
-                  <div className="space-y-2">
-                    <p className="text-sm font-semibold">Protected</p>
-                    <Segmented
-                      label="Protected"
-                      value={intimacy.protected === true ? "yes" : intimacy.protected === false ? "no" : "unsure"}
-                      options={PROTECTION}
-                      // "Not sure" leaves `protected` out: unknown.
-                      onChange={(v) =>
-                        setField(
-                          "intimacy",
-                          v === "yes" || v === "no" ? { occurred: true, protected: v === "yes" } : { occurred: true }
-                        )
-                      }
-                      className={SEGMENTS}
-                    />
-                  </div>
+                <label className="space-y-1.5 text-sm font-semibold">
+                  <span>Dose (optional)</span>
+                  <input
+                    value={draft.dose}
+                    onChange={(e) => setDraft({ ...draft, dose: e.target.value })}
+                    maxLength={30}
+                    placeholder="200 mg"
+                    autoComplete="off"
+                    className={FIELD}
+                  />
+                </label>
+                <label className="space-y-1.5 text-sm font-semibold">
+                  <span>Time (optional)</span>
+                  <input
+                    type="time"
+                    value={draft.takenAt}
+                    onChange={(e) => setDraft({ ...draft, takenAt: e.target.value })}
+                    className={FIELD}
+                  />
+                </label>
+                {draftError && (
+                  <p id="med-error" className="col-span-2 text-sm text-destructive">
+                    {draftError}
+                  </p>
                 )}
-              </Section>
-            </div>
-          )}
+                <Button type="submit" variant="outline" className="col-span-2">
+                  Add medication
+                </Button>
+              </form>
+            </Section>
+
+            <Section title="Intimacy">
+              <label
+                htmlFor="log-had-sex"
+                className="flex min-h-11 items-center justify-between gap-4 rounded-xl border border-border px-4"
+              >
+                <span className="font-semibold">Had sex</span>
+                <Switch
+                  id="log-had-sex"
+                  checked={intimacy !== null}
+                  onCheckedChange={(on) => setField("intimacy", on ? { occurred: true } : null)}
+                />
+              </label>
+              {intimacy && (
+                <div className="space-y-2">
+                  <p className="text-sm font-semibold">Protected</p>
+                  <Segmented
+                    label="Protected"
+                    value={intimacy.protected === true ? "yes" : intimacy.protected === false ? "no" : "unsure"}
+                    options={PROTECTION}
+                    // "Not sure" leaves `protected` out: unknown.
+                    onChange={(v) =>
+                      setField(
+                        "intimacy",
+                        v === "yes" || v === "no" ? { occurred: true, protected: v === "yes" } : { occurred: true }
+                      )
+                    }
+                    className={SEGMENTS}
+                  />
+                </div>
+              )}
+            </Section>
+          </div>
         </section>
       </div>
     </Sheet>
