@@ -70,14 +70,16 @@ export function OverviewTab({
     setStartError(null);
     try {
       await onPeriodStarted?.();
+      toast("Period logged for today");
     } catch (err) {
       console.error("Failed to log the period start:", err);
       setStartError("Couldn't log your period. Nothing was saved, please try again.");
+    } finally {
+      // The save has refreshed the logs by now (onSaved runs before it
+      // resolves), so the action goes away; if today's flow is later set back
+      // to none, it returns ready to use.
       setStarting(false);
-      return;
     }
-    // Stays disabled until the stored flow arrives and the action goes away.
-    toast("Period logged for today");
   };
 
   return (
