@@ -164,7 +164,7 @@ describe("App: an abandoned Log-sheet draft is discarded (P0-N2)", () => {
     const write = vi
       .spyOn(driver, "transaction")
       .mockRejectedValueOnce(new DOMException("The quota has been exceeded.", "QuotaExceededError"));
-    fireEvent.click(within(sheet).getByRole("button", { name: "Save Log" }));
+    fireEvent.click(within(sheet).getByRole("button", { name: "Save log" }));
     await within(sheet).findByRole("alert");
     await closeWithEscape();
     write.mockRestore();
@@ -204,7 +204,7 @@ describe("App: an abandoned Log-sheet draft is discarded (P0-N2)", () => {
     expect.soft(notes.value, "the reopened sheet does not show the abandoned draft").not.toBe("ABANDONED DRAFT");
 
     // Soft above, so RED shows what a Save then stores.
-    fireEvent.click(within(sheet).getByRole("button", { name: "Save Log" }));
+    fireEvent.click(within(sheet).getByRole("button", { name: "Save log" }));
     await waitFor(() => expect(screen.queryByRole("dialog", { name: "Log your day" })).toBeNull());
     reads.release();
     await reads.settle();

@@ -82,6 +82,6 @@ describe("App: truthful save feedback (P0-04 review)", () => {
     const sheet = await screen.findByRole("dialog", { name: "Log your day" });
     const sheetAlert = await within(sheet).findByRole("alert");
     expect(sheetAlert.textContent).toMatch(/couldn't load this day's saved log/i);
-    expect((within(sheet).getByRole("button", { name: "Save Log" }) as HTMLButtonElement).disabled).toBe(true);
+    expect((within(sheet).getByRole("button", { name: "Save log" }) as HTMLButtonElement).disabled).toBe(true);
   });
 });

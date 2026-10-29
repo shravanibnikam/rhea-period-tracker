@@ -131,6 +131,7 @@ function fakeContainer() {
     getAllLogs: vi.fn(() => Promise.resolve(CACHED)),
     getMeta: vi.fn((_key: string) => Promise.resolve(undefined)),
     setMeta: vi.fn((_key: string, _value: unknown) => Promise.resolve()),
+    claimForOwner: vi.fn(() => Promise.resolve()),
     getLog: vi.fn((_date: string) => Promise.resolve(undefined)),
     saveLog: vi.fn((_log: DailyLog) => Promise.resolve()),
     deleteLog: vi.fn((_date: string) => Promise.resolve()),
@@ -306,7 +307,7 @@ describe("interactive sign-in shows the splash until the role resolves", () => {
     beginSignIn("owner-1");
     await settle();
 
-    expect(screen.getByText("Loading...")).toBeTruthy();
+    expect(screen.getByText("Loading…")).toBeTruthy();
     expect(screen.queryByRole("button", { name: "Log today" })).toBeNull();
 
     await act(async () => {
@@ -483,5 +484,26 @@ describe("resolved owner (controls: the gate opens once the role is known)", () 
     expect(pushLog).toHaveBeenCalledWith("owner-1", expect.objectContaining({ date: expect.any(String) }));
     expect(c.startOwnerSync).not.toHaveBeenCalled();
     expectNeverQueued();
+  });
+});
+
+describe("the app shell's phase tint", () => {
+  const shell = () => document.getElementById("main-content")?.parentElement;
+
+  it("is never the owner's phase on a partner's screens (the cache is the owner's cycle)", async () => {
+    h.state.links.partner_id = [{ owner_id: "owner-1" }];
+    renderApp();
+    await signIn("partner-1");
+    await screen.findByTestId("partner-view");
+
+    expect(shell()?.hasAttribute("data-phase")).toBe(false);
+  });
+
+  it("follows the owner's own phase on the owner's screens (control)", async () => {
+    renderApp();
+    await signIn("owner-1");
+    await screen.findByRole("button", { name: "Log today" });
+
+    expect(shell()?.getAttribute("data-phase")).toBeTruthy();
   });
 });

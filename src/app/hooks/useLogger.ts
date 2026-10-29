@@ -88,9 +88,10 @@ export function saveErrorMessage(err: unknown): string {
 }
 
 /**
- * @param accountKey The account the container is currently scoped to (the
- *   signed-in user id, or null for local-only). The day is re-read whenever it
- *   changes, so the active log follows the account. Change it only after
+ * @param accountKey Names the store the container is currently scoped to: App
+ *   passes the account plus the store's partner marker (so a purge re-reads too),
+ *   null for local-only. The day is re-read whenever it changes, so the active
+ *   log follows the account. Change it only after
  *   `container.setAccount(...)` has been called for it (P0-N1).
  */
 export function useLogger(

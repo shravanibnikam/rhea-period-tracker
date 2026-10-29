@@ -1,86 +1,168 @@
 @custom-variant dark (&:is(.dark *));
 
+/*
+ * Rhea design tokens — see docs/DESIGN.md. Warm and soft: a blush-white ground,
+ * deep plum ink, a deep rose for actions. Light is the default; `.dark` on
+ * <html> (useTheme) switches every role. Phase colours are data colours: each
+ * phase has a mark (≥3:1 on the card), a pale tint with the dark of its own hue
+ * as ink, and a pastel field (the landing page's chapters).
+ * `[data-phase]` scopes `--phase-*` to one phase for whatever sits inside it.
+ */
 :root {
+  --background: #FBF7F5;
+  --foreground: #2F2229;
+  --card: #FFFFFF;
+  --card-foreground: #2F2229;
+  --popover: #FFFFFF;
+  --popover-foreground: #2F2229;
+  --primary: #9E3F5B;
+  --primary-foreground: #FFFFFF;
+  --secondary: #F4EDEC;
+  --secondary-foreground: #2F2229;
+  --muted: #F4EDEC;
+  --muted-foreground: #75656D;
+  --accent: #FBE8EE;
+  --accent-foreground: #7A2E45;
+  --brand: #B84A66;
+  --destructive: #B3261E;
+  --destructive-foreground: #FFFFFF;
+  --border: #EEE4E3;
+  /* Control boundaries (field borders, the off switch track) are >= 3:1 on the
+     card and the ground (WCAG 1.4.11): 3.39:1 on --card, 3.18:1 on --background,
+     and the white thumb is 3.39:1 on the off track. */
+  --input: #9C868C;
+  --input-background: #FFFFFF;
+  --switch-background: #9C868C;
+  --ring: #9E3F5B;
+  /* Soft elevation for cards and floating surfaces (never a hard drop shadow). */
+  --elevation: 0 1px 2px rgb(47 34 41 / 0.04), 0 8px 24px rgb(47 34 41 / 0.05);
+
+  --menstrual: #C04F6D;
+  --menstrual-tint: #FCE9EE;
+  --menstrual-ink: #7A2B42;
+  --follicular: #5A9271;
+  --follicular-tint: #E6F2EA;
+  --follicular-ink: #2B5139;
+  --ovulation: #C07A2C;
+  --ovulation-tint: #FCF0DE;
+  --ovulation-ink: #714611;
+  --luteal: #8266A8;
+  --luteal-tint: #F0EAF7;
+  --luteal-ink: #4A3468;
+
+  /* Pastel chapter fields — identical in both themes (the landing page is light). */
+  --menstrual-field: #F8DFE6;
+  --menstrual-field-ink: #5C1F33;
+  --follicular-field: #DDEDE2;
+  --follicular-field-ink: #22432F;
+  --ovulation-field: #F9E7CB;
+  --ovulation-field-ink: #5B3A0D;
+  --luteal-field: #E8E0F3;
+  --luteal-field-ink: #3C2A57;
+  --charcoal: #2F2229;
+
+  /* The partner's own hue: one hue per person, ≥60° from every phase hue. */
+  --partner: #4C79A8;
+  --partner-tint: #E6EEF7;
+  --partner-ink: #25405E;
+
+  --chart-1: var(--menstrual);
+  --chart-2: var(--follicular);
+  --chart-3: var(--ovulation);
+  --chart-4: var(--luteal);
+  --chart-5: var(--muted-foreground);
+
+  /* Defaults for an unscoped --phase-* (menstrual = the brand hue). */
+  --phase: var(--menstrual);
+  --phase-tint: var(--menstrual-tint);
+  --phase-ink: var(--menstrual-ink);
+  --phase-field: var(--menstrual-field);
+  --phase-field-ink: var(--menstrual-field-ink);
+
   --font-size: 16px;
-  --background: #FDF8F5;
-  --foreground: #2D1F1A;
-  --card: #FFFAF8;
-  --card-foreground: #2D1F1A;
-  --popover: #FFFAF8;
-  --popover-foreground: #2D1F1A;
-  --primary: #C4776A;
-  --primary-foreground: #ffffff;
-  --secondary: #F5EDE9;
-  --secondary-foreground: #2D1F1A;
-  --muted: #EDE5E0;
-  --muted-foreground: #8A7570;
-  --accent: #F2B5A0;
-  --accent-foreground: #2D1F1A;
-  --destructive: #d4183d;
-  --destructive-foreground: #ffffff;
-  --border: rgba(180, 140, 130, 0.18);
-  --input: transparent;
-  --input-background: #F5EDE9;
-  --switch-background: #D4B8B0;
   --font-weight-medium: 500;
   --font-weight-normal: 400;
-  --ring: #C4776A;
-  --chart-1: #BE5A5A;
-  --chart-2: #5E8A52;
-  --chart-3: #C9913A;
-  --chart-4: #8B6FA0;
-  --chart-5: #D4A8B8;
-  --radius: 0.75rem;
-  --sidebar: oklch(0.985 0 0);
-  --sidebar-foreground: oklch(0.145 0 0);
-  --sidebar-primary: #030213;
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.97 0 0);
-  --sidebar-accent-foreground: oklch(0.205 0 0);
-  --sidebar-border: oklch(0.922 0 0);
-  --sidebar-ring: oklch(0.708 0 0);
+  color-scheme: light;
 }
 
 .dark {
-  --background: oklch(0.145 0 0);
-  --foreground: oklch(0.985 0 0);
-  --card: oklch(0.145 0 0);
-  --card-foreground: oklch(0.985 0 0);
-  --popover: oklch(0.145 0 0);
-  --popover-foreground: oklch(0.985 0 0);
-  --primary: oklch(0.985 0 0);
-  --primary-foreground: oklch(0.205 0 0);
-  --secondary: oklch(0.269 0 0);
-  --secondary-foreground: oklch(0.985 0 0);
-  --muted: oklch(0.269 0 0);
-  --muted-foreground: oklch(0.708 0 0);
-  --accent: oklch(0.269 0 0);
-  --accent-foreground: oklch(0.985 0 0);
-  --destructive: oklch(0.396 0.141 25.723);
-  --destructive-foreground: oklch(0.637 0.237 25.331);
-  --border: oklch(0.269 0 0);
-  --input: oklch(0.269 0 0);
-  --ring: oklch(0.439 0 0);
-  --font-weight-medium: 500;
-  --font-weight-normal: 400;
-  --chart-1: oklch(0.488 0.243 264.376);
-  --chart-2: oklch(0.696 0.17 162.48);
-  --chart-3: oklch(0.769 0.188 70.08);
-  --chart-4: oklch(0.627 0.265 303.9);
-  --chart-5: oklch(0.645 0.246 16.439);
-  --sidebar: oklch(0.205 0 0);
-  --sidebar-foreground: oklch(0.985 0 0);
-  --sidebar-primary: oklch(0.488 0.243 264.376);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.269 0 0);
-  --sidebar-accent-foreground: oklch(0.985 0 0);
-  --sidebar-border: oklch(0.269 0 0);
-  --sidebar-ring: oklch(0.439 0 0);
+  --background: #1B1519;
+  --foreground: #F6EDF0;
+  --card: #251D22;
+  --card-foreground: #F6EDF0;
+  --popover: #2C2329;
+  --popover-foreground: #F6EDF0;
+  --primary: #EFA3B5;
+  --primary-foreground: #3A1424;
+  --secondary: #30262C;
+  --secondary-foreground: #F6EDF0;
+  --muted: #30262C;
+  --muted-foreground: #BBA9B2;
+  --accent: #3D2530;
+  --accent-foreground: #F7C9D5;
+  --brand: #EFA3B5;
+  --destructive: #F2867D;
+  --destructive-foreground: #2A0F0C;
+  --border: #3A2E35;
+  /* 3.42:1 on --card, 3.74:1 on --background; the light thumb is 4.19:1 on the off track. */
+  --input: #846C72;
+  --input-background: #251D22;
+  --switch-background: #846C72;
+  --ring: #EFA3B5;
+  --elevation: 0 1px 2px rgb(0 0 0 / 0.2), 0 8px 24px rgb(0 0 0 / 0.25);
+
+  --menstrual: #EC8FA6;
+  --menstrual-tint: #3B232B;
+  --menstrual-ink: #F8CCD8;
+  --follicular: #8DC7A2;
+  --follicular-tint: #1E3027;
+  --follicular-ink: #C3E6CF;
+  --ovulation: #E7B26B;
+  --ovulation-tint: #3A2B17;
+  --ovulation-ink: #F5D9AE;
+  --luteal: #B9A2DA;
+  --luteal-tint: #2D2539;
+  --luteal-ink: #DFD2F2;
+  --partner: #93B8DF;
+  --partner-tint: #1D2937;
+  --partner-ink: #CADCF0;
+  color-scheme: dark;
+}
+
+[data-phase="menstrual"] {
+  --phase: var(--menstrual);
+  --phase-tint: var(--menstrual-tint);
+  --phase-ink: var(--menstrual-ink);
+  --phase-field: var(--menstrual-field);
+  --phase-field-ink: var(--menstrual-field-ink);
+}
+[data-phase="follicular"] {
+  --phase: var(--follicular);
+  --phase-tint: var(--follicular-tint);
+  --phase-ink: var(--follicular-ink);
+  --phase-field: var(--follicular-field);
+  --phase-field-ink: var(--follicular-field-ink);
+}
+[data-phase="ovulation"] {
+  --phase: var(--ovulation);
+  --phase-tint: var(--ovulation-tint);
+  --phase-ink: var(--ovulation-ink);
+  --phase-field: var(--ovulation-field);
+  --phase-field-ink: var(--ovulation-field-ink);
+}
+[data-phase="luteal"] {
+  --phase: var(--luteal);
+  --phase-tint: var(--luteal-tint);
+  --phase-ink: var(--luteal-ink);
+  --phase-field: var(--luteal-field);
+  --phase-field-ink: var(--luteal-field-ink);
 }
 
 @theme inline {
-  --font-sans: "DM Sans", sans-serif;
-  --font-serif: "Playfair Display", serif;
+  --font-sans: "Nunito Variable", ui-sans-serif, system-ui, sans-serif;
+  --font-display: "Cormorant Garamond Variable", ui-serif, Georgia, serif;
+  --font-serif: "Cormorant Garamond Variable", ui-serif, Georgia, serif;
+  --shadow-soft: var(--elevation);
   --color-background: var(--background);
   --color-foreground: var(--foreground);
   --color-card: var(--card);
@@ -95,6 +177,7 @@
   --color-muted-foreground: var(--muted-foreground);
   --color-accent: var(--accent);
   --color-accent-foreground: var(--accent-foreground);
+  --color-brand: var(--brand);
   --color-destructive: var(--destructive);
   --color-destructive-foreground: var(--destructive-foreground);
   --color-border: var(--border);
@@ -102,23 +185,43 @@
   --color-input-background: var(--input-background);
   --color-switch-background: var(--switch-background);
   --color-ring: var(--ring);
+  --color-charcoal: var(--charcoal);
   --color-chart-1: var(--chart-1);
   --color-chart-2: var(--chart-2);
   --color-chart-3: var(--chart-3);
   --color-chart-4: var(--chart-4);
   --color-chart-5: var(--chart-5);
-  --radius-sm: calc(var(--radius) - 4px);
-  --radius-md: calc(var(--radius) - 2px);
-  --radius-lg: var(--radius);
-  --radius-xl: calc(var(--radius) + 4px);
-  --color-sidebar: var(--sidebar);
-  --color-sidebar-foreground: var(--sidebar-foreground);
-  --color-sidebar-primary: var(--sidebar-primary);
-  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
-  --color-sidebar-accent: var(--sidebar-accent);
-  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
-  --color-sidebar-border: var(--sidebar-border);
-  --color-sidebar-ring: var(--sidebar-ring);
+  --color-phase: var(--phase);
+  --color-phase-tint: var(--phase-tint);
+  --color-phase-ink: var(--phase-ink);
+  --color-phase-field: var(--phase-field);
+  --color-phase-field-ink: var(--phase-field-ink);
+  --color-menstrual: var(--menstrual);
+  --color-menstrual-tint: var(--menstrual-tint);
+  --color-menstrual-ink: var(--menstrual-ink);
+  --color-menstrual-field: var(--menstrual-field);
+  --color-follicular: var(--follicular);
+  --color-follicular-tint: var(--follicular-tint);
+  --color-follicular-ink: var(--follicular-ink);
+  --color-follicular-field: var(--follicular-field);
+  --color-ovulation: var(--ovulation);
+  --color-ovulation-tint: var(--ovulation-tint);
+  --color-ovulation-ink: var(--ovulation-ink);
+  --color-ovulation-field: var(--ovulation-field);
+  --color-luteal: var(--luteal);
+  --color-luteal-tint: var(--luteal-tint);
+  --color-luteal-ink: var(--luteal-ink);
+  --color-luteal-field: var(--luteal-field);
+  --color-partner: var(--partner);
+  --color-partner-tint: var(--partner-tint);
+  --color-partner-ink: var(--partner-ink);
+  /* Soft, generous corners: cards 24px, stepping down inside: 16 / 12 / 10 / 6. */
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --radius-lg: 12px;
+  --radius-xl: 16px;
+  --radius-2xl: 24px;
+  --radius-3xl: 28px;
 }
 
 @layer base {
@@ -126,58 +229,59 @@
     @apply border-border outline-ring/50;
   }
 
-  body {
-    @apply bg-background text-foreground;
-  }
-
-  /**
-  * Default typography styles for HTML elements (h1-h4, p, label, button, input).
-  * These are in @layer base, so Tailwind utility classes (like text-sm, text-lg) automatically override them.
-  */
-
   html {
     font-size: var(--font-size);
+    -webkit-text-size-adjust: 100%;
   }
 
-  h1 {
-    font-size: var(--text-2xl);
+  body {
+    @apply bg-background text-foreground antialiased;
+    /* var(), not @apply: referencing it makes Tailwind emit --font-sans for plain CSS too. */
+    font-family: var(--font-sans);
+  }
+
+  /* Cormorant Garamond is delicate with a small x-height: match it to the text
+     face's x-height (so sizes read as intended) and use lining figures. */
+  h1, h2, h3, h4, .font-display {
+    font-size-adjust: 0.46;
+    /* Lining figures via the low-level feature: Tailwind's tabular-nums resets
+       font-variant-numeric, which would bring back Cormorant's old-style digits. */
+    font-feature-settings: "lnum" 1;
+  }
+
+  h1, h2, h3, h4 {
+    font-family: var(--font-display);
+    font-weight: 600;
+    letter-spacing: 0;
+    line-height: 1.15;
+    text-wrap: balance;
+  }
+
+  h1 { font-size: var(--text-2xl); }
+  h2 { font-size: var(--text-xl); }
+  h3 { font-size: var(--text-lg); }
+  h4 { font-size: var(--text-base); }
+
+  label, button {
     font-weight: var(--font-weight-medium);
-    line-height: 1.5;
   }
 
-  h2 {
-    font-size: var(--text-xl);
-    font-weight: var(--font-weight-medium);
-    line-height: 1.5;
-  }
-
-  h3 {
-    font-size: var(--text-lg);
-    font-weight: var(--font-weight-medium);
-    line-height: 1.5;
-  }
-
-  h4 {
-    font-size: var(--text-base);
-    font-weight: var(--font-weight-medium);
-    line-height: 1.5;
-  }
-
-  label {
-    font-size: var(--text-base);
-    font-weight: var(--font-weight-medium);
-    line-height: 1.5;
-  }
-
-  button {
-    font-size: var(--text-base);
-    font-weight: var(--font-weight-medium);
-    line-height: 1.5;
-  }
-
-  input {
+  input, textarea, select {
     font-size: var(--text-base);
     font-weight: var(--font-weight-normal);
-    line-height: 1.5;
+  }
+
+  :focus-visible {
+    outline: 2px solid var(--ring);
+    outline-offset: 2px;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+      scroll-behavior: auto !important;
+    }
   }
 }

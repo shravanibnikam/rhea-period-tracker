@@ -16,8 +16,15 @@ export function addDays(date: Date, n: number): Date {
   return d;
 }
 
+/**
+ * Whole calendar days from `b` to `a`, by their local dates (E-01). Times of
+ * day are ignored, so a time-of-day "now" against a local-midnight start
+ * counts as before, and a span across a DST change (23- or 25-hour local
+ * days) still counts every day once.
+ */
 export function diffDays(a: Date, b: Date): number {
-  return Math.floor((a.getTime() - b.getTime()) / 86400000);
+  const day = (d: Date) => Date.UTC(d.getFullYear(), d.getMonth(), d.getDate());
+  return (day(a) - day(b)) / 86400000;
 }
 
 export function toDateKey(date: Date): string {

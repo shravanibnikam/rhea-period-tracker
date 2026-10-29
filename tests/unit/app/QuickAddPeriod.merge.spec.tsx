@@ -92,3 +92,15 @@ describe("QuickAddPeriod merges into existing logs (P0-01)", () => {
     expect(activeNotes.textContent).toBe("private note");
   });
 });
+
+describe("QuickAddPeriod logs no day after today", () => {
+  it("with the defaults (today, 5 days) it logs today only, and says the rest isn't logged", async () => {
+    const saveLogs = vi.fn(() => Promise.resolve());
+    const onClose = vi.fn();
+    render(<QuickAddPeriod onClose={onClose} saveLogs={saveLogs} phaseData={PHASES.menstrual} />);
+    expect(screen.getByText(/only days up to today are logged\. log the other 4 days as they come/i)).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Log 1 day so far" }));
+    await waitFor(() => expect(onClose).toHaveBeenCalledTimes(1));
+    expect(saveLogs).toHaveBeenCalledWith([{ date: toDateKey(new Date()), flow: "medium" }], { mode: "merge-defined" });
+  });
+});

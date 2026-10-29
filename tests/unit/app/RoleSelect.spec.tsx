@@ -52,3 +52,31 @@ describe("RoleSelect partner invite input preserves the code", () => {
     expect(await screen.findByText(/valid invite code/i)).toBeTruthy();
   });
 });
+
+describe("RoleSelect focus", () => {
+  it("a busy Connect keeps focus and ignores another submit", async () => {
+    let finish!: (err: string | null) => void;
+    vi.mocked(redeemInviteCode).mockReturnValueOnce(new Promise((r) => (finish = r)));
+    const input = openInvite();
+    fireEvent.change(input, { target: { value: CODE } });
+    const connect = screen.getByRole("button", { name: "Connect" }) as HTMLButtonElement;
+    connect.focus();
+    fireEvent.click(connect);
+
+    expect(await screen.findByRole("button", { name: "Connecting…" })).toBe(connect);
+    expect(connect.disabled).toBe(false);
+    expect(connect.getAttribute("aria-disabled")).toBe("true");
+    expect(document.activeElement).toBe(connect);
+    fireEvent.submit(input.form!);
+    expect(redeemInviteCode).toHaveBeenCalledTimes(1);
+
+    finish("That code doesn't work any more.");
+    expect(await screen.findByRole("alert")).toBeTruthy();
+  });
+
+  it("Back returns focus to the tile that opened the invite step", () => {
+    openInvite();
+    fireEvent.click(screen.getByRole("button", { name: /Back/ }));
+    expect(document.activeElement).toBe(screen.getByRole("button", { name: /joining as a partner/i }));
+  });
+});

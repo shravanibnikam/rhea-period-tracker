@@ -20,7 +20,7 @@
  */
 import "fake-indexeddb/auto";
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { render, screen, fireEvent, act, waitFor, cleanup, within } from "@testing-library/react";
+import { render, screen, fireEvent, act, waitFor, cleanup } from "@testing-library/react";
 import { ContainerProvider } from "@/app/di/context";
 import { Container } from "@/app/di/Container";
 import { NullTransport, type SyncEngine, type OutboxEntry } from "@/sync";
@@ -178,17 +178,6 @@ async function editLoadedDayAndSave(loadedNote: string, newNote: string) {
   await settle(50);
 }
 
-/**
- * The calendar cell for `date`. Scoped to the day grid under the weekday header,
- * so no other button with the same number can match; the grid shows only the
- * displayed month's own days, so the number is unique there.
- */
-function calendarDayButton(date: Date): HTMLElement {
-  const grid = screen.getByText("Su").parentElement?.nextElementSibling;
-  if (!(grid instanceof HTMLElement)) throw new Error("calendar day grid not found");
-  return within(grid).getByRole("button", { name: String(date.getDate()) });
-}
-
 /** Offline cold start: a stored session, the role lookup fails; the user edits today. */
 async function offlineStartAndSaveToday(uid: string) {
   await seedStore(uid, [
@@ -226,6 +215,7 @@ beforeEach(() => {
 afterEach(async () => {
   cleanup();
   vi.restoreAllMocks();
+  history.replaceState(null, "", "/"); // the route lives in the hash: start every test on Today
   for (const c of open.splice(0)) {
     await c.stopOwnerSync();
     await c.closeDB();
@@ -283,12 +273,7 @@ describe("a store that has served a partner session (lastKnownRole=partner)", ()
 
   it("an unresolved role never queues an edit of the owner's cached row, so a later owner answer uploads nothing (probe Q2b)", async () => {
     const uid = fresh("expartner");
-    // The owner's cached row sits on TODAY: the only date that is never in the
-    // future and always in the month the calendar opens on, whatever the date
-    // (a fixed day number is in the future on the 1st, and yesterday is in the
-    // previous month then).
-    const now = new Date();
-    const cachedDate = toDateKey(now);
+    const cachedDate = TODAY;
     await seedStore(uid, [{ date: cachedDate, flow: "heavy", notes: OWNER_NOTE }], {
       lastKnownRole: "partner",
     });
@@ -298,12 +283,11 @@ describe("a store that has served a partner session (lastKnownRole=partner)", ()
     await emit("INITIAL_SESSION", uid);
     await settle(50);
 
-    // Open the owner's cached day from the calendar, wait for her row to load,
-    // edit it (keeping her note in the text) and save.
+    // The owner screens stay closed over her cache (fail closed), so edit her
+    // cached row (keeping her note in the text) through the write path itself.
+    expect(await screen.findByText(/can't confirm your account/i)).toBeTruthy();
     const edited = `${OWNER_NOTE} (edited offline)`;
-    fireEvent.click(await screen.findByRole("tab", { name: /calendar/i }));
-    fireEvent.click(calendarDayButton(now));
-    await editLoadedDayAndSave(OWNER_NOTE, edited);
+    await c.saveLog({ ...emptyLog(cachedDate), flow: "heavy", notes: edited });
 
     // The edit WAS stored locally (not refused) — and nothing was queued.
     expect((await c.getLog(cachedDate))?.notes).toBe(edited);
@@ -316,6 +300,101 @@ describe("a store that has served a partner session (lastKnownRole=partner)", ()
     await settle(80);
 
     expect(pushedKeys()).toEqual([]);
+    expect(pushed.some((p) => p.payload.includes(OWNER_NOTE))).toBe(false);
+  });
+
+  /** A partner device: the owner's cached rows (one carries her note) + the marker. */
+  async function partnerStore(uid: string) {
+    await seedStore(
+      uid,
+      [
+        { date: "2026-06-01", flow: "heavy" },
+        { date: TODAY, flow: "light", notes: OWNER_NOTE },
+      ],
+      { lastKnownRole: "partner" }
+    );
+  }
+  const trackerShown = () => /Day \d+ of \d+/.test(document.body.textContent ?? "");
+
+  it("an offline partner (lookup fails) never gets the owner screens over the cache: a notice instead, and a retry once online opens the partner view", async () => {
+    const uid = fresh("partner-offline");
+    await partnerStore(uid);
+    h.links[`partner_id=${uid}`] = "error";
+    renderApp();
+    await settle();
+    await emit("INITIAL_SESSION", uid);
+    await settle(50);
+
+    expect(await screen.findByText(/can't confirm your account/i)).toBeTruthy();
+    expect(trackerShown()).toBe(false);
+    expect(screen.queryByRole("link", { name: "Calendar" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Log today" })).toBeNull();
+    expect(document.body.textContent).not.toContain(OWNER_NOTE);
+
+    h.links[`partner_id=${uid}`] = [{ owner_id: "owner-1" }]; // back online
+    fireEvent.click(screen.getByRole("button", { name: "Try again" }));
+    expect(await screen.findByRole("link", { name: "Partner" })).toBeTruthy();
+    expect(screen.queryByText(/can't confirm your account/i)).toBeNull();
+    expect(screen.queryByRole("link", { name: "Calendar" })).toBeNull();
+  });
+
+  it("signing out from that notice wipes the cache, though the role was never confirmed", async () => {
+    const uid = fresh("partner-offline-signout");
+    await partnerStore(uid);
+    h.links[`partner_id=${uid}`] = "error";
+    const c = renderApp();
+    await settle();
+    await emit("INITIAL_SESSION", uid);
+    fireEvent.click(await screen.findByRole("button", { name: "Sign out" }));
+
+    await waitFor(async () => expect(await c.getAllLogs()).toEqual([]));
+  });
+
+  it("an ex-partner confirmed as owner: the old owner's rows are purged before anything renders or queues, and nothing of hers is pushed", async () => {
+    const uid = fresh("expartner-online");
+    await partnerStore(uid);
+    // The owner unlinked him: the lookup answers "owner". Hold the purge.
+    let releasePurge!: () => void;
+    const purgeGate = new Promise<void>((resolve) => {
+      releasePurge = resolve;
+    });
+    const realClaim = Container.prototype.claimForOwner;
+    vi.spyOn(Container.prototype, "claimForOwner").mockImplementation(async function (this: Container) {
+      await purgeGate;
+      return realClaim.call(this);
+    });
+    let everShown = false;
+    const watch = new MutationObserver(() => {
+      if (trackerShown() || document.body.textContent?.includes(OWNER_NOTE)) everShown = true;
+    });
+    watch.observe(document.body, { subtree: true, childList: true, characterData: true });
+
+    const c = renderApp();
+    await settle();
+    const cb = h.authCb;
+    if (!cb) throw new Error("useAuth did not subscribe to auth state");
+    act(() => {
+      void cb("INITIAL_SESSION", { user: { id: uid, email: `${uid}@example.test` } });
+    });
+    await settle(50);
+
+    // Mid-purge: the splash, no owner capability, nothing queued.
+    expect(screen.getByText("Loading…")).toBeTruthy();
+    expect(c.syncEngine()).toBeNull();
+    expect(await outboxKeys(c)).toEqual([]);
+
+    await act(async () => {
+      releasePurge();
+    });
+    await waitFor(() => expect(c.syncEngine()).not.toBeNull());
+    expect(await screen.findByText(/How will you use the app\?/i)).toBeTruthy(); // an empty store
+    await settle(80);
+    watch.disconnect();
+
+    expect(everShown).toBe(false);
+    expect(await c.getAllLogs()).toEqual([]);
+    expect(await c.getMeta("lastKnownRole")).toBe("owner");
+    expect(await outboxKeys(c)).toEqual([]);
     expect(pushed.some((p) => p.payload.includes(OWNER_NOTE))).toBe(false);
   });
 });

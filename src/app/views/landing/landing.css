@@ -1,0 +1,768 @@
+/*
+ * Rhea landing page (docs/DESIGN.md): warm, calm and kind. A blush ground and deep plum ink; the
+ * chapters are the pastel phase fields (theme.css --{phase}-field) in cycle order, rose, sage,
+ * honey, lavender and rose again for day one, set as soft rounded panels. Cormorant Garamond for
+ * headings (theme.css gives h1–h4 and .font-display its x-height match), Nunito for text, the deep
+ * rose only for actions. Families come from the tokens only: var(--font-display) / var(--font-sans).
+ * Class selectors only: unlayered rules here beat the Tailwind utilities that style the app
+ * fragments ([data-ui]) inside the page, so nothing here reaches into them.
+ */
+
+.landing {
+  --margin: clamp(16px, 4vw, 48px);
+  --inset: 0px;
+  --max: 1120px;
+  --gap: clamp(72px, 8vw, 120px);
+  --radius: clamp(28px, 3vw, 40px);
+  --ease: cubic-bezier(0.22, 1, 0.36, 1);
+  --ink: var(--foreground);
+  --soft: var(--muted-foreground);
+  --line: var(--border);
+  background: var(--background);
+  color: var(--ink);
+  font-size: clamp(1.0625rem, 1.03rem + 0.15vw, 1.125rem);
+  line-height: 1.6;
+  overflow-x: clip;
+}
+@media (min-width: 720px) {
+  .landing {
+    --inset: 16px;
+  }
+}
+@media (min-width: 1200px) {
+  .landing {
+    --inset: 24px;
+  }
+}
+
+/* ─── Type ─────────────────────────────────────────────────────────────── */
+
+.l-h1,
+.l-h2,
+.l-h3 {
+  margin: 0;
+  font-family: var(--font-display);
+  letter-spacing: -0.01em;
+  text-wrap: balance;
+}
+.l-h1 {
+  font-size: clamp(2.75rem, 2.1rem + 2.67vw, 4.5rem);
+  font-weight: 500;
+  line-height: 1.08;
+}
+.l-h2 {
+  font-size: clamp(2.125rem, 1.7rem + 1.71vw, 3.25rem);
+  font-weight: 540;
+  line-height: 1.12;
+}
+.l-h3 {
+  font-size: clamp(1.375rem, 1.3rem + 0.35vw, 1.625rem);
+  font-weight: 600;
+  line-height: 1.25;
+}
+.l-h2 label {
+  font-weight: inherit;
+  cursor: pointer;
+}
+
+.l-lead {
+  max-width: 36em;
+  margin: 20px 0 0;
+  font-size: clamp(1.125rem, 1.07rem + 0.3vw, 1.3125rem);
+  line-height: 1.55;
+  text-wrap: pretty;
+}
+
+.l-em {
+  font-weight: 600;
+  text-decoration: underline;
+  text-decoration-color: color-mix(in srgb, var(--phase) 55%, transparent);
+  text-decoration-thickness: 0.16em;
+  text-underline-offset: 0.24em;
+  text-decoration-skip-ink: none;
+}
+
+.l-link {
+  color: inherit;
+  text-decoration: underline;
+  text-decoration-color: color-mix(in srgb, currentColor 35%, transparent);
+  text-decoration-thickness: 1px;
+  text-underline-offset: 0.22em;
+  transition: text-decoration-color 150ms ease;
+}
+/* The same look on a button (the privacy policy opens in a sheet). */
+button.l-link {
+  padding: 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  cursor: pointer;
+}
+/* In-page link targets take focus (tabIndex -1) only so Tab continues from them. */
+.landing:focus,
+.l-section:focus {
+  outline: none;
+}
+
+/* ─── Layout ───────────────────────────────────────────────────────────── */
+
+.l-section {
+  padding: var(--gap) var(--margin);
+}
+.l-wrap {
+  max-width: var(--max);
+  margin: 0 auto;
+}
+.l-chapter {
+  --ink: var(--phase-field-ink);
+  --soft: color-mix(in srgb, var(--phase-field-ink) 80%, var(--phase-field));
+  --line: color-mix(in srgb, var(--phase-field-ink) 14%, transparent);
+  margin-inline: var(--inset);
+  border-radius: var(--radius);
+  background: var(--phase-field);
+  color: var(--ink);
+}
+.l-chapter + .l-chapter {
+  margin-top: max(12px, var(--inset));
+}
+.l-split {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 40px 64px;
+  align-items: start;
+}
+
+/* ─── Nav and hero ─────────────────────────────────────────────────────── */
+
+.l-top {
+  padding: 0 var(--margin);
+}
+.l-nav {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  max-width: var(--max);
+  min-height: 76px;
+  margin: 0 auto;
+}
+.l-brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  margin: 0;
+  color: var(--brand);
+}
+.l-brand__name {
+  color: var(--ink);
+  font-size: 1.625rem;
+  font-weight: 600;
+  line-height: 1;
+}
+.l-nav__links {
+  display: flex;
+  gap: 4px;
+  margin-left: auto;
+}
+.l-nav__links a {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  padding: 0 14px;
+  border-radius: 999px;
+  color: var(--ink);
+  font-size: 0.9375rem;
+  font-weight: 500;
+  text-decoration: none;
+  white-space: nowrap;
+  transition: background-color 150ms ease;
+}
+.l-nav .l-actions {
+  flex-wrap: nowrap;
+  margin-left: 12px;
+}
+.l-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+}
+
+.l-hero {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 480px);
+  align-items: center;
+  gap: 48px clamp(40px, 6vw, 88px);
+  max-width: var(--max);
+  margin: 0 auto;
+  padding: clamp(16px, 4vw, 56px) 0 var(--gap);
+}
+.l-hero__line {
+  max-width: 30em;
+  margin: 28px 0 0;
+  font-size: clamp(1.125rem, 1.07rem + 0.3vw, 1.3125rem);
+  line-height: 1.55;
+  color: color-mix(in srgb, var(--foreground) 84%, var(--background));
+  text-wrap: pretty;
+}
+.l-hero__actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px 8px;
+  margin-top: 36px;
+}
+.l-hero__stage {
+  display: grid;
+  place-items: center;
+  padding: clamp(28px, 4vw, 48px);
+  border-radius: var(--radius);
+  background: var(--phase-field);
+}
+
+/* ─── Where your logs live ─────────────────────────────────────────────── */
+
+.l-about {
+  padding-top: 0;
+}
+.l-about .l-wrap {
+  display: grid;
+  grid-template-columns: minmax(0, 4fr) minmax(0, 7fr);
+  gap: 24px 64px;
+}
+.l-about__text {
+  display: grid;
+  gap: 1em;
+  max-width: 36em;
+  font-size: clamp(1.125rem, 1.07rem + 0.3vw, 1.3125rem);
+  line-height: 1.6;
+  text-wrap: pretty;
+}
+
+/* ─── The live thing: your own dates ───────────────────────────────────── */
+
+.l-live {
+  transition: background-color 300ms ease, color 300ms ease;
+}
+/* Top-aligned: the card grows when the estimate appears, and the form must not move. */
+.l-live__grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 400px);
+  gap: 48px clamp(40px, 6vw, 88px);
+  align-items: start;
+}
+.l-live__form {
+  display: grid;
+  justify-items: start;
+  gap: 20px;
+}
+.l-field {
+  min-height: 56px;
+  margin: 0;
+  padding: 0 18px;
+  border: 1px solid color-mix(in srgb, var(--phase-field-ink) 22%, transparent);
+  border-radius: 16px;
+  background: var(--card);
+  color: var(--foreground);
+  /* The text face by inheritance: theme.css inlines --font-sans, so it is not a runtime variable. */
+  font: inherit;
+  font-size: 1.25rem;
+  font-weight: 500;
+  line-height: 1.2;
+}
+.l-field--date {
+  width: min(100%, 320px);
+}
+.l-field[data-empty] {
+  color: var(--muted-foreground);
+}
+.l-field::-webkit-calendar-picker-indicator {
+  cursor: pointer;
+}
+.l-field--short {
+  width: 3.6em;
+  min-height: 48px;
+  padding: 0 10px;
+  text-align: center;
+  vertical-align: middle;
+  -moz-appearance: textfield;
+  appearance: textfield;
+}
+.l-field--short::placeholder {
+  color: var(--muted-foreground);
+  opacity: 1;
+}
+.l-field--short::-webkit-inner-spin-button,
+.l-field--short::-webkit-outer-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+.l-live__len {
+  margin: 8px 0 0;
+  font-size: 1.25rem;
+  line-height: 1.4;
+}
+.l-live__hint,
+.l-live__note {
+  max-width: 40ch;
+  margin: 0;
+}
+.l-live__hint {
+  font-weight: 600;
+}
+.l-live__note {
+  color: var(--soft);
+}
+.l-live .l-ui {
+  justify-self: end;
+}
+
+/* ─── Interface fragments: the app's own size and voice ────────────────── */
+
+.l-ui {
+  font-size: 1rem;
+  line-height: 1.5;
+  text-align: left;
+}
+.l-sheet {
+  width: min(560px, 100%);
+  box-shadow: var(--elevation);
+}
+.l-sheet--narrow {
+  width: min(440px, 100%);
+}
+
+/* ─── Inside Rhea: the screens, with a sample cycle ────────────────────── */
+
+.l-show__grid {
+  display: grid;
+  grid-template-columns: minmax(0, 5fr) minmax(0, 7fr);
+  gap: 40px 64px;
+  align-items: start;
+}
+.l-show__index {
+  align-self: center;
+}
+.l-show__tabs {
+  margin-top: 28px;
+}
+.l-show__caption {
+  max-width: 36ch;
+  margin: 20px 0 0;
+  color: var(--soft);
+}
+/* A tall sheet keeps its own height and runs off the stage's bottom edge: a peek, not a squeezed card. */
+.l-show__stage {
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  height: 620px;
+  padding: 40px 40px 0;
+  border-radius: var(--radius);
+  background: var(--secondary);
+  overflow: clip;
+}
+.l-show__sheet {
+  display: flex;
+  justify-content: center;
+  width: 100%;
+}
+
+/* ─── Partner view ─────────────────────────────────────────────────────── */
+
+.l-partner__grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 400px);
+  grid-template-areas: "head card" "list card" "quiet card";
+  gap: 40px clamp(40px, 6vw, 88px);
+  align-items: start;
+}
+.l-partner__head {
+  grid-area: head;
+}
+.l-partner__try {
+  margin: 16px 0 0;
+  font-weight: 600;
+}
+.l-partner__card {
+  grid-area: card;
+  position: sticky;
+  top: 24px;
+}
+.l-partner__list {
+  grid-area: list;
+  display: grid;
+  gap: 10px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.l-partner__quiet {
+  grid-area: quiet;
+}
+.l-partner__quiet-title {
+  margin-bottom: 12px;
+}
+.l-switch {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  min-height: 72px;
+  padding: 14px 20px;
+  border-radius: 20px;
+  background: var(--card);
+  color: var(--foreground);
+  font-weight: 400;
+  cursor: pointer;
+}
+.l-switch__label {
+  display: block;
+  font-weight: 600;
+}
+.l-switch__note {
+  display: block;
+  margin-top: 2px;
+  color: var(--muted-foreground);
+  font-size: 0.9375rem;
+  line-height: 1.45;
+}
+
+/* ─── The research ─────────────────────────────────────────────────────── */
+
+.l-refs {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.l-refs li {
+  display: grid;
+  gap: 2px;
+  padding: 16px 0;
+  border-top: 1px solid var(--line);
+}
+.l-refs li:first-child {
+  padding-top: 0;
+  border-top: 0;
+}
+/* A 44px hit area without moving the list (padding taken back by the margin). */
+.l-refs__title {
+  margin-block: -9px;
+  padding-block: 9px;
+  font-weight: 500;
+}
+.l-refs__who {
+  color: var(--soft);
+  font-size: 0.9375rem;
+}
+
+/* ─── Bring your history in ────────────────────────────────────────────── */
+
+.l-list__body {
+  display: grid;
+  grid-template-columns: 220px minmax(0, 1fr);
+  gap: 24px 32px;
+  align-items: start;
+  margin-top: 40px;
+}
+.l-tabs {
+  display: grid;
+  gap: 4px;
+  padding: 4px;
+  border-radius: 20px;
+  background: var(--muted);
+}
+.l-tab {
+  display: grid;
+  align-content: center;
+  min-height: 60px;
+  padding: 8px 16px;
+  border: 1px solid transparent;
+  border-radius: 16px;
+  background: transparent;
+  color: var(--ink);
+  text-align: left;
+  cursor: pointer;
+  transition: background-color 150ms ease;
+}
+/* Selected as in the app's Segmented: a white fill with a hairline ring, no shadow. */
+.l-tab[aria-pressed="true"] {
+  border-color: var(--border);
+  background: var(--card);
+}
+.l-tab__name {
+  font-weight: 600;
+}
+.l-tab__note {
+  color: var(--soft);
+  font-size: 0.875rem;
+  font-weight: 400;
+}
+.l-bands {
+  margin: 0;
+  padding: 4px 24px;
+  border: 1px solid var(--line);
+  border-radius: 24px;
+  background: var(--card);
+  list-style: none;
+}
+.l-bandrow {
+  display: grid;
+  grid-template-columns: 7em minmax(0, 1fr);
+  gap: 4px 16px;
+  padding: 18px 0;
+  border-top: 1px solid var(--line);
+}
+.l-bandrow:first-child {
+  border-top: 0;
+}
+.l-bandrow__verb {
+  color: var(--accent-foreground);
+  font-size: 1.375rem;
+  font-weight: 600;
+  line-height: 1.25;
+}
+.l-bandrow__title {
+  display: block;
+  font-weight: 600;
+}
+.l-bandrow__note {
+  display: block;
+  color: var(--soft);
+  font-size: 0.9375rem;
+}
+
+/* ─── Honest answers ───────────────────────────────────────────────────── */
+
+.l-faq {
+  margin-top: 40px;
+}
+.l-faq__row {
+  display: grid;
+  grid-template-columns: minmax(0, 5fr) minmax(0, 7fr);
+  gap: 8px 64px;
+  padding: 28px 0;
+  border-top: 1px solid var(--line);
+}
+.l-faq__row p {
+  max-width: 60ch;
+  margin: 0;
+}
+
+/* ─── Day one ──────────────────────────────────────────────────────────── */
+
+.l-cta__inner {
+  display: grid;
+  justify-items: center;
+  text-align: center;
+}
+.l-cta__ring {
+  margin-bottom: 28px;
+  padding: 12px;
+  border-radius: 50%;
+  background: var(--card);
+  box-shadow: var(--elevation);
+}
+.l-cta__day {
+  color: var(--foreground);
+  font-size: 1.5rem;
+  font-weight: 600;
+  line-height: 1;
+}
+.l-cta .l-lead {
+  max-width: 32em;
+  margin-bottom: 32px;
+}
+
+/* ─── Footer ───────────────────────────────────────────────────────────── */
+
+.l-footer {
+  padding-block: 64px 48px;
+  color: var(--soft);
+  font-size: 0.9375rem;
+}
+.l-footer__grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 40px 64px;
+  align-items: start;
+}
+.l-footer__about {
+  display: grid;
+  gap: 12px;
+}
+.l-footer__about p {
+  margin: 0;
+}
+.l-footer .l-link {
+  padding-block: 12px;
+}
+.l-moon {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  margin: 0;
+}
+.l-moon img {
+  flex-shrink: 0;
+  width: 96px;
+  height: 96px;
+  border-radius: 50%;
+  object-fit: cover;
+  box-shadow: var(--elevation);
+}
+.l-moon figcaption {
+  max-width: 44ch;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .l-nav__links a:hover {
+    background: var(--muted);
+  }
+  .l-link:hover {
+    text-decoration-color: currentColor;
+  }
+  .l-tab:not([aria-pressed="true"]):hover {
+    background: color-mix(in srgb, var(--card) 60%, transparent);
+  }
+}
+
+/* ─── Tablet: one column, still roomy ──────────────────────────────────── */
+
+@media (max-width: 959px) {
+  .l-hero,
+  .l-about .l-wrap,
+  .l-live__grid,
+  .l-show__grid,
+  .l-split,
+  .l-faq__row,
+  .l-footer__grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .l-hero__stage {
+    padding-block: 48px;
+  }
+  .l-live .l-ui {
+    justify-self: start;
+  }
+  .l-show__index {
+    align-self: start;
+  }
+  .l-show__stage {
+    height: 600px;
+  }
+  .l-partner__grid {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-areas: "head" "card" "list" "quiet";
+  }
+  .l-partner__card {
+    position: static;
+  }
+}
+
+/* Two nav buttons (hosted, signed out) need the section links' room. */
+@media (max-width: 839px) {
+  .l-nav--two .l-nav__links {
+    display: none;
+  }
+  .l-nav--two .l-actions {
+    margin-left: auto;
+  }
+}
+
+/* ─── Phone ────────────────────────────────────────────────────────────── */
+
+@media (max-width: 719px) {
+  .l-nav__links {
+    display: none;
+  }
+  .l-nav .l-actions {
+    margin-left: auto;
+  }
+  /* The hero's own button sits just below. */
+  .l-nav .l-start {
+    display: none;
+  }
+  .l-hero__actions {
+    display: grid;
+    margin-top: 28px;
+  }
+  .l-hero__start,
+  .l-hero__try {
+    width: 100%;
+  }
+  .l-hero__stage {
+    margin-inline: calc(-1 * var(--margin));
+    padding: 32px 16px;
+  }
+  .l-show__stage {
+    height: auto;
+    margin-inline: calc(-1 * var(--margin));
+    padding: 16px;
+  }
+  .l-list__body {
+    grid-template-columns: minmax(0, 1fr);
+    margin-top: 32px;
+  }
+  .l-tabs {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .l-tab:last-child {
+    grid-column: 1 / -1;
+  }
+  .l-bands {
+    padding: 4px 18px;
+  }
+  .l-bandrow {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .l-faq__row {
+    padding: 24px 0;
+  }
+  .l-cta .l-actions,
+  .l-cta .l-start {
+    width: 100%;
+  }
+  .l-cta .l-actions {
+    display: grid;
+  }
+  .l-moon {
+    align-items: flex-start;
+  }
+  .l-moon img {
+    width: 72px;
+    height: 72px;
+  }
+}
+
+/* ─── Motion: gentle, and never hiding the first screen ────────────────── */
+
+@keyframes l-rise {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+}
+@keyframes l-fade {
+  from {
+    opacity: 0;
+  }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .l-hero__stage {
+    animation: l-rise 400ms var(--ease) 80ms both;
+  }
+  .l-show__sheet {
+    animation: l-fade 200ms ease-out;
+  }
+  .landing[data-motion] [data-reveal] {
+    transition:
+      opacity 400ms var(--ease),
+      transform 400ms var(--ease);
+    transition-delay: calc(var(--i, 0) * 60ms);
+  }
+  .landing[data-motion] [data-reveal]:not([data-in]) {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+}

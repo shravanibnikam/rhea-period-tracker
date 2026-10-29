@@ -1,6 +1,8 @@
 // domain/phases.ts — THE single phase oracle (M1.3 / spec Chapter 4 §2) plus
 // phase copy/colors. PURE: imports domain types only. PhaseData carries copy
-// and colors ONLY; every day-range is DERIVED from getPhaseBoundaries — the
+// and colors ONLY (colours are CSS custom-property references into
+// app/styles/theme.css, so every consumer follows the theme); every day-range
+// is DERIVED from getPhaseBoundaries — the
 // three previously-conflicting engines (utils.getPhase, utils.getPhaseLengths,
 // cycle.getCurrentPhase) are unified here, with cycle.getCurrentPhase's
 // dynamic algorithm promoted as canonical.
@@ -14,16 +16,16 @@ export const PHASES: Record<PhaseName, PhaseData> = {
   menstrual: {
     name: "Menstrual",
     shortName: "Flow",
-    color: "#BE5A5A",
-    bg: "#FDF0F0",
-    text: "#7A2020",
-    border: "#EAAFAF",
+    color: "var(--menstrual)",
+    bg: "var(--menstrual-tint)",
+    text: "var(--menstrual-ink)",
+    border: "color-mix(in srgb, var(--menstrual) 35%, transparent)",
     emoji: "\u{1F311}",
-    tagline: "Rest & Release",
+    tagline: "Rest & release",
     description:
       "The uterine lining sheds as progesterone and estrogen reach their lowest. A time of renewal \u2014 the body releasing what it no longer needs to begin a fresh cycle.",
     partnerDesc:
-      "Her body is in its monthly reset. Energy is naturally lower and she may need more comfort and rest than usual. Small acts of care \u2014 warmth, gentleness, flexibility \u2014 mean the world right now.",
+      "Their body is in its monthly reset. Energy is naturally lower and they may need more comfort and rest than usual. Small acts of care \u2014 warmth, gentleness, flexibility \u2014 mean the world right now.",
     energy: 2,
     mood: "Reflective, tender, quietly inward",
     symptoms: ["Cramps", "Bloating", "Fatigue", "Lower back pain", "Headaches"],
@@ -43,16 +45,16 @@ export const PHASES: Record<PhaseName, PhaseData> = {
   follicular: {
     name: "Follicular",
     shortName: "Rising",
-    color: "#5E8A52",
-    bg: "#EBF0E7",
-    text: "#2A4A20",
-    border: "#A8C89E",
+    color: "var(--follicular)",
+    bg: "var(--follicular-tint)",
+    text: "var(--follicular-ink)",
+    border: "color-mix(in srgb, var(--follicular) 35%, transparent)",
     emoji: "\u{1F331}",
-    tagline: "Rise & Bloom",
+    tagline: "Rise & bloom",
     description:
       "Estrogen rises steadily as follicles develop in the ovaries. Energy returns, cognitive sharpness increases, and there\u2019s a natural pull toward new beginnings and social connection.",
     partnerDesc:
-      "She\u2019s in a rising phase \u2014 energy is building and she\u2019s likely feeling more like herself. A great time to plan things together and enjoy her natural enthusiasm for life.",
+      "They\u2019re in a rising phase \u2014 energy is building and they\u2019re likely feeling more like themselves. A great time to plan things together and enjoy their natural enthusiasm for life.",
     energy: 4,
     mood: "Optimistic, curious, creative, sociable",
     symptoms: ["Rising energy", "Improved mood", "Better sleep", "Sharper focus"],
@@ -64,24 +66,24 @@ export const PHASES: Record<PhaseName, PhaseData> = {
     ],
     partnerTips: [
       "Plan exciting adventures or experiences together",
-      "She\u2019s communicative \u2014 really lean in",
+      "They\u2019re communicative \u2014 really lean in",
       "Great time for meaningful conversations",
-      "Match and celebrate her renewed energy",
+      "Match and celebrate their renewed energy",
     ],
   },
   ovulation: {
     name: "Ovulation",
     shortName: "Peak",
-    color: "#C9913A",
-    bg: "#FBF0DC",
-    text: "#7A4A0A",
-    border: "#E8C88A",
+    color: "var(--ovulation)",
+    bg: "var(--ovulation-tint)",
+    text: "var(--ovulation-ink)",
+    border: "color-mix(in srgb, var(--ovulation) 35%, transparent)",
     emoji: "\u2600\uFE0F",
-    tagline: "Peak & Shine",
+    tagline: "Peak & shine",
     description:
       "The follicle releases an egg as estrogen peaks and testosterone briefly surges. This is the most magnetic, high-energy phase \u2014 confidence, sociability, and vitality are at their highest.",
     partnerDesc:
-      "She\u2019s at her peak \u2014 likely feeling her most vibrant and connected. This is a golden window for quality time, meaningful conversations, and shared experiences. Be present with her.",
+      "They\u2019re at their peak \u2014 likely feeling their most vibrant and connected. This is a golden window for quality time, meaningful conversations, and shared experiences. Be present with them.",
     energy: 5,
     mood: "Confident, charismatic, assertive, open",
     symptoms: [
@@ -97,25 +99,25 @@ export const PHASES: Record<PhaseName, PhaseData> = {
       "Connect deeply \u2014 vulnerability flows easier",
     ],
     partnerTips: [
-      "She\u2019s at her most magnetic and expressive",
+      "They\u2019re at their most magnetic and expressive",
       "Ideal time for romantic connection",
-      "Have important conversations \u2014 she\u2019s most receptive",
+      "Have important conversations \u2014 they\u2019re most receptive",
       "Quality time over anything else",
     ],
   },
   luteal: {
     name: "Luteal",
     shortName: "Nesting",
-    color: "#8B6FA0",
-    bg: "#EEE8F4",
-    text: "#4A2A5A",
-    border: "#C0A8D8",
+    color: "var(--luteal)",
+    bg: "var(--luteal-tint)",
+    text: "var(--luteal-ink)",
+    border: "color-mix(in srgb, var(--luteal) 35%, transparent)",
     emoji: "\u{1F319}",
-    tagline: "Turn Inward",
+    tagline: "Turn inward",
     description:
       "Progesterone rises as the body prepares. If pregnancy doesn\u2019t occur, hormones gradually decline toward the end of the phase \u2014 which can bring PMS symptoms in the final days.",
     partnerDesc:
-      "The body is winding down toward the next cycle. She may feel more sensitive or need more reassurance. Quiet, consistent support and extra patience are the most loving things you can offer.",
+      "The body is winding down toward the next cycle. They may feel more sensitive or need more reassurance. Quiet, consistent support and extra patience are the most loving things you can offer.",
     energy: 3,
     mood: "Detail-oriented, introspective, emotionally sensitive",
     symptoms: [
@@ -133,7 +135,7 @@ export const PHASES: Record<PhaseName, PhaseData> = {
     ],
     partnerTips: [
       "Extra patience is key \u2014 emotions run deeper",
-      "Don\u2019t dismiss or try to fix her feelings",
+      "Don\u2019t dismiss or try to fix their feelings",
       "Offer to handle decisions or logistics",
       "Cosy nights in over high-stimulation plans",
     ],
@@ -151,7 +153,7 @@ export const ENERGY_LABELS: Record<number, string> = {
   1: "Very low \u2014 rest is essential",
   2: "Low \u2014 gentle support needed",
   3: "Moderate \u2014 balanced energy",
-  4: "High \u2014 she\u2019s in her stride",
+  4: "High \u2014 they\u2019re in their stride",
   5: "Peak \u2014 vibrant and magnetic",
 };
 
@@ -165,6 +167,9 @@ export const ENERGY_LABELS: Record<number, string> = {
 // (The spec \u00a72.2 boundary sketch had ovulation starting AT fertileStart \u2014 an
 // off-by-one inconsistent with its own "identical branching" requirement; the
 // branching wins, spec corrected. See IMPLEMENTATION_JOURNAL S2.3.)
+// The fertile window (cycle.computeFertileWindow) uses the same ovulationDay
+// (getOvulationDay): fertileStart .. ovulationDay+1, so its last day is the
+// ovulation phase's last day and it never runs into the luteal phase.
 
 export interface PhaseAnchors {
   avgCycleLength: number;
@@ -187,13 +192,19 @@ export interface PhaseBoundary {
 }
 export type PhaseBoundaries = Record<PhaseName, PhaseBoundary>;
 
+/** Cycle day (1-indexed) of the estimated ovulation: the one definition, shared with the fertile window. */
+export function getOvulationDay(avgCycleLength: number, lutealLength: number = DEFAULT_LUTEAL_LENGTH): number {
+  return avgCycleLength - lutealLength;
+}
+
 export function getPhaseBoundaries(a: PhaseAnchors): PhaseBoundaries {
-  const ovulationDay = a.avgCycleLength - a.lutealLength;
+  const ovulationDay = getOvulationDay(a.avgCycleLength, a.lutealLength);
   const fertileStart = ovulationDay - 5;
   // Sequential cut points, clamped so phases stay ordered even for degenerate
   // short cycles (fertileStart inside the period) — exactly what the branching
-  // in getPhaseForDay resolves to. A squeezed phase gets width 0, never a
-  // negative or overlapping range, and widths always sum to avgCycleLength.
+  // in getPhaseForDay resolves to. A squeezed phase gets width 0 (startDay =
+  // endDay + 1: getPhaseForDay gives it no day), never a negative or
+  // overlapping range, and widths always sum to avgCycleLength.
   const mEnd = a.avgPeriodLength;
   const fEnd = Math.max(fertileStart, mEnd);
   const oEnd = Math.max(ovulationDay + 1, fEnd);
@@ -208,7 +219,7 @@ export function getPhaseBoundaries(a: PhaseAnchors): PhaseBoundaries {
 /** THE phase-for-day decision. Identical branching to the legacy getCurrentPhase. */
 export function getPhaseForDay(cycleDay: number, a: PhaseAnchors): PhaseName {
   if (cycleDay <= a.avgPeriodLength) return "menstrual";
-  const ovulationDay = a.avgCycleLength - a.lutealLength;
+  const ovulationDay = getOvulationDay(a.avgCycleLength, a.lutealLength);
   const fertileStart = ovulationDay - 5;
   if (cycleDay <= fertileStart) return "follicular";
   if (cycleDay <= ovulationDay + 1) return "ovulation";
@@ -227,8 +238,12 @@ export function getPhaseLengths(a: PhaseAnchors): Record<PhaseName, number> {
   };
 }
 
-/** "Days 1\u20135" \u2014 derived, replacing the baked PhaseData.range strings. */
+/**
+ * "Days 1\u20135" \u2014 derived, replacing the baked PhaseData.range strings. A phase a
+ * short cycle squeezes out (getPhaseForDay gives it no day) reads "No days",
+ * never an empty or inverted range like "Days 6\u20135".
+ */
 export function getPhaseRangeLabel(p: PhaseName, a: PhaseAnchors): string {
   const b = getPhaseBoundaries(a)[p];
-  return `Days ${b.startDay}\u2013${b.endDay}`;
+  return b.endDay < b.startDay ? "No days" : `Days ${b.startDay}\u2013${b.endDay}`;
 }

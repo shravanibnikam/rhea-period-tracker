@@ -4,7 +4,7 @@
 import type { DailyLog, FlowLevel, PhaseName, Period, Cycle, CycleState, PredictedCycle, FertileWindow } from "./types";
 import { DEFAULT_CYCLE_LENGTH, DEFAULT_LUTEAL_LENGTH, ROLLING_AVERAGE_WINDOW } from "./constants";
 import { parseDate, addDays, diffDays, toDateKey } from "./dates";
-import { anchorsFrom, getPhaseForDay } from "./phases";
+import { anchorsFrom, getOvulationDay, getPhaseForDay } from "./phases";
 
 /**
  * Build the flow patches for a quick-added period: `durationDays` consecutive
@@ -32,40 +32,36 @@ function isBleedDay(flow: FlowLevel): boolean {
 }
 
 // ─── Detect periods from daily logs ──────────────────────────────────────────
-// Groups consecutive bleed days into periods, with 1-day gap tolerance
-// (a single "none" day between two bleed days is treated as part of the same period).
+// Groups consecutive bleed days into runs, with 1-day gap tolerance (a single
+// "none" day between two bleed days is treated as part of the same run). A run
+// is a period only if it has a light, medium or heavy day (E-04): spotting on
+// its own is not a period, while spotting inside or next to real flow belongs
+// to that period.
 
 export function detectPeriods(logs: DailyLog[]): Period[] {
   const bleedDays = logs
     .filter((l) => isBleedDay(l.flow))
-    .map((l) => l.date)
-    .sort();
-
-  if (bleedDays.length === 0) return [];
+    .sort((a, b) => a.date.localeCompare(b.date));
 
   const periods: Period[] = [];
-  let currentStart = bleedDays[0];
-  let currentEnd = bleedDays[0];
+  let run: DailyLog[] = [];
+  const closeRun = () => {
+    if (!run.some((l) => l.flow !== "spotting")) return;
+    const startDate = run[0].date;
+    const endDate = run[run.length - 1].date;
+    periods.push({ startDate, endDate, length: diffDays(parseDate(endDate), parseDate(startDate)) + 1 });
+  };
 
-  for (let i = 1; i < bleedDays.length; i++) {
-    const prev = parseDate(currentEnd);
-    const curr = parseDate(bleedDays[i]);
-    const gap = diffDays(curr, prev);
-
-    // Allow a 1-day gap (e.g., spotting → skip → spotting = same period)
-    if (gap <= 2) {
-      currentEnd = bleedDays[i];
-    } else {
-      const length = diffDays(parseDate(currentEnd), parseDate(currentStart)) + 1;
-      periods.push({ startDate: currentStart, endDate: currentEnd, length });
-      currentStart = bleedDays[i];
-      currentEnd = bleedDays[i];
+  for (const day of bleedDays) {
+    const prev = run[run.length - 1];
+    // Allow a 1-day gap (e.g., spotting → skip → spotting = same run)
+    if (prev && diffDays(parseDate(day.date), parseDate(prev.date)) > 2) {
+      closeRun();
+      run = [];
     }
+    run.push(day);
   }
-
-  // Close the last period
-  const length = diffDays(parseDate(currentEnd), parseDate(currentStart)) + 1;
-  periods.push({ startDate: currentStart, endDate: currentEnd, length });
+  closeRun();
 
   return periods;
 }
@@ -118,15 +114,14 @@ export function computeAverages(
   cycles: Cycle[],
   cycleLengthOverride: number | null
 ): { avgCycleLength: number; avgPeriodLength: number; stdDev: number } {
+  // An excluded cycle counts toward no average, its period included.
+  const periodLengths = cycles.filter((c) => !c.excluded).map((c) => c.periodLength);
+  const avgPeriodLength = periodLengths.length > 0
+    ? Math.round(periodLengths.reduce((a, b) => a + b, 0) / periodLengths.length)
+    : 5;
+
   if (cycleLengthOverride) {
-    const periodLengths = cycles.map((c) => c.periodLength);
-    return {
-      avgCycleLength: cycleLengthOverride,
-      avgPeriodLength: periodLengths.length > 0
-        ? Math.round(periodLengths.reduce((a, b) => a + b, 0) / periodLengths.length)
-        : 5,
-      stdDev: 0,
-    };
+    return { avgCycleLength: cycleLengthOverride, avgPeriodLength, stdDev: 0 };
   }
 
   const completedLengths = cycles
@@ -134,13 +129,9 @@ export function computeAverages(
     .map((c) => c.cycleLength as number)
     .slice(-ROLLING_AVERAGE_WINDOW);
 
-  const periodLengths = cycles.map((c) => c.periodLength);
-
   return {
     avgCycleLength: weightedAverage(completedLengths),
-    avgPeriodLength: periodLengths.length > 0
-      ? Math.round(periodLengths.reduce((a, b) => a + b, 0) / periodLengths.length)
-      : 5,
+    avgPeriodLength,
     stdDev: standardDeviation(completedLengths),
   };
 }
@@ -180,8 +171,9 @@ export function computeFertileWindow(
 ): FertileWindow | null {
   if (cycleCount < 1) return null;
 
-  const nextPeriod = addDays(parseDate(currentCycleStart), avgCycleLength);
-  const ovulationDate = addDays(nextPeriod, -DEFAULT_LUTEAL_LENGTH);
+  const cycleStart = parseDate(currentCycleStart);
+  // The phase oracle's ovulation day, so the window ends with the ovulation phase.
+  const ovulationDate = addDays(cycleStart, getOvulationDay(avgCycleLength, DEFAULT_LUTEAL_LENGTH) - 1);
 
   // Base window: ovulation -5 to +1
   let windowStart = -5;
@@ -201,8 +193,10 @@ export function computeFertileWindow(
   if (stdDev > 3) confidence *= 0.7;
   if (stdDev > 5) confidence *= 0.5;
 
+  const start = addDays(ovulationDate, windowStart);
   return {
-    start: addDays(ovulationDate, windowStart),
+    // Never before the cycle's first day: a short cycle's window would start in the previous cycle.
+    start: start < cycleStart ? cycleStart : start,
     end: addDays(ovulationDate, windowEnd),
     ovulationDate,
     confidence: Math.round(confidence * 100) / 100,

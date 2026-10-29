@@ -47,12 +47,12 @@ export const ALL_SYMPTOMS = [
   "Low libido",
 ] as const;
 
-export const FLOW_LEVELS: { value: FlowLevel; label: string; color: string }[] = [
-  { value: "none", label: "None", color: "#E5DDD8" },
-  { value: "spotting", label: "Spotting", color: "#D4B8B0" },
-  { value: "light", label: "Light", color: "#D4E8CC" },
-  { value: "medium", label: "Medium", color: "#F2C4C4" },
-  { value: "heavy", label: "Heavy", color: "#E08080" },
+export const FLOW_LEVELS: { value: FlowLevel; label: string }[] = [
+  { value: "none", label: "None" },
+  { value: "spotting", label: "Spotting" },
+  { value: "light", label: "Light" },
+  { value: "medium", label: "Medium" },
+  { value: "heavy", label: "Heavy" },
 ];
 
 // Single-select — DailyLogSheet writes one value to `DailyLog.mood` (tapping the
@@ -93,3 +93,6 @@ export const ENERGY_OPTIONS = [
   { value: "medium", label: "Medium" },
   { value: "high", label: "High" },
 ] as const;
+
+// One-tap medication suggestions in the log sheet: generic names only, never brands.
+export const MEDICATION_SUGGESTIONS = ["Ibuprofen", "Paracetamol", "Naproxen", "Iron"] as const;

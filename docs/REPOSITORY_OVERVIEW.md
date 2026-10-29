@@ -112,7 +112,6 @@ Planned Phase-2 migrations (numbering **shifted** after the shipped `0004` pairi
 
 | Flag | Value | Meaning |
 |---|---|---|
-| `notesSync` | `false` | Shared-notes sync disabled until the E2EE notes channel (M2.10); no note content leaves the device. |
 | `syncEngine` | `true` | Owner sync runs on the new SyncEngine (outbox + HLC merge + tombstones). Requires migration 0003 on the server; until applied, pushes back off harmlessly. |
 
 ## Scripts, tests, CI

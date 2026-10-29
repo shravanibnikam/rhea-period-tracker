@@ -1,4 +1,6 @@
 import { Component, type ReactNode } from "react";
+import { Button } from "@/app/components/ui/Button";
+import { RheaMark } from "@/app/components/shared/RheaMark";
 
 interface Props {
   children: ReactNode;
@@ -26,23 +28,18 @@ export class ErrorBoundary extends Component<Props, State> {
   render() {
     if (this.state.hasError) {
       return (
-        <div className="min-h-screen bg-background font-sans flex items-center justify-center px-4">
-          <div className="text-center max-w-sm">
-            <img src={`${import.meta.env.BASE_URL}rhea-mark.svg`} alt="Rhea" className="w-12 h-12 mx-auto mb-4" />
-            <h1 className="font-serif text-2xl font-bold text-foreground mb-2">
-              Something went wrong
-            </h1>
-            <p className="text-sm text-muted-foreground mb-6">
-              The app ran into an unexpected error. Your data is safe.
+        <main className="flex min-h-dvh items-center justify-center bg-background px-4 font-sans text-foreground">
+          <div role="alert" className="max-w-sm text-center">
+            <RheaMark size={48} label="Rhea" className="mx-auto size-12" />
+            <h1 className="mt-5 text-2xl">Something went wrong</h1>
+            <p className="mt-2 text-base text-muted-foreground">
+              Rhea ran into an unexpected error. Your saved logs are still on this device.
             </p>
-            <button
-              onClick={() => window.location.reload()}
-              className="px-6 py-3 rounded-xl text-sm font-medium text-white bg-primary hover:opacity-90 transition-opacity"
-            >
-              Reload app
-            </button>
+            <Button size="lg" className="mt-6" onClick={() => window.location.reload()}>
+              Reload Rhea
+            </Button>
           </div>
-        </div>
+        </main>
       );
     }
 

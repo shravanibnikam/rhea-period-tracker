@@ -1,0 +1,26 @@
+[
+ {
+  "file": "public/landing/rhea-saturn.jpg",
+  "media": "image",
+  "ref": "commons:39258649",
+  "title": "Rhea Over Saturn from Cassini",
+  "creator": "NASA / JPL (Image processing: Jcpag2012 )",
+  "creatorUrl": null,
+  "date": "2006",
+  "license": "public domain",
+  "licenseCode": "pd",
+  "licenseUrl": "https://creativecommons.org/publicdomain/mark/1.0/",
+  "creditRequired": false,
+  "page": "https://commons.wikimedia.org/wiki/File:Rhea_Over_Saturn_from_Cassini.jpg",
+  "via": "Wikimedia Commons",
+  "image": "https://upload.wikimedia.org/wikipedia/commons/a/af/Rhea_Over_Saturn_from_Cassini.jpg",
+  "width": 320,
+  "height": 320,
+  "bytes": 3996,
+  "credit": "\"Rhea Over Saturn from Cassini\" by NASA / JPL (Image processing: Jcpag2012 ), public domain, via Wikimedia Commons",
+  "notes": [
+   "Cropped to 480x480 around the moon from the 1000x1000 original, resized to 320x320 (shown at 96px, 72px on a phone)."
+  ],
+  "saved": "2026-10-28T10:46:00.000Z"
+ }
+]

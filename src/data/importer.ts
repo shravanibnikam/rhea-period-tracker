@@ -54,6 +54,12 @@ function normalizeFlow(raw: string): FlowLevel {
   return "none";
 }
 
+/** "High" → "high": the levels the log sheet offers; anything else is left out, not guessed. */
+function normalizeEnergy(raw: string): string | null {
+  const lower = raw.toLowerCase().trim();
+  return lower === "low" || lower === "medium" || lower === "high" ? lower : null;
+}
+
 // ─── Date normalization (per-file convention detection) ─────────────────────
 
 export type SlashOrder = "mdy" | "dmy";
@@ -156,6 +162,10 @@ export function parseCSV(text: string): { headers: string[]; rows: string[][] } 
 
 // ─── Source detection ────────────────────────────────────────────────────────
 
+/**
+ * From the content: the name only gives the file type (.xml, .csv). A word in
+ * it says nothing about the source ("period-flow.csv" is no Flo export).
+ */
 export function detectSource(text: string, filename: string): ImportSource {
   const lower = filename.toLowerCase();
 
@@ -169,8 +179,8 @@ export function detectSource(text: string, filename: string): ImportSource {
   ) {
     return "apple_health";
   }
-  if (lower.includes("clue")) return "clue";
-  if (lower.includes("flo")) return "flo";
+  // Flo's is the only JSON export read besides a Rhea backup.
+  if (isJSON(text)) return "flo";
 
   const { headers } = parseCSV(text);
   const headerStr = headers.join(" ").toLowerCase();
@@ -179,6 +189,15 @@ export function detectSource(text: string, filename: string): ImportSource {
 
   if (lower.endsWith(".csv")) return "generic_csv";
   return "unknown";
+}
+
+function isJSON(text: string): boolean {
+  try {
+    const value: unknown = JSON.parse(text);
+    return typeof value === "object" && value !== null;
+  } catch {
+    return false;
+  }
 }
 
 // ─── Clue CSV ────────────────────────────────────────────────────────────────
@@ -311,7 +330,7 @@ function parseGenericCSV(text: string, sourceOverride?: ImportSource): ImportRes
         ? row[sympIdx].split(/[;|,]/).map((s) => s.trim()).filter(Boolean)
         : [];
     const mood = moodIdx !== -1 ? row[moodIdx] || null : null;
-    const energy = energyIdx !== -1 ? row[energyIdx] || null : null;
+    const energy = energyIdx !== -1 ? normalizeEnergy(row[energyIdx] ?? "") : null;
     const notes = notesIdx !== -1 ? row[notesIdx] || "" : "";
 
     logs.push({ date, flow, symptoms, mood, energy, notes });

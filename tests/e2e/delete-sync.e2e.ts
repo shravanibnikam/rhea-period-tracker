@@ -16,7 +16,8 @@ test("UI delete persists a tombstone and removes the log from another device", a
   const uid = signup.data.user!.id;
   const date = new Date().toISOString().slice(0, 10);
   const signIn = async (target: Page) => {
-    await target.goto("http://127.0.0.1:4173/rhea-period-tracker/");
+    // #today opens the app directly (a fresh browser would get the landing page).
+    await target.goto("http://127.0.0.1:4173/rhea-period-tracker/#today");
     await target.getByPlaceholder("you@example.com").fill(email);
     await target.getByPlaceholder("Your password").fill(password);
     await target.getByRole("button", { name: "Sign in", exact: true }).click();
@@ -34,7 +35,7 @@ test("UI delete persists a tombstone and removes the log from another device", a
     await page.getByRole("button", { name: /Log today/ }).click();
     // Flow precedes the separate energy control with the same label.
     await page.getByRole("button", { name: "Medium", exact: true }).first().click();
-    await page.getByRole("button", { name: "Save Log", exact: true }).click();
+    await page.getByRole("button", { name: "Save log", exact: true }).click();
     await expect.poll(async () => (await remoteRow())?.deleted).toBe(false);
     const saved = (await remoteRow())!;
     expect(saved.flow).toBe("medium");

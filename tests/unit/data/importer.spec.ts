@@ -73,6 +73,29 @@ describe("generic CSV without a flow column (bug fix #3)", () => {
   });
 });
 
+describe("source detection reads the file, not its name", () => {
+  const generic = "date,flow\n2026-01-01,medium";
+
+  it("a name with \"flo\" or \"clue\" in it is not that app's export", () => {
+    expect(parseImportFile(generic, "period-flow.csv").source).toBe("generic_csv");
+    expect(parseImportFile(generic, "clue-notes.csv").source).toBe("generic_csv");
+  });
+
+  it("knows each app by its headers or format, whatever the file is called", () => {
+    expect(parseImportFile("Date,Menstrual flow\n2026-01-01,medium", "export.csv").source).toBe("clue");
+    expect(parseImportFile("date,cycle_day,flow\n2026-01-01,1,medium", "export.csv").source).toBe("flo");
+    const flo = parseImportFile(JSON.stringify([{ date: "2026-01-01", flow: "heavy" }]), "export.json");
+    expect(flo).toMatchObject({ source: "flo", logs: [{ date: "2026-01-01", flow: "heavy" }] });
+  });
+});
+
+describe("generic CSV energy", () => {
+  it("is lowercased to the levels the log sheet offers; anything else is left out", () => {
+    const r = parseImportFile("date,flow,energy\n2026-01-01,medium,High\n2026-01-02,light, LOW \n2026-01-03,none,7", "x.csv");
+    expect(r.logs.map((l) => l.energy)).toEqual(["high", "low", null]);
+  });
+});
+
 describe("Apple Health XML (bug fix #2: nested Record elements)", () => {
   it("parses non-self-closing Record tags", () => {
     const r = parseImportFile(APPLE_HEALTH_NESTED, "export.xml");

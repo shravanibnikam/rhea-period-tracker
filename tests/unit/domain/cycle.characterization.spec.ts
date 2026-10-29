@@ -13,6 +13,8 @@ import {
 import { parseDate, addDays, diffDays, toDateKey } from "@/domain/dates";
 import { getPhaseForDay, getPhaseLengths, anchorsFrom } from "@/domain/phases";
 import {
+  bleedRun,
+  makeLog,
   regularCycles,
   irregularCycles,
   singlePeriod,
@@ -49,6 +51,26 @@ describe("period + cycle detection", () => {
     const cycles = buildCycles(detectPeriods(regularCycles), new Set(["2026-01-29"]));
     expect(cycles.find((c) => c.periodStart === "2026-01-29")?.excluded).toBe(true);
   });
+
+  // E-04: a run of bleed days is a period only if it has light, medium or heavy flow.
+  it("a spotting day on its own mid-cycle starts no period", () => {
+    const logs = [...regularCycles, makeLog("2026-04-12", "spotting")]; // day 18 of the 2026-03-26 cycle
+    expect(detectPeriods(logs)).toEqual(detectPeriods(regularCycles));
+    const state = deriveCycleState(logs, null, parseDate("2026-04-12"));
+    expect(state.cycleDay).toBe(18);
+    expect(state.cycles.map((c) => c.cycleLength)).toEqual([28, 28, 28, null]);
+  });
+
+  it("spotting just before a period belongs to it", () => {
+    const logs = [makeLog("2026-03-01", "spotting"), ...bleedRun("2026-03-02", 4)];
+    expect(detectPeriods(logs)).toEqual([{ startDate: "2026-03-01", endDate: "2026-03-05", length: 5 }]);
+  });
+
+  it("spotting at a period's end belongs to it, as in the sample flows", () => {
+    const flows = ["heavy", "heavy", "medium", "light", "spotting", "spotting"] as const;
+    const logs = flows.map((f, i) => makeLog(toDateKey(addDays(parseDate("2026-03-02"), i)), f));
+    expect(detectPeriods(logs)).toEqual([{ startDate: "2026-03-02", endDate: "2026-03-07", length: 6 }]);
+  });
 });
 
 describe("averages", () => {
@@ -62,6 +84,14 @@ describe("averages", () => {
 
   it("respects a manual cycle-length override", () => {
     expect(computeAverages(buildCycles(detectPeriods(irregularCycles)), 30)).toMatchSnapshot();
+  });
+
+  it("leaves an excluded cycle's period out of the period average", () => {
+    const longOnes = buildCycles(detectPeriods([...bleedRun("2026-01-01", 9), ...bleedRun("2026-01-29", 3)]));
+    expect(computeAverages(longOnes, null).avgPeriodLength).toBe(6);
+    longOnes[0].excluded = true;
+    expect(computeAverages(longOnes, null).avgPeriodLength).toBe(3);
+    expect(computeAverages(longOnes, 30).avgPeriodLength).toBe(3);
   });
 });
 
@@ -152,6 +182,28 @@ describe("date utils characterization (TZ-independent invariants preserved by M1
   it("adds and diffs whole days", () => {
     expect(toDateKey(addDays(parseDate("2026-03-07"), 3))).toBe("2026-03-10");
     expect(diffDays(parseDate("2026-03-10"), parseDate("2026-03-07"))).toBe(3);
+  });
+
+  it("counts calendar days across a DST change (E-01)", () => {
+    const tz = process.env.TZ;
+    process.env.TZ = "America/Los_Angeles"; // springs forward on 2026-03-08
+    try {
+      expect(new Date(2026, 0, 1).getTimezoneOffset()).toBe(480); // the zone took effect
+      expect(diffDays(parseDate("2026-04-03"), parseDate("2026-03-06"))).toBe(28);
+      expect(diffDays(parseDate("2026-03-06"), parseDate("2026-04-03"))).toBe(-28);
+      // A time-of-day "now" against a local-midnight start counts as before.
+      expect(diffDays(new Date(2026, 3, 2, 0, 30), parseDate("2026-03-06"))).toBe(27);
+      expect(diffDays(new Date(2026, 2, 30, 15), parseDate("2026-04-20"))).toBe(-21);
+
+      // Starts 28 days apart: two 28-day cycles, and the period across the change keeps its 5 days.
+      const logs = ["2026-02-06", "2026-03-06", "2026-04-03"].flatMap((d) => bleedRun(d, 5));
+      const state = deriveCycleState(logs, null, new Date(2026, 3, 10, 15));
+      expect(state.cycles.map((c) => [c.cycleLength, c.periodLength])).toEqual([[28, 5], [28, 5], [null, 5]]);
+      expect(state.avgCycleLength).toBe(28);
+      expect(state.cycleDay).toBe(8);
+    } finally {
+      process.env.TZ = tz;
+    }
   });
 
   // ── M1.3 DOCUMENTED SNAPSHOT CHANGE ─────────────────────────────────────

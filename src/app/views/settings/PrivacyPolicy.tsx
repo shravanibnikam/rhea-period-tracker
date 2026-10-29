@@ -1,162 +1,157 @@
-import { X } from "lucide-react";
+import type { ReactNode } from "react";
+import { Sheet } from "@/app/components/ui/Sheet";
 
 interface PrivacyPolicyProps {
   onClose: () => void;
 }
 
+function Section({ title, children }: { title: string; children: ReactNode }) {
+  return (
+    <section>
+      <h3 className="text-lg text-foreground">{title}</h3>
+      <div className="mt-2 space-y-2">{children}</div>
+    </section>
+  );
+}
+
+const LIST = "list-disc space-y-1.5 pl-5 marker:text-muted-foreground";
+
 export function PrivacyPolicy({ onClose }: PrivacyPolicyProps) {
   return (
-    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center" role="dialog" aria-modal="true" aria-label="Privacy policy">
-      <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={onClose} aria-hidden="true" />
-
-      <div className="relative w-full max-w-lg max-h-[85vh] bg-card rounded-t-3xl sm:rounded-3xl border border-border shadow-xl overflow-y-auto">
-        <div className="sticky top-0 bg-card/95 backdrop-blur-sm border-b border-border px-6 py-4 flex items-center justify-between z-10 rounded-t-3xl">
-          <h2 className="font-serif text-lg font-semibold text-foreground">
-            Privacy Policy
-          </h2>
-          <button
-            onClick={onClose}
-            aria-label="Close"
-            className="p-2 rounded-full hover:bg-muted transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
-          >
-            <X size={18} className="text-muted-foreground" />
-          </button>
-        </div>
-
-        <div className="px-6 py-5 space-y-5 text-sm text-foreground leading-relaxed">
-          <p className="text-xs text-muted-foreground">
-            Last updated: September 2026
+    <Sheet
+      open
+      onOpenChange={(open) => {
+        if (!open) onClose();
+      }}
+      title="Privacy policy"
+      description="Last updated: October 2026"
+    >
+      <div className="space-y-7 text-base leading-relaxed text-foreground">
+        <Section title="What Rhea is">
+          <p>
+            Rhea is a period and cycle tracker. It keeps your logs on your device, syncs them to your
+            account when you sign in, and lets you choose what a linked partner&apos;s view shows.
           </p>
+        </Section>
 
-          <section>
-            <h3 className="font-semibold mb-2">What Rhea is</h3>
-            <p className="text-muted-foreground">
-              Rhea is a period and cycle tracker designed around privacy. It
-              tracks your cycle on your own device and lets you choose what a
-              partner sees in Rhea&apos;s partner view.
-            </p>
-          </section>
+        <Section title="On your device">
+          <ul className={LIST}>
+            <li>
+              Your daily logs (flow, symptoms, mood, energy, notes, and the optional medication and
+              intimacy fields), the cycle history and predictions worked out from them, and your app
+              settings, in your browser&apos;s IndexedDB.
+            </li>
+            <li>
+              Your theme preference, whether you have seen the welcome page, and, while you are signed
+              in, your sign-in session, in your browser&apos;s localStorage.
+            </li>
+          </ul>
+        </Section>
 
-          <section>
-            <h3 className="font-semibold mb-2">What data is stored</h3>
-            <ul className="list-disc pl-5 space-y-1 text-muted-foreground">
-              <li>
-                <strong>On your device:</strong> Daily logs (flow, symptoms,
-                mood, energy, private notes), cycle history, predictions, and
-                app settings. Stored in your browser&apos;s IndexedDB.
-              </li>
-              <li>
-                <strong>On our server (Supabase):</strong> When you sign in,
-                your daily logs (including notes) sync to a Postgres database so
-                your devices stay in sync and a linked partner can use the
-                partner view. Each synced entry also records which device last
-                changed it and when; deleting a day&apos;s log leaves a deletion
-                marker for that date. The server also holds your email and a
-                hashed password, which partner account you are linked to, invite
-                codes you create (stored hashed), your sharing settings, quiet
-                windows, and sharing activity log. Shared notes sent with earlier
-                versions of Rhea, if any, also remain there.
-              </li>
-            </ul>
-          </section>
+        <Section title="On our server">
+          <p>
+            When you sign in, your daily logs sync to a Postgres database run on Supabase, so your
+            devices stay in step and a linked partner can use the partner view. That includes notes and
+            the medication and intimacy fields, which sync the same way as the rest of the log. Each
+            synced entry records which device last changed it and when; deleting a day&apos;s log
+            leaves a deletion marker for that date.
+          </p>
+          <p>
+            The server also holds your email and a hashed password, which partner account you are
+            linked to, invite codes you create (stored hashed), your sharing settings, quiet windows,
+            and a log of your sharing changes. Shared notes sent from earlier versions of Rhea, if any,
+            also remain there; this version has no shared notes.
+          </p>
+        </Section>
 
-          <section>
-            <h3 className="font-semibold mb-2">What the server can see</h3>
-            <p className="text-muted-foreground">
-              When you use an account, the server currently stores your daily
-              logs in plaintext (they are not yet end-to-end encrypted).
-              Row-Level Security limits access so only you and your linked
-              partner can read them. A linked partner&apos;s access covers your
-              full daily logs, including notes: sharing toggles decide what the
-              partner view shows, but the server does not enforce them. Data
-              travels over a secure (TLS) connection. Because the data is not yet
-              end-to-end encrypted, the database operator could technically
-              access it, and it could be disclosed if legally compelled.
-              End-to-end encryption is a planned improvement so that, in future,
-              the server will not be able to read your health data at all.
-            </p>
-          </section>
+        <Section title="What the server can see">
+          <p>
+            Synced data travels over a secure (TLS) connection, but it is stored in plain text: it is
+            not end-to-end encrypted. Row-level security lets only your account and a linked
+            partner&apos;s account read it. The database operator could technically read it, and it
+            could be disclosed if we were legally compelled to.
+          </p>
+        </Section>
 
-          <section>
-            <h3 className="font-semibold mb-2">What your partner sees</h3>
-            <p className="text-muted-foreground">
-              Nothing by default. You control seven independent sharing toggles,
-              and Rhea&apos;s partner view shows only what you enable. It never
-              shows your private notes. These controls are applied by the app,
-              not the server: while you are linked, your partner&apos;s account
-              can technically read your full daily logs, including notes. While
-              a quiet window is active, the partner view shows a pause message
-              instead of your details.
-            </p>
-          </section>
+        <Section title="What your partner sees">
+          <p>
+            Nothing by default. You control six sharing toggles, and Rhea&apos;s partner view shows
+            only what you turn on. It never shows your notes, medication or intimacy entries, and Rhea
+            does not save them on your partner&apos;s device. While a quiet window is active, the
+            partner view shows a pause message instead of your details.
+          </p>
+          <p>
+            The toggles are applied by the app, not the server: while you are linked, your
+            partner&apos;s account can read all of your synced logs, including those fields.
+          </p>
+        </Section>
 
-          <section>
-            <h3 className="font-semibold mb-2">What we never do</h3>
-            <ul className="list-disc pl-5 space-y-1 text-muted-foreground">
-              <li>Sell or share your data with advertisers or third parties</li>
-              <li>Use your health data for ad targeting</li>
-              <li>Run third-party analytics on health fields</li>
-              <li>Require more data than the features need</li>
-            </ul>
-          </section>
+        <Section title="What we never do">
+          <ul className={LIST}>
+            <li>Sell or share your data with advertisers or other third parties</li>
+            <li>Show ads, or use your health data to target them</li>
+            <li>Run analytics or tracking scripts</li>
+            <li>Ask for more data than the features need</li>
+          </ul>
+        </Section>
 
-          <section>
-            <h3 className="font-semibold mb-2">Your rights</h3>
-            <ul className="list-disc pl-5 space-y-1 text-muted-foreground">
-              <li>
-                <strong>Export:</strong> Download all your data as a JSON file
-                at any time from Settings
-              </li>
-              <li>
-                <strong>Delete:</strong> &ldquo;Erase all data&rdquo; in Settings
-                deletes your logs, settings, and cycle history from this device.
-                It does not sign you out, and it does not delete data already
-                synced to your account: that stays on the server and downloads
-                again the next time the app syncs, which happens automatically
-                while you are signed in.
-              </li>
-              <li>
-                <strong>Portability:</strong> Your exported data is structured
-                and can be used elsewhere
-              </li>
-              <li>
-                <strong>Unpair:</strong> Unlinking your partner ends their access
-                to your data on the server. Anything their device already
-                downloaded may stay there. Unused invite codes are not cancelled
-                and still work until they expire, 30 minutes after creation.
-              </li>
-            </ul>
-          </section>
+        <Section title="Your rights">
+          <ul className={LIST}>
+            <li>
+              <strong className="font-semibold">Export:</strong> download a JSON backup, a CSV file or a
+              calendar (.ics) file, or print a summary. Each is generated on your device; nothing is
+              uploaded to make it.
+            </li>
+            <li>
+              <strong className="font-semibold">Delete:</strong> &ldquo;Erase this device&rdquo; in
+              Settings deletes your logs, settings and cycle history from this device. It does not sign
+              you out, and it does not delete data already synced to your account: that stays on the
+              server and downloads again the next time the app syncs, which happens automatically while
+              you are signed in.
+            </li>
+            <li>
+              <strong className="font-semibold">Portability:</strong> exports are structured files you
+              can use elsewhere.
+            </li>
+            <li>
+              <strong className="font-semibold">Unpair:</strong> unlinking your partner ends their
+              account&apos;s access to your data on the server. Anything their device already downloaded
+              may stay there. Unused invite codes are not cancelled and still work until they expire, 30
+              minutes after they are created.
+            </li>
+          </ul>
+        </Section>
 
-          <section>
-            <h3 className="font-semibold mb-2">Legal requests</h3>
-            <p className="text-muted-foreground">
-              Reproductive health data is sensitive. If compelled by a legal
-              request, we can only provide what the server holds for your
-              account (see &ldquo;What data is stored&rdquo;). We will notify
-              you of any request unless legally prohibited from doing so. We do
-              not voluntarily share data with law enforcement.
-            </p>
-          </section>
+        <Section title="Legal requests">
+          <p>
+            Reproductive health data is sensitive. If compelled by a legal request, we can only provide
+            what the server holds for your account (see &ldquo;On our server&rdquo;). We will tell you
+            about any request unless the law forbids it, and we do not share data with law enforcement
+            voluntarily.
+          </p>
+        </Section>
 
-          <section>
-            <h3 className="font-semibold mb-2">Without an account</h3>
-            <p className="text-muted-foreground">
-              The hosted version of Rhea requires an account. A copy of Rhea
-              run without a server configured works in local-only mode instead:
-              no data ever leaves your device. There is no server, no sync, and
-              nothing to subpoena.
-            </p>
-          </section>
+        <Section title="Without an account">
+          <p>
+            The hosted version of Rhea requires an account. A copy of Rhea run without a server
+            configured works in local-only mode: your data never leaves your device, and there is no
+            server copy to hand over.
+          </p>
+        </Section>
 
-          <div className="pt-4 border-t border-border">
-            <p className="text-xs text-center text-muted-foreground">
-              Questions? This is an open-source project &mdash; you can inspect
-              exactly what the code does.
-            </p>
-          </div>
-        </div>
+        <p className="text-muted-foreground">
+          Questions? Rhea is open source, so you can read exactly what the code does{" "}
+          <a
+            href="https://github.com/shravanibnikam/rhea-period-tracker"
+            target="_blank"
+            rel="noreferrer"
+            className="font-medium text-foreground underline underline-offset-4"
+          >
+            on GitHub
+          </a>
+          .
+        </p>
       </div>
-    </div>
+    </Sheet>
   );
 }

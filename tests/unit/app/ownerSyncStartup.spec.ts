@@ -191,13 +191,61 @@ describe("Container queue mode 'unresolved' respects the partner marker (P0-06)"
     expect(await driver.getAll<OutboxEntry>("outbox")).toHaveLength(0);
   });
 
-  it("a CONFIRMED owner queues even in a marked store (the resolved ex-partner edit is the S-07 residual)", async () => {
+  it("not even a CONFIRMED owner queues in a marked store: its rows are the old owner's until claimForOwner purges them", async () => {
     const { c, driver } = await deviceWithCachedRows("owner-marked");
     await driver.put("meta", "partner", "lastKnownRole");
     c.setOwnerSyncMode("owner");
 
     await saveOne(c);
+    await c.setSymptom(DATES[0], "Cramps", true); // the Overview toggle on a cached row
 
+    expect(await c.getLog("2026-08-05")).toBeDefined();
+    expect(await driver.getAll<OutboxEntry>("outbox")).toHaveLength(0);
+  });
+});
+
+describe("Container.claimForOwner — an ex-partner confirmed as owner (P0-06)", () => {
+  it("purges the previous owner's cached rows and everything queued for or derived from them, then marks the store owner", async () => {
+    const { c, driver } = await deviceWithCachedRows("claim-marked");
+    await driver.put("meta", "partner", META_LAST_KNOWN_ROLE);
+    await driver.put("outbox", { id: 1, nextAttemptAt: 0 }); // a stray intent
+    await driver.put("tombstones", { key: "log:2026-07-01", deletedAt: "x" });
+    await driver.put("sync_cursors", { scope: "owner", hlc: "x" });
+    await driver.put("meta", 30, "cycleLengthOverride");
+
+    await c.claimForOwner();
+
+    expect(await driver.getAll("logs")).toEqual([]);
+    expect(await driver.getAll("outbox")).toEqual([]);
+    expect(await driver.getAll("tombstones")).toEqual([]);
+    expect(await driver.getAll("sync_cursors")).toEqual([]); // the engine re-pulls this account's own rows
+    expect(await driver.get("meta", META_LAST_KNOWN_ROLE)).toBe("owner");
+    expect(await driver.get("meta", "cycleLengthOverride")).toBe(30); // settings stay
+
+    // The store is now the owner's own: an owner write queues again.
+    c.setOwnerSyncMode("owner");
+    await c.saveLog({ ...emptyLog("2026-08-05"), flow: "light" });
     expect(await driver.getAll<OutboxEntry>("outbox")).toHaveLength(1);
+  });
+
+  it("leaves an unmarked (owner's own) store untouched", async () => {
+    const { c, driver } = await deviceWithCachedRows("claim-unmarked");
+
+    await c.claimForOwner();
+
+    expect(await driver.getAll("logs")).toHaveLength(DATES.length);
+    expect(await driver.get("meta", META_LAST_KNOWN_ROLE)).toBeUndefined();
+  });
+
+  it("an interrupted purge keeps the marker, so it reruns next time", async () => {
+    const { c, driver } = await deviceWithCachedRows("claim-interrupted");
+    await driver.put("meta", "partner", META_LAST_KNOWN_ROLE);
+    const realClear = driver.clear.bind(driver);
+    vi.spyOn(driver, "clear").mockImplementation((store) =>
+      store === "outbox" ? Promise.reject(new Error("aborted")) : realClear(store)
+    );
+
+    await expect(c.claimForOwner()).rejects.toThrow("aborted");
+    expect(await driver.get("meta", META_LAST_KNOWN_ROLE)).toBe("partner");
   });
 });

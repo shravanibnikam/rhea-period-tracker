@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { supabase, isSupabaseConfigured } from "@/app/lib/supabase";
 import { setSyncReadOnly } from "@/app/lib/sync";
+import { plainError } from "@/app/lib/errors";
 import { useContainer } from "@/app/di";
 import { META_LAST_KNOWN_ROLE } from "@/data/schema";
 import type { User, Session, SupabaseClient } from "@supabase/supabase-js";
@@ -65,6 +66,12 @@ interface UseAuthReturn {
   role: UserRole;
   linkedOwnerId: string | null;
   hasPartnerLinked: boolean;
+  /**
+   * The active account's store has served a partner session (meta.lastKnownRole
+   * = "partner"), so its rows may be another person's (P0-06). True from a new
+   * account's sign-in until its store has been read: unknown fails closed.
+   */
+  storeMarkedPartner: boolean;
   loading: boolean;
   signUp: (email: string, password: string) => Promise<string | null>;
   signIn: (email: string, password: string) => Promise<string | null>;
@@ -80,6 +87,7 @@ export function useAuth(): UseAuthReturn {
   const [role, setRole] = useState<UserRole>(null);
   const [linkedOwnerId, setLinkedOwnerId] = useState<string | null>(null);
   const [hasPartnerLinked, setHasPartnerLinked] = useState(false);
+  const [storeMarkedPartner, setStoreMarkedPartner] = useState(false);
   const [loading, setLoading] = useState(true);
   const configured = isSupabaseConfigured();
 
@@ -123,12 +131,31 @@ export function useAuth(): UseAuthReturn {
   /** Signed out: no role, and the next account gets its own first-lookup splash. */
   const signedOut = useCallback(() => {
     clearRole();
+    setStoreMarkedPartner(false); // the local-only store never serves a partner
     accountUid.current = null;
     endSplash();
   }, [clearRole, endSplash]);
 
+  /**
+   * Read the active store's partner marker (an unreadable one counts as set).
+   * Applies only if no answer has re-marked or purged the store meanwhile.
+   */
+  const readStoreMarker = useCallback(() => {
+    const epoch = accountEpoch.current;
+    const applied = appliedSeq.current;
+    return container
+      .getMeta<string>(META_LAST_KNOWN_ROLE)
+      .then((v) => v === "partner", () => true)
+      .then((marked) => {
+        if (epoch === accountEpoch.current && applied === appliedSeq.current) {
+          setStoreMarkedPartner(marked);
+        }
+      });
+  }, [container]);
+
   const detectRole = useCallback(
     async (userId: string) => {
+      let markerRead: Promise<void> | undefined;
       if (accountUid.current !== userId) {
         // A NEW account fails closed: another account's role never stands in,
         // and there is no write capability until this one's role is known. Its
@@ -136,8 +163,10 @@ export function useAuth(): UseAuthReturn {
         // UI while the role is unknown. Re-checks of the same account (tab
         // refocus, token refresh) keep its role and never touch the splash.
         clearRole();
+        setStoreMarkedPartner(true); // until this account's store is read
         accountUid.current = userId;
         holdSplash(FIRST_LOOKUP_WAIT_MS);
+        markerRead = readStoreMarker();
       }
       const epoch = accountEpoch.current;
       const seq = ++lookupSeq.current;
@@ -148,6 +177,7 @@ export function useAuth(): UseAuthReturn {
       } catch (err) {
         console.error("Failed to detect role:", err);
       }
+      if (markerRead) await markerRead; // the first splash covers the store's marker too
       // Another account or a sign-out since this lookup began, or a newer answer
       // already applied: this answer is stale.
       const stale = () => epoch !== accountEpoch.current || seq < appliedSeq.current;
@@ -172,17 +202,35 @@ export function useAuth(): UseAuthReturn {
         // effort: a failed write grants nothing (the partner stays read-only).
         await container.setMeta(META_LAST_KNOWN_ROLE, "partner").catch(() => {});
         if (stale()) return;
+      } else {
+        // An ex-partner (the owner unlinked them) now resolves as owner: the
+        // store's rows are the previous owner's cache. Purge them BEFORE
+        // exposing role owner, so they never render as this account's own,
+        // queue, or sync. A failed purge grants nothing, like a failed lookup.
+        const claimed = await container.claimForOwner().then(
+          () => true,
+          (err: unknown) => {
+            console.error("Failed to clear a partner's cached data:", err);
+            return false;
+          }
+        );
+        if (stale()) return;
+        if (!claimed) {
+          if (seq === lookupSeq.current) endSplash();
+          return;
+        }
       }
 
       appliedSeq.current = seq;
       setRole(resolved.role);
       setLinkedOwnerId(resolved.linkedOwnerId);
       setHasPartnerLinked(resolved.hasPartnerLinked);
+      setStoreMarkedPartner(resolved.role === "partner");
       // A partner never pushes owner data (sync stays read-only).
       setSyncReadOnly(resolved.role !== "owner");
       endSplash();
     },
-    [clearRole, holdSplash, endSplash, container]
+    [clearRole, holdSplash, endSplash, readStoreMarker, container]
   );
 
   useEffect(() => {
@@ -223,7 +271,7 @@ export function useAuth(): UseAuthReturn {
     async (email: string, password: string): Promise<string | null> => {
       if (!supabase) return "Supabase not configured";
       const { error } = await supabase.auth.signUp({ email, password });
-      return error?.message ?? null;
+      return error ? plainError(error.message) : null;
     },
     []
   );
@@ -235,7 +283,7 @@ export function useAuth(): UseAuthReturn {
         email,
         password,
       });
-      return error?.message ?? null;
+      return error ? plainError(error.message) : null;
     },
     []
   );
@@ -243,15 +291,17 @@ export function useAuth(): UseAuthReturn {
   const signOut = useCallback(async () => {
     if (!supabase) return;
     // A partner caches the owner's data locally; clear it on the way out so it
-    // never lingers after access ends. An owner keeps their own local data.
-    if (role === "partner") {
+    // never lingers after access ends — also when the role is unconfirmed (an
+    // offline start) but the store has served a partner session. An owner
+    // keeps their own local data.
+    if (role === "partner" || storeMarkedPartner) {
       await container.wipeLocalData().catch(() => {});
     }
     await supabase.auth.signOut();
     setUser(null);
     setSession(null);
     signedOut();
-  }, [role, container, signedOut]);
+  }, [role, storeMarkedPartner, container, signedOut]);
 
   const refreshRole = useCallback(async () => {
     if (user) await detectRole(user.id);
@@ -263,6 +313,7 @@ export function useAuth(): UseAuthReturn {
     role,
     linkedOwnerId,
     hasPartnerLinked,
+    storeMarkedPartner,
     loading,
     signUp,
     signIn,

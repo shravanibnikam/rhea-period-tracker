@@ -118,52 +118,38 @@ describe("DailyLogSheet renders the full vocabulary", () => {
 
   it("stays scrollable rather than overflowing as the lists grow", () => {
     render(<ControlledSheet />);
-    const panel = screen
-      .getByRole("dialog")
-      .querySelector<HTMLElement>(".overflow-y-auto");
-    expect(panel).not.toBeNull();
-    expect(panel!.className).toMatch(/max-h-\[85vh\]/);
+    // The sheet is capped at the viewport height and its body scrolls inside it.
+    const dialog = screen.getByRole("dialog");
+    expect(dialog.className).toMatch(/max-h-\[\d+s?vh\]/);
+    expect(dialog.querySelector(".overflow-y-auto")).not.toBeNull();
   });
 });
 
 describe("mood stays single-select", () => {
+  const pressed = (name: string) => screen.getByRole("button", { name }).getAttribute("aria-pressed");
+
   it("replaces the previous mood rather than accumulating", () => {
     render(<ControlledSheet />);
     fireEvent.click(screen.getByRole("button", { name: "Overwhelmed" }));
     fireEvent.click(screen.getByRole("button", { name: "Hopeful" }));
-
-    // Exactly one selected pill in the mood row, and it is the last clicked.
-    // "Neutral" was never touched, so its fill is the unselected baseline.
-    const unselectedBg = screen.getByRole("button", { name: "Neutral" }).style
-      .backgroundColor;
-    const selected = MOOD_OPTIONS.filter(
-      (m) =>
-        screen.getByRole("button", { name: m }).style.backgroundColor !==
-        unselectedBg
-    );
-    expect(selected).toEqual(["Hopeful"]);
+    // Exactly one pressed pill in the mood row, and it is the last clicked.
+    expect(MOOD_OPTIONS.filter((m) => pressed(m) === "true")).toEqual(["Hopeful"]);
   });
 
   it("clears the mood when the active one is tapped again", () => {
     render(<ControlledSheet initial={{ mood: "Tearful" }} />);
-    const pill = () => screen.getByRole("button", { name: "Tearful" });
-    const selectedBg = pill().style.backgroundColor;
-
-    fireEvent.click(pill());
-    expect(pill().style.backgroundColor).not.toBe(selectedBg);
+    expect(pressed("Tearful")).toBe("true");
+    fireEvent.click(screen.getByRole("button", { name: "Tearful" }));
+    expect(pressed("Tearful")).toBe("false");
   });
 
   it("symptoms remain multi-select, unlike mood", () => {
     render(<ControlledSheet />);
     fireEvent.click(screen.getByRole("button", { name: "Migraine" }));
     fireEvent.click(screen.getByRole("button", { name: "Joint pain" }));
-
-    const unselectedBg = screen.getByRole("button", { name: "Chills" }).style
-      .backgroundColor;
-    expect(screen.getByRole("button", { name: "Migraine" }).style.backgroundColor)
-      .not.toBe(unselectedBg);
-    expect(screen.getByRole("button", { name: "Joint pain" }).style.backgroundColor)
-      .not.toBe(unselectedBg);
+    expect(pressed("Migraine")).toBe("true");
+    expect(pressed("Joint pain")).toBe("true");
+    expect(pressed("Chills")).toBe("false");
   });
 });
 

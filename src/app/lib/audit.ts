@@ -23,12 +23,14 @@ export async function logAudit(
 
 export async function getAuditLog(actorId: string): Promise<AuditEntry[]> {
   if (!supabase) return [];
-  const { data } = await supabase
+  const { data, error } = await supabase
     .from("audit_log")
     .select("*")
     .eq("actor_id", actorId)
     .order("created_at", { ascending: false })
     .limit(50);
+  // A failed read rejects: an empty list would say "no changes recorded".
+  if (error) throw error;
   return (data as AuditEntry[]) ?? [];
 }
 

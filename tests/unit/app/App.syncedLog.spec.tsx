@@ -310,7 +310,7 @@ describe("App: the active log stays in step with synced data (P0-N2)", () => {
     expect(await storedNotes(c)).toBe("PHONE-LATER"); // the pull reached the store
 
     expect(notes.value).toBe("TYPED-WHILE-SYNCING"); // before Save
-    fireEvent.click(screen.getByRole("button", { name: "Save Log" }));
+    fireEvent.click(screen.getByRole("button", { name: "Save log" }));
     await waitFor(() => expect(screen.queryByRole("dialog", { name: "Log your day" })).toBeNull());
     expect(await storedNotes(c)).toBe("TYPED-WHILE-SYNCING");
   });

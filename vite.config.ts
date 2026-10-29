@@ -19,7 +19,13 @@ export default defineConfig(({ mode }) => {
         cleanupOutdatedCaches: true,
         clientsClaim: true,
         skipWaiting: false, // Don't replace a running app during an unsaved edit.
-        runtimeCaching: [], // Cache only built assets, never health/API responses.
+        // Built assets are precached. The landing page's pictures are cached on
+        // first view (not precached for every app user). Never health/API responses.
+        runtimeCaching: [{
+          urlPattern: ({ sameOrigin, url }) => sameOrigin && url.pathname.includes("/landing/"),
+          handler: "CacheFirst",
+          options: { cacheName: "rhea-landing-images", expiration: { maxEntries: 16 } },
+        }],
       },
     })],
     resolve: {

@@ -1,112 +1,113 @@
-import { Shield, Heart, Moon } from "lucide-react";
+import { CalendarPlus, ChevronRight, FileUp, PenLine, type LucideIcon } from "lucide-react";
+import { cn } from "@/app/lib/cn";
+import { RheaMark } from "@/app/components/shared/RheaMark";
 
 interface OnboardingProps {
   onStartLogging: () => void;
   onImport: () => void;
   onQuickAdd: () => void;
+  /** A build with accounts (Supabase configured): mention sync and partners. */
+  hosted?: boolean;
 }
 
-export function Onboarding({ onStartLogging, onImport, onQuickAdd }: OnboardingProps) {
+const CARD = "rounded-2xl border border-border bg-card p-6 sm:p-8";
+
+function Action({
+  icon: Icon,
+  title,
+  detail,
+  onClick,
+  primary = false,
+}: {
+  icon: LucideIcon;
+  title: string;
+  detail: string;
+  onClick: () => void;
+  primary?: boolean;
+}) {
   return (
-    <div className="space-y-6">
-      {/* Welcome hero */}
-      <div className="rounded-3xl p-8 sm:p-10 border text-center bg-card border-border">
-        <img
-          src={`${import.meta.env.BASE_URL}rhea-mark.svg`}
-          alt="Rhea"
-          className="w-16 h-16 mx-auto mb-4"
-        />
-        <h1 className="font-serif text-3xl sm:text-4xl font-bold text-foreground mb-2">
-          Welcome to Rhea
-        </h1>
-        <p className="text-sm text-muted-foreground max-w-md mx-auto leading-relaxed">
-          A local-first cycle tracker built for two people.
-        </p>
-      </div>
+    <button
+      type="button"
+      onClick={onClick}
+      className={cn(
+        "flex min-h-16 w-full items-center gap-4 rounded-xl px-4 py-3 text-left transition-colors",
+        primary
+          ? "bg-menstrual-tint text-menstrual-ink hover:bg-menstrual-tint/70"
+          : "border border-border hover:bg-muted"
+      )}
+    >
+      <Icon size={20} aria-hidden="true" className="shrink-0" />
+      <span className="min-w-0 flex-1">
+        <span className="block text-base font-semibold">{title}</span>
+        <span className={cn("block text-sm", primary ? "opacity-80" : "text-muted-foreground")}>{detail}</span>
+      </span>
+      <ChevronRight size={18} aria-hidden="true" className="shrink-0 opacity-60" />
+    </button>
+  );
+}
 
-      {/* Principles */}
-      <div className="grid sm:grid-cols-3 gap-3">
-        <div className="bg-card rounded-2xl border border-border p-5 text-center">
-          <Shield size={24} className="mx-auto mb-3 text-primary" />
-          <p className="text-sm font-semibold text-foreground mb-1">Where your data lives</p>
-          <p className="text-xs text-muted-foreground leading-relaxed">
-            Your logs are stored on this device. When you&apos;re signed in they
-            also sync to our server, where they are not yet end-to-end
-            encrypted. No ads, no analytics.
-          </p>
-        </div>
-        <div className="bg-card rounded-2xl border border-border p-5 text-center">
-          <Moon size={24} className="mx-auto mb-3 text-primary" />
-          <p className="text-sm font-semibold text-foreground mb-1">Honest predictions</p>
-          <p className="text-xs text-muted-foreground leading-relaxed">
-            Estimates are labelled as estimates. The more you log, the better they get.
-          </p>
-        </div>
-        <div className="bg-card rounded-2xl border border-border p-5 text-center">
-          <Heart size={24} className="mx-auto mb-3 text-primary" />
-          <p className="text-sm font-semibold text-foreground mb-1">Built for two</p>
-          <p className="text-xs text-muted-foreground leading-relaxed">
-            Choose what your partner&apos;s view shows, and unlink them anytime.
-          </p>
-        </div>
-      </div>
-
-      {/* Actions */}
-      <div className="bg-card rounded-2xl border border-border p-6">
-        <h2 className="font-serif text-xl font-semibold text-foreground mb-1">
+export function Onboarding({ onStartLogging, onImport, onQuickAdd, hosted = false }: OnboardingProps) {
+  return (
+    <div className="grid items-start gap-6 lg:grid-cols-12">
+      <section aria-labelledby="get-started" className={cn(CARD, "lg:col-span-7")}>
+        <RheaMark size={40} label="Rhea" className="size-10" />
+        <h1 id="get-started" className="mt-5 text-3xl">
           Get started
-        </h2>
-        <p className="text-xs text-muted-foreground mb-5">
-          Log your first period to see predictions, or import history from another app.
+        </h1>
+        <p className="mt-2 max-w-prose text-base text-muted-foreground">
+          Add your last period and Rhea estimates your cycle day and your next period. Once your
+          next period is logged, it estimates your fertile window too, and every cycle you log
+          sharpens the estimates.
         </p>
-
-        <div className="space-y-3">
-          <button
+        <div className="mt-6 grid gap-3">
+          <Action
+            primary
+            icon={CalendarPlus}
+            title="Add your last period"
+            detail="Pick the start date and how many days it lasted"
             onClick={onQuickAdd}
-            className="w-full flex items-center gap-4 p-4 rounded-xl border-2 border-primary/30 hover:border-primary/60 bg-primary/5 transition-all text-left"
-          >
-            <span className="text-2xl">&#x1F4C5;</span>
-            <div>
-              <p className="text-sm font-semibold text-foreground">
-                Add your last period
-              </p>
-              <p className="text-xs text-muted-foreground">
-                Pick the start date and how many days it lasted
-              </p>
-            </div>
-          </button>
-
-          <button
-            onClick={onStartLogging}
-            className="w-full flex items-center gap-4 p-4 rounded-xl border border-border hover:bg-muted/50 transition-all text-left"
-          >
-            <span className="text-2xl">&#x270D;&#xFE0F;</span>
-            <div>
-              <p className="text-sm font-semibold text-foreground">
-                Log today
-              </p>
-              <p className="text-xs text-muted-foreground">
-                Start tracking from right now
-              </p>
-            </div>
-          </button>
-
-          <button
+          />
+          <Action icon={PenLine} title="Log today" detail="Flow, symptoms, mood and energy" onClick={onStartLogging} />
+          <Action
+            icon={FileUp}
+            title="Import from another app"
+            detail="Clue, Flo, Apple Health, or any CSV"
             onClick={onImport}
-            className="w-full flex items-center gap-4 p-4 rounded-xl border border-border hover:bg-muted/50 transition-all text-left"
-          >
-            <span className="text-2xl">&#x1F4E5;</span>
-            <div>
-              <p className="text-sm font-semibold text-foreground">
-                Import from another app
-              </p>
-              <p className="text-xs text-muted-foreground">
-                Clue, Flo, Apple Health, or any CSV
-              </p>
-            </div>
-          </button>
+          />
         </div>
-      </div>
+      </section>
+
+      <section aria-labelledby="good-to-know" className={cn(CARD, "lg:col-span-5")}>
+        <h2 id="good-to-know" className="text-xl">
+          Good to know
+        </h2>
+        <dl className="mt-4 space-y-5 text-sm">
+          <div>
+            <dt className="text-base font-semibold">Where your logs live</dt>
+            <dd className="mt-1 text-muted-foreground">
+              {hosted
+                ? "On this device. When you sign in they sync to your account over TLS; synced data is not end-to-end encrypted."
+                : "On this device. This version of Rhea has no account and no sync."}
+            </dd>
+          </div>
+          <div>
+            <dt className="text-base font-semibold">Estimates, labelled as estimates</dt>
+            <dd className="mt-1 text-muted-foreground">
+              Every prediction says how sure it is. The fertile window is a calendar estimate, not
+              contraception.
+            </dd>
+          </div>
+          {hosted && (
+            <div>
+              <dt className="text-base font-semibold">Built for two</dt>
+              <dd className="mt-1 text-muted-foreground">
+                Link a partner and choose what their view shows. Their account can read the logs you
+                sync, and you can unlink them at any time.
+              </dd>
+            </div>
+          )}
+        </dl>
+      </section>
     </div>
   );
 }

@@ -1,173 +1,229 @@
-import { useState } from "react";
+import { useEffect, useRef, useState, type FormEvent, type ReactNode } from "react";
+import { Eye, EyeOff } from "lucide-react";
+import { Button } from "@/app/components/ui/Button";
+import { cn } from "@/app/lib/cn";
+import { RheaMark } from "@/app/components/shared/RheaMark";
+import { PrivacyPolicy } from "@/app/views/settings/PrivacyPolicy";
 
 interface AuthScreenProps {
   onSignUp: (email: string, password: string) => Promise<string | null>;
   onSignIn: (email: string, password: string) => Promise<string | null>;
+  /** Which form opens first (the landing page's "Create your account" opens sign-up). */
+  initialMode?: "signin" | "signup";
 }
 
-export function AuthScreen({ onSignUp, onSignIn }: AuthScreenProps) {
-  const [mode, setMode] = useState<"signin" | "signup">("signin");
+/** Shared by the sign-in and partner-invite screens: one centred, narrow column. */
+export const AUTH_SCREEN = "flex min-h-svh items-center justify-center bg-background px-4 py-12";
+export const AUTH_INPUT =
+  "h-12 w-full rounded-xl border border-input bg-input-background px-4 text-base text-foreground placeholder:text-muted-foreground";
+export const AUTH_LINK = "font-semibold text-foreground underline underline-offset-4 hover:text-foreground/75";
+
+/**
+ * The auth card: a soft pastel header (the mark, the title, one kind sentence) over its body.
+ * `focusTitle` moves focus to the title on mount, so a screen that replaces a form is announced.
+ */
+export function AuthCard({
+  title,
+  intro,
+  children,
+  focusTitle = false,
+}: {
+  title: string;
+  intro: ReactNode;
+  children: ReactNode;
+  focusTitle?: boolean;
+}) {
+  const heading = useRef<HTMLHeadingElement>(null);
+  useEffect(() => {
+    if (focusTitle) heading.current?.focus();
+  }, [focusTitle]);
+  return (
+    <div className="overflow-hidden rounded-3xl border border-border bg-card shadow-soft">
+      <header className="bg-accent px-6 pt-8 pb-7 text-center text-accent-foreground">
+        <span className="mx-auto flex size-14 items-center justify-center rounded-full bg-card shadow-soft">
+          <RheaMark size={32} label="Rhea" />
+        </span>
+        <h1 ref={heading} tabIndex={focusTitle ? -1 : undefined} className="mt-5 text-3xl text-foreground outline-none">
+          {title}
+        </h1>
+        <p className="mx-auto mt-2 max-w-xs text-base">{intro}</p>
+      </header>
+      <div className="p-5 sm:p-6">{children}</div>
+    </div>
+  );
+}
+
+/** The honest sync note under every auth form, and the policy it links to. */
+export function PrivacyNote() {
+  const [open, setOpen] = useState(false);
+  return (
+    <div className="mt-8 text-center text-sm text-muted-foreground">
+      <p>Your logs sync to your account over TLS. Synced data is not end-to-end encrypted.</p>
+      <button type="button" onClick={() => setOpen(true)} className={cn(AUTH_LINK, "inline-flex min-h-11 items-center")}>
+        Read the privacy policy
+      </button>
+      {open && <PrivacyPolicy onClose={() => setOpen(false)} />}
+    </div>
+  );
+}
+
+export function AuthScreen({ onSignUp, onSignIn, initialMode = "signin" }: AuthScreenProps) {
+  const [mode, setMode] = useState<"signin" | "signup">(initialMode);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [signupSuccess, setSignupSuccess] = useState(false);
+  const signup = mode === "signup";
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
+    if (submitting) return; // busy: the button is aria-disabled, not disabled, so it keeps focus
     setError(null);
     setSubmitting(true);
-
-    const err =
-      mode === "signup"
-        ? await onSignUp(email, password)
-        : await onSignIn(email, password);
-
+    const err = signup ? await onSignUp(email, password) : await onSignIn(email, password);
     setSubmitting(false);
+    if (err) setError(err);
+    else if (signup) setSignupSuccess(true);
+  };
 
-    if (err) {
-      setError(err);
-    } else if (mode === "signup") {
-      setSignupSuccess(true);
-    }
+  const switchMode = () => {
+    setMode(signup ? "signin" : "signup");
+    setError(null);
   };
 
   if (signupSuccess) {
     return (
-      <div className="min-h-screen bg-background font-sans flex items-center justify-center px-4">
-        <div className="w-full max-w-sm text-center">
-          <img src={`${import.meta.env.BASE_URL}rhea-mark.svg`} alt="Rhea" className="w-12 h-12 mx-auto mb-4" />
-          <h1 className="font-serif text-2xl font-bold text-foreground mb-2">
-            Check your email
-          </h1>
-          <p className="text-sm text-muted-foreground mb-6">
-            We sent a confirmation link to <strong>{email}</strong>. Click it to
-            activate your account, then come back and sign in.
-          </p>
-          <button
-            onClick={() => {
-              setSignupSuccess(false);
-              setMode("signin");
-            }}
-            className="text-sm text-primary hover:underline"
+      <main className={AUTH_SCREEN}>
+        <div className="w-full max-w-sm">
+          <AuthCard
+            focusTitle
+            title="Check your email"
+            intro={
+              <>
+                We sent a confirmation link to <strong className="font-semibold break-all">{email}</strong>. Open it
+                to activate your account, then sign in here.
+              </>
+            }
           >
-            Back to sign in
-          </button>
+            <Button
+              variant="outline"
+              size="lg"
+              className="w-full"
+              onClick={() => {
+                setSignupSuccess(false);
+                setMode("signin");
+              }}
+            >
+              Back to sign in
+            </Button>
+          </AuthCard>
         </div>
-      </div>
+      </main>
     );
   }
 
   return (
-    <div className="min-h-screen bg-background font-sans flex items-center justify-center px-4">
+    <main className={AUTH_SCREEN}>
       <div className="w-full max-w-sm">
-        <div className="text-center mb-8">
-          <img src={`${import.meta.env.BASE_URL}rhea-mark.svg`} alt="Rhea" className="w-14 h-14 mx-auto mb-4" />
-          <h1 className="font-serif text-3xl font-bold text-foreground mb-1">
-            Rhea
-          </h1>
-          <p className="text-xs text-muted-foreground mb-2">
-            Your period tracking app
-          </p>
-          <p className="text-sm text-muted-foreground">
-            {mode === "signin"
-              ? "Welcome back"
-              : "Create your account"}
-          </p>
-        </div>
+        <AuthCard
+          title={signup ? "Create your account" : "Welcome back"}
+          intro={
+            signup
+              ? "Glad you're here. An account keeps your logs in step across your devices and lets you link a partner if you'd like."
+              : "Sign in to see your logs, or the view a partner shares with you."
+          }
+        >
+          <form onSubmit={handleSubmit} className="space-y-4">
+            <div>
+              <label htmlFor="auth-email" className="text-sm text-foreground">
+                Email
+              </label>
+              <input
+                id="auth-email"
+                name="email"
+                type="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                required
+                autoComplete="email"
+                spellCheck={false}
+                placeholder="you@example.com"
+                className={`mt-2 ${AUTH_INPUT}`}
+              />
+            </div>
 
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <div>
-            <label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-1.5 block">
-              Email
-            </label>
-            <input
-              type="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              required
-              autoComplete="email"
-              className="w-full rounded-xl border border-border bg-muted/50 px-4 py-3 text-sm text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:ring-2 focus:ring-primary/30"
-              placeholder="you@example.com"
-            />
-          </div>
-
-          <div>
-            <label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-1.5 block">
-              Password
-            </label>
-            <input
-              type="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              required
-              minLength={6}
-              autoComplete={mode === "signup" ? "new-password" : "current-password"}
-              className="w-full rounded-xl border border-border bg-muted/50 px-4 py-3 text-sm text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:ring-2 focus:ring-primary/30"
-              placeholder={mode === "signup" ? "At least 6 characters" : "Your password"}
-            />
-          </div>
-
-          {error && (
-            <p className="text-xs text-destructive bg-destructive/10 rounded-xl px-4 py-2.5">
-              {error}
-            </p>
-          )}
-
-          <button
-            type="submit"
-            disabled={submitting}
-            className="w-full py-3 rounded-xl font-medium text-sm text-white bg-primary hover:opacity-90 transition-opacity disabled:opacity-50"
-          >
-            {submitting
-              ? "..."
-              : mode === "signin"
-                ? "Sign in"
-                : "Create account"}
-          </button>
-        </form>
-
-        <div className="mt-6 text-center">
-          <p className="text-xs text-muted-foreground">
-            {mode === "signin" ? (
-              <>
-                No account yet?{" "}
+            <div>
+              <label htmlFor="auth-password" className="text-sm text-foreground">
+                Password
+              </label>
+              <div className="relative mt-2">
+                <input
+                  id="auth-password"
+                  name="password"
+                  type={showPassword ? "text" : "password"}
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  required
+                  minLength={6}
+                  autoComplete={signup ? "new-password" : "current-password"}
+                  placeholder={signup ? undefined : "Your password"}
+                  aria-describedby={signup ? "auth-password-hint" : undefined}
+                  className={`${AUTH_INPUT} pr-12`}
+                />
                 <button
-                  onClick={() => {
-                    setMode("signup");
-                    setError(null);
-                  }}
-                  className="text-primary hover:underline font-medium"
+                  type="button"
+                  aria-label="Show password"
+                  aria-pressed={showPassword}
+                  onClick={() => setShowPassword((v) => !v)}
+                  className="absolute inset-y-0 right-0 flex w-12 items-center justify-center rounded-r-xl text-muted-foreground transition-colors hover:text-foreground"
                 >
-                  Sign up
+                  {showPassword ? <EyeOff size={18} aria-hidden="true" /> : <Eye size={18} aria-hidden="true" />}
                 </button>
-              </>
-            ) : (
-              <>
-                Already have an account?{" "}
-                <button
-                  onClick={() => {
-                    setMode("signin");
-                    setError(null);
-                  }}
-                  className="text-primary hover:underline font-medium"
-                >
-                  Sign in
-                </button>
-              </>
+              </div>
+              {signup && (
+                <p id="auth-password-hint" className="mt-2 text-sm text-muted-foreground">
+                  At least 6 characters.
+                </p>
+              )}
+            </div>
+
+            {error && (
+              <p role="alert" className="text-sm text-destructive">
+                {error}
+              </p>
             )}
-          </p>
-        </div>
 
-        <div className="mt-8 pt-6 border-t border-border">
-          <p className="text-xs text-center text-muted-foreground leading-relaxed">
-            Your logs sync over a secure (TLS) connection but are not yet
-            end-to-end encrypted.
-            <br />
-            You choose what your partner&apos;s view shows.
-          </p>
-        </div>
+            <Button type="submit" size="lg" className="w-full" aria-disabled={submitting || undefined}>
+              {submitting
+                ? signup
+                  ? "Creating account…"
+                  : "Signing in…"
+                : signup
+                  ? "Create account"
+                  : "Sign in"}
+            </Button>
+          </form>
+        </AuthCard>
+
+        <p className="mt-6 text-center text-sm text-muted-foreground">
+          {signup ? "Already have an account?" : "New to Rhea?"}{" "}
+          <button type="button" onClick={switchMode} className={cn(AUTH_LINK, "inline-flex min-h-11 min-w-11 items-center justify-center")}>
+            {signup ? "Sign in" : "Create an account"}
+          </button>
+        </p>
+
+        <PrivacyNote />
+        <p className="text-center text-sm">
+          <a
+            href="#welcome"
+            className="inline-flex min-h-11 items-center text-muted-foreground underline underline-offset-4 hover:text-foreground"
+          >
+            What is Rhea?
+          </a>
+        </p>
       </div>
-    </div>
+    </main>
   );
 }

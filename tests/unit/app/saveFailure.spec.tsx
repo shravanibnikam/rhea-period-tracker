@@ -17,6 +17,7 @@ import { useLogger } from "@/app/hooks/useLogger";
 import { DailyLogSheet } from "@/app/views/tracker/DailyLogSheet";
 import { QuickAddPeriod } from "@/app/views/tracker/QuickAddPeriod";
 import { PHASES } from "@/domain/phases";
+import { addDays, toDateKey } from "@/domain/dates";
 import { emptyLog, type DailyLog } from "@/domain/types";
 
 // INV-WRITE-ACK (P0-04): no UI affordance reports success before its persisting
@@ -125,7 +126,7 @@ describe("DailyLogSheet awaits the save (INV-WRITE-ACK)", () => {
     fireEvent.change(notes, { target: { value: "edited note" } });
 
     const write = await failNextWrite(c);
-    const saveButton = screen.getByRole("button", { name: "Save Log" }) as HTMLButtonElement;
+    const saveButton = screen.getByRole("button", { name: "Save log" }) as HTMLButtonElement;
     fireEvent.click(saveButton);
     await waitFor(() => expect(write).toHaveBeenCalledTimes(1));
 
@@ -135,7 +136,7 @@ describe("DailyLogSheet awaits the save (INV-WRITE-ACK)", () => {
     expect(alert.textContent).toMatch(/couldn't save this log/i);
     expect(onClose).not.toHaveBeenCalled();
     expect(saveButton.disabled).toBe(false);
-    expect(saveButton.textContent).toBe("Save Log");
+    expect(saveButton.textContent).toBe("Save log");
     // The user's edit is still in the form; the stored record is untouched.
     expect(notes.value).toBe("edited note");
     expect((await c.getLog(KEY))?.notes).toBe("private note");
@@ -160,7 +161,7 @@ describe("DailyLogSheet awaits the save (INV-WRITE-ACK)", () => {
         date={DATE}
       />
     );
-    const saveButton = screen.getByRole("button", { name: "Save Log" }) as HTMLButtonElement;
+    const saveButton = screen.getByRole("button", { name: "Save log" }) as HTMLButtonElement;
     fireEvent.click(saveButton);
 
     expect(onSave).toHaveBeenCalledTimes(1);
@@ -196,6 +197,8 @@ describe("QuickAddPeriod awaits the save (INV-WRITE-ACK)", () => {
     );
 
     const write = await failNextWrite(c);
+    // A start ten days back: every day of the period has happened (days after today are never logged).
+    fireEvent.change(screen.getByLabelText("First day"), { target: { value: toDateKey(addDays(new Date(), -10)) } });
     const addButton = screen.getByRole("button", { name: "Add 5-day period" }) as HTMLButtonElement;
     fireEvent.click(addButton);
     await waitFor(() => expect(write).toHaveBeenCalledTimes(1));

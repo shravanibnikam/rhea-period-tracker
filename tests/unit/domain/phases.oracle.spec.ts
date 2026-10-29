@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import {
   anchorsFrom,
+  getOvulationDay,
   getPhaseBoundaries,
   getPhaseForDay,
   getPhaseLengths,
@@ -9,7 +10,8 @@ import {
   type PhaseAnchors,
   type PhaseName,
 } from "@/domain/phases";
-import { getCurrentPhase, buildPeriodLogs } from "@/domain/cycle";
+import { getCurrentPhase, buildPeriodLogs, computeFertileWindow } from "@/domain/cycle";
+import { diffDays, parseDate, toDateKey } from "@/domain/dates";
 import { DEFAULT_LUTEAL_LENGTH } from "@/domain/constants";
 
 // Reference implementation: the exact branching of the pre-M1.3
@@ -115,5 +117,55 @@ describe("buildPeriodLogs (single write path, M1.3)", () => {
       "2026-03-09",
       "2026-03-10",
     ]);
+  });
+});
+
+describe("short cycles: labels and the fertile window follow getPhaseForDay", () => {
+  const PERIOD = 5;
+  // Normal cycles (25 days and up) keep their exact labels; shorter ones squeeze phases out.
+  const EXPECTED: Record<number, Record<PhaseName, string>> = {
+    18: { menstrual: "Days 1–5", follicular: "No days", ovulation: "No days", luteal: "Days 6–18" },
+    21: { menstrual: "Days 1–5", follicular: "No days", ovulation: "Days 6–8", luteal: "Days 9–21" },
+    24: { menstrual: "Days 1–5", follicular: "No days", ovulation: "Days 6–11", luteal: "Days 12–24" },
+    28: { menstrual: "Days 1–5", follicular: "Days 6–9", ovulation: "Days 10–15", luteal: "Days 16–28" },
+    35: { menstrual: "Days 1–5", follicular: "Days 6–16", ovulation: "Days 17–22", luteal: "Days 23–35" },
+  };
+
+  it.each(Object.keys(EXPECTED).map(Number))("%s-day cycle: exact labels", (len) => {
+    const a = anchorsFrom(len, PERIOD);
+    for (const p of PHASE_ORDER) expect(getPhaseRangeLabel(p, a)).toBe(EXPECTED[len][p]);
+  });
+
+  it("every label is exactly the days getPhaseForDay gives that phase, 18 to 45 days", () => {
+    for (let len = 18; len <= 45; len++) {
+      const a = anchorsFrom(len, PERIOD);
+      for (const p of PHASE_ORDER) {
+        const days = Array.from({ length: len }, (_, i) => i + 1).filter((d) => getPhaseForDay(d, a) === p);
+        expect(getPhaseRangeLabel(p, a)).toBe(days.length ? `Days ${days[0]}–${days[days.length - 1]}` : "No days");
+      }
+    }
+  });
+
+  it("the fertile window starts no earlier than the cycle and ends with the ovulation phase, 18 to 45 days", () => {
+    const start = "2026-03-02";
+    const cycleDay = (d: Date) => diffDays(d, parseDate(start)) + 1;
+    for (let len = 18; len <= 45; len++) {
+      const a = anchorsFrom(len, PERIOD);
+      const ov = getPhaseBoundaries(a).ovulation;
+      const fw = computeFertileWindow(start, len, 0, 1)!;
+      // Within the ovulation phase plus the 5 days before it, never before day 1 or in the luteal phase.
+      expect(cycleDay(fw.start)).toBe(Math.max(1, getOvulationDay(len) - 5));
+      expect(cycleDay(fw.start)).toBeGreaterThanOrEqual(Math.max(1, ov.startDay - 5));
+      expect(cycleDay(fw.end)).toBe(getOvulationDay(len) + 1);
+      expect(cycleDay(fw.end)).toBeLessThanOrEqual(Math.max(ov.endDay, PERIOD));
+      expect(getPhaseForDay(cycleDay(fw.end), a)).not.toBe("luteal");
+      expect(cycleDay(fw.ovulationDate)).toBe(getOvulationDay(len));
+    }
+  });
+
+  it("an 18-day cycle's window no longer starts before its period", () => {
+    const fw = computeFertileWindow("2026-03-02", 18, 0, 1)!;
+    expect(toDateKey(fw.start)).toBe("2026-03-02");
+    expect(toDateKey(fw.end)).toBe("2026-03-06");
   });
 });

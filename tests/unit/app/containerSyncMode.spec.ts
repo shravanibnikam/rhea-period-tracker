@@ -150,11 +150,11 @@ describe("Container durable-outbox mode gating", () => {
 
 // The Overview symptom toggle (P0-N2) writes through Container.setSymptom: it
 // must queue exactly as a save does in each OutboxMode (P0-06), including the
-// partner-marked store an unresolved role must never queue from.
+// partner-marked store no mode may queue from (Container.claimForOwner).
 describe("Container.setSymptom queues like a save in every OutboxMode (P0-06 × P0-N2)", () => {
   const rows: Array<{ mode: OutboxMode; marked: boolean; queued: number }> = [
     { mode: "owner", marked: false, queued: 1 },
-    { mode: "owner", marked: true, queued: 1 },
+    { mode: "owner", marked: true, queued: 0 },
     { mode: "unresolved", marked: false, queued: 1 },
     { mode: "unresolved", marked: true, queued: 0 },
     { mode: "off", marked: false, queued: 0 },

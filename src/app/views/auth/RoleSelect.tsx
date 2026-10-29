@@ -1,25 +1,36 @@
-import { useState } from "react";
-import { Moon, Heart } from "lucide-react";
+import { useState, type FormEvent } from "react";
+import { CalendarHeart, ChevronLeft, ChevronRight, HeartHandshake } from "lucide-react";
 import { redeemInviteCode, isValidInviteCode } from "@/app/lib/pairing";
+import { Button } from "@/app/components/ui/Button";
+import { cn } from "@/app/lib/cn";
+import { AUTH_INPUT, AUTH_SCREEN, AuthCard, PrivacyNote } from "@/app/views/auth/AuthScreen";
 
 interface RoleSelectProps {
   onChooseOwner: () => void;
   onPaired: () => void;
 }
 
+// One tile per person, each in its own hue: the tracker's the brand (menstrual) tint, the partner's blue.
+const CHOICE =
+  "flex min-h-[5.5rem] w-full items-center gap-4 rounded-2xl px-5 py-4 text-left transition-[box-shadow,transform] duration-150 hover:ring-2 hover:ring-current/25 active:scale-[0.99]";
+const CHOICE_ICON = "flex size-11 shrink-0 items-center justify-center rounded-full bg-card/80";
+
 export function RoleSelect({ onChooseOwner, onPaired }: RoleSelectProps) {
   const [mode, setMode] = useState<"choose" | "invite">("choose");
   const [code, setCode] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const [cameBack, setCameBack] = useState(false);
 
-  const handleRedeem = async () => {
+  const handleRedeem = async (e: FormEvent) => {
+    e.preventDefault();
+    if (submitting) return; // busy: the button is aria-disabled, not disabled, so it keeps focus
     const trimmed = code.trim();
     if (!trimmed) return;
     // The secret is a case-sensitive base64url string — validate against the
     // real format, but never mutate it (case/internal chars preserved).
     if (!isValidInviteCode(trimmed)) {
-      setError("That doesn't look like a valid invite code — paste the full code your partner shared.");
+      setError("That doesn't look like a valid invite code. Paste the whole code your partner sent.");
       return;
     }
     setError(null);
@@ -35,122 +46,107 @@ export function RoleSelect({ onChooseOwner, onPaired }: RoleSelectProps) {
     }
   };
 
-  if (mode === "invite") {
-    return (
-      <div className="min-h-screen bg-background font-sans flex items-center justify-center px-4">
-        <div className="w-full max-w-sm">
-          <div className="text-center mb-8">
-            <div className="w-14 h-14 rounded-full bg-primary/10 flex items-center justify-center mx-auto mb-4">
-              <Heart size={28} className="text-primary" />
-            </div>
-            <h1 className="font-serif text-2xl font-bold text-foreground mb-2">
-              Join as partner
-            </h1>
-            <p className="text-sm text-muted-foreground">
-              Enter the invite code your partner shared with you
-            </p>
-          </div>
-
-          <div className="space-y-4">
-            <input
-              type="text"
-              value={code}
-              onChange={(e) => setCode(e.target.value)}
-              placeholder="Paste invite code"
-              autoFocus
-              autoCapitalize="none"
-              autoCorrect="off"
-              autoComplete="off"
-              spellCheck={false}
-              aria-label="Invite code"
-              className="w-full rounded-xl border border-border bg-muted/50 px-4 py-4 text-base text-foreground font-mono placeholder:text-muted-foreground/40 focus:outline-none focus:ring-2 focus:ring-primary/30"
-            />
-
-            {error && (
-              <p className="text-xs text-destructive bg-destructive/10 rounded-xl px-4 py-2.5 text-center">
-                {error}
-              </p>
-            )}
-
-            <button
-              onClick={handleRedeem}
-              disabled={submitting || !code.trim()}
-              className="w-full py-3 rounded-xl font-medium text-sm text-white bg-primary hover:opacity-90 transition-opacity disabled:opacity-50"
-            >
-              {submitting ? "Pairing..." : "Connect"}
-            </button>
-
-            <button
-              onClick={() => {
-                setMode("choose");
-                setError(null);
-                setCode("");
-              }}
-              className="w-full text-center text-xs text-muted-foreground hover:text-foreground transition-colors"
-            >
-              Back
-            </button>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
   return (
-    <div className="min-h-screen bg-background font-sans flex items-center justify-center px-4">
-      <div className="w-full max-w-sm">
-        <div className="text-center mb-8">
-          <img src={`${import.meta.env.BASE_URL}rhea-mark.svg`} alt="Rhea" className="w-14 h-14 mx-auto mb-4" />
-          <h1 className="font-serif text-2xl font-bold text-foreground mb-2">
-            Welcome to Rhea
-          </h1>
-          <p className="text-sm text-muted-foreground">
-            How will you use the app?
-          </p>
-        </div>
-
-        <div className="space-y-3">
-          <button
-            onClick={onChooseOwner}
-            className="w-full flex items-center gap-4 p-5 rounded-2xl border-2 border-border hover:border-primary/40 transition-all text-left"
+    <main className={AUTH_SCREEN}>
+      {mode === "invite" ? (
+        <div className="w-full max-w-sm">
+          <Button
+            variant="ghost"
+            className="-ml-4 mb-4"
+            onClick={() => {
+              setMode("choose");
+              setError(null);
+              setCode("");
+              setCameBack(true);
+            }}
           >
-            <div className="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0">
-              <Moon size={24} className="text-primary" />
-            </div>
-            <div>
-              <p className="text-base font-semibold text-foreground">
-                I&apos;m tracking my cycle
-              </p>
-              <p className="text-xs text-muted-foreground mt-0.5">
-                Log periods, symptoms, mood, and energy
-              </p>
-            </div>
-          </button>
-
-          <button
-            onClick={() => setMode("invite")}
-            className="w-full flex items-center gap-4 p-5 rounded-2xl border-2 border-border hover:border-primary/40 transition-all text-left"
+            <ChevronLeft size={18} aria-hidden="true" />
+            Back
+          </Button>
+          <AuthCard
+            title="Join as a partner"
+            intro="Paste the invite code your partner sent you. A code works once, within 30 minutes of being made."
           >
-            <div className="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0">
-              <Heart size={24} className="text-primary" />
-            </div>
-            <div>
-              <p className="text-base font-semibold text-foreground">
-                I&apos;m joining as a partner
-              </p>
-              <p className="text-xs text-muted-foreground mt-0.5">
-                I have an invite code from my partner
-              </p>
-            </div>
-          </button>
-        </div>
+            <form onSubmit={handleRedeem} className="space-y-4">
+              <div>
+                <label htmlFor="invite-code" className="text-sm text-foreground">
+                  Invite code
+                </label>
+                {/* Focus moves here with the step: the button that opened it is gone. */}
+                <input
+                  id="invite-code"
+                  name="invite-code"
+                  type="text"
+                  value={code}
+                  onChange={(e) => setCode(e.target.value)}
+                  placeholder="Paste invite code"
+                  autoFocus
+                  autoCapitalize="none"
+                  autoCorrect="off"
+                  autoComplete="off"
+                  spellCheck={false}
+                  className={`mt-2 font-mono ${AUTH_INPUT}`} /* taste-skill-ignore: invite codes are code (docs/DESIGN.md) */
+                />
+              </div>
 
-        <p className="text-xs text-center text-muted-foreground mt-8">
-          Synced data is not yet end-to-end encrypted.
-          <br />
-          See the privacy policy in Settings for details.
-        </p>
-      </div>
-    </div>
+              {error && (
+                <p role="alert" className="text-sm text-destructive">
+                  {error}
+                </p>
+              )}
+
+              <Button
+                type="submit"
+                size="lg"
+                className="w-full"
+                disabled={!code.trim()}
+                aria-disabled={submitting || undefined}
+              >
+                {submitting ? "Connecting…" : "Connect"}
+              </Button>
+            </form>
+          </AuthCard>
+          <PrivacyNote />
+        </div>
+      ) : (
+        <div className="w-full max-w-md">
+          <AuthCard
+            title="How will you use the app?"
+            intro="Welcome to Rhea. Track your own cycle, or join a partner who has invited you."
+          >
+            <div className="grid gap-3">
+              <button type="button" onClick={onChooseOwner} className={cn(CHOICE, "bg-accent text-accent-foreground")}>
+                <span className={CHOICE_ICON}>
+                  <CalendarHeart size={20} aria-hidden="true" />
+                </span>
+                <span className="min-w-0 flex-1">
+                  <span className="block text-base font-semibold">I&apos;m tracking my cycle</span>
+                  <span className="mt-1 block text-sm">Log periods, symptoms, mood and energy</span>
+                </span>
+                <ChevronRight size={20} aria-hidden="true" className="shrink-0" />
+              </button>
+
+              {/* After Back, focus returns to the tile that opened the invite step. */}
+              <button
+                type="button"
+                onClick={() => setMode("invite")}
+                autoFocus={cameBack}
+                className={cn(CHOICE, "bg-partner-tint text-partner-ink")}
+              >
+                <span className={CHOICE_ICON}>
+                  <HeartHandshake size={20} aria-hidden="true" />
+                </span>
+                <span className="min-w-0 flex-1">
+                  <span className="block text-base font-semibold">I&apos;m joining as a partner</span>
+                  <span className="mt-1 block text-sm">I have an invite code from my partner</span>
+                </span>
+                <ChevronRight size={20} aria-hidden="true" className="shrink-0" />
+              </button>
+            </div>
+          </AuthCard>
+          <PrivacyNote />
+        </div>
+      )}
+    </main>
   );
 }
