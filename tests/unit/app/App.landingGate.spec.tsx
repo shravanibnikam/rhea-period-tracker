@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import "fake-indexeddb/auto";
 import { describe, it, expect, vi, afterEach } from "vitest";
-import { render, screen, cleanup, act } from "@testing-library/react";
+import { render, screen, cleanup, act, fireEvent } from "@testing-library/react";
 import App from "@/app/App";
 import { Container } from "@/app/di/Container";
 import { ContainerProvider } from "@/app/di/context";
@@ -76,5 +76,26 @@ describe("App: the landing gate follows the hash", () => {
     expect(await screen.findByRole("heading", { name: "Get started" })).toBeTruthy();
     await go("#welcome");
     await landing();
+  });
+
+  it("entering leaves a history entry: Back returns to the landing page, Forward to the app", async () => {
+    visit.welcomed = false;
+    await renderAt("", { withData: false });
+    fireEvent.click((await landing())[0]);
+    expect(await screen.findByRole("heading", { name: "Get started" })).toBeTruthy();
+    expect(window.location.hash).toBe("#today");
+
+    await act(async () => {
+      history.back();
+      await new Promise((r) => setTimeout(r, 50)); // jsdom traverses history in a task
+    });
+    expect(window.location.hash).toBe("#welcome");
+    await landing();
+
+    await act(async () => {
+      history.forward();
+      await new Promise((r) => setTimeout(r, 50));
+    });
+    expect(await screen.findByRole("heading", { name: "Get started" })).toBeTruthy();
   });
 });

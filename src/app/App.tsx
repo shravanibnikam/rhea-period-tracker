@@ -342,13 +342,15 @@ function AppScreens() {
       markWelcomed();
       setAuthMode(mode);
       setShowLanding(false);
-      if (window.location.hash === "#welcome") {
-        history.replaceState(null, "", window.location.pathname + window.location.search);
-      }
+      // Back returns here: this entry becomes #welcome (the hashchange listener reopens the
+      // landing on it), and the app gets an entry of its own.
+      history.replaceState(null, "", "#welcome");
+      history.pushState(null, "", "#today");
     };
     return (
       <Landing
-        hosted={auth.isConfigured && !auth.user}
+        hosted={auth.isConfigured}
+        signedIn={!!auth.user}
         onStart={() => enter("signup")}
         onSignIn={() => enter("signin")}
       />
