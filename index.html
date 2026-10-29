@@ -13,10 +13,20 @@
     <meta name="apple-mobile-web-app-status-bar-style" content="default" />
     <style>html, body { height: 100%; margin: 0; } #root { height: 100%; } html { background: #FBF7F5; } html.dark { background: #1B1519; }</style>
     <script>
-      // Theme before first paint (mirrors useTheme.applyTheme).
+      // Theme before first paint (mirrors useTheme.applyTheme). Never dark when the landing gate
+      // will show: the landing is designed light (mirrors App.wantsLanding and welcome.ts).
       try {
+        var welcomed = false;
+        try {
+          welcomed = localStorage.getItem("rhea:welcomed") === "1";
+        } catch (e) {}
+        var standalone =
+          (window.matchMedia && window.matchMedia("(display-mode: standalone)").matches === true) ||
+          navigator.standalone === true;
+        var h = location.hash;
+        var landing = h === "#welcome" || (h === "" && !welcomed && !standalone);
         var t = localStorage.getItem("rhea:theme");
-        if (t === "dark" || (t !== "light" && matchMedia("(prefers-color-scheme: dark)").matches))
+        if (!landing && (t === "dark" || (t !== "light" && matchMedia("(prefers-color-scheme: dark)").matches)))
           document.documentElement.classList.add("dark");
       } catch (e) {}
     </script>
