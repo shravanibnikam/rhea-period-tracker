@@ -36,6 +36,31 @@
 - "In N days" counts could read one day short later in the day.
 - With no period logged, the partner view no longer shows the default phase's
   tips as if they were real.
+- Partner privacy:
+  - If a partner's account can't be confirmed (for example offline), the
+    device shows no cycle data.
+  - After an unlink, the former partner's device deletes the owner's cached
+    logs before the account is used as an owner, and never uploads them.
+  - Partners can't change the cycle length the partner view predicts from.
+  - The partner view's colours never reveal the owner's phase unless it is
+    shared.
+  - The calendar shows predicted periods only with Cycle heads-up on.
+- Cycles:
+  - A spotting day on its own no longer starts a new cycle.
+  - Cycle and period lengths no longer lose a day across a daylight-saving
+    change.
+  - Excluded cycles no longer count toward the period length.
+  - While a period is late, the calendar agrees with Today.
+  - The fertile window ends with the ovulation phase.
+  - Very short cycles never show an empty phase range.
+- "Add a period" no longer logs days after today.
+- Imports detect the source app from the file's contents, not its name, and
+  normalize energy levels.
+- The backup file is named with the local date.
+- Accessibility:
+  - Off switches and field borders meet 3:1 contrast.
+  - Closing a sheet returns focus to what opened it.
+  - Errors read as plain sentences.
 
 ### Removed
 
