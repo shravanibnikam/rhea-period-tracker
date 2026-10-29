@@ -1,4 +1,5 @@
 import { supabase } from "@/app/lib/supabase";
+import { plainError } from "@/app/lib/errors";
 
 // ─── Invite code format ──────────────────────────────────────────────────────
 
@@ -35,6 +36,7 @@ export async function createInviteCode(_ownerId: string): Promise<string | null>
 
 // ─── Partner: redeem an invite code ──────────────────────────────────────────
 
+/** Resolves to null on success, or a sentence to show (never raw client or database text). */
 export async function redeemInviteCode(code: string): Promise<string | null> {
   if (!supabase) return "Not connected";
 
@@ -43,7 +45,7 @@ export async function redeemInviteCode(code: string): Promise<string | null> {
     p_secret: code.trim(),
   });
 
-  return error?.message ?? null;
+  return error ? plainError(error.message) : null;
 }
 
 // ─── Check if the current user has a partner linked ──────────────────────────
@@ -99,6 +101,7 @@ export async function getPartnerLink(userId: string): Promise<PartnerLink | null
 
 // ─── Owner: unpair (revoke partner access) ───────────────────────────────────
 
+/** Resolves to null on success, or a sentence to show (never raw client or database text). */
 export async function unpair(ownerId: string): Promise<string | null> {
   if (!supabase) return "Not connected";
 
@@ -107,5 +110,5 @@ export async function unpair(ownerId: string): Promise<string | null> {
     .delete()
     .eq("owner_id", ownerId);
 
-  return error?.message ?? null;
+  return error ? plainError(error.message) : null;
 }

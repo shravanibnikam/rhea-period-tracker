@@ -12,7 +12,7 @@ interface LinkResult {
   error: { message: string; code?: string } | null;
 }
 
-const { rpc, links, linkQuery } = vi.hoisted(() => {
+const { rpc, links, linkQuery, unlink } = vi.hoisted(() => {
   /** partner_links rows (or a returned error) per filter column. */
   const links: Record<string, LinkRows | "error"> = {};
   const settle = (column: string, shape: (rows: LinkRows) => LinkResult) => {
@@ -31,7 +31,7 @@ const { rpc, links, linkQuery } = vi.hoisted(() => {
       ),
     limit: (n: number) => settle(column, (rows) => ({ data: rows.slice(0, n), error: null })),
   });
-  return { rpc: vi.fn(), links, linkQuery };
+  return { rpc: vi.fn(), links, linkQuery, unlink: vi.fn() };
 });
 vi.mock("@/app/lib/supabase", () => ({
   supabase: {
@@ -40,6 +40,7 @@ vi.mock("@/app/lib/supabase", () => ({
       select: (_cols: string) => ({
         eq: (column: string, _value: string) => linkQuery(column),
       }),
+      delete: () => ({ eq: unlink }),
     }),
   },
 }));
@@ -49,6 +50,7 @@ import {
   createInviteCode,
   isValidInviteCode,
   getPartnerLink,
+  unpair,
 } from "@/app/lib/pairing";
 
 // A representative real secret: 20 chars, mixed case, with '_' and '-'.
@@ -88,9 +90,25 @@ describe("redeemInviteCode — sends the code verbatim to redeem_invite", () => 
     await redeemInviteCode("   " + CODE + "\n");
     expect(rpc).toHaveBeenCalledWith("redeem_invite", { p_secret: CODE });
   });
-  it("surfaces the server error message", async () => {
+  it("says a rejected code in plain words, never the database text", async () => {
     rpc.mockResolvedValue({ error: { message: "Invalid, expired, or already-used invite" } });
-    expect(await redeemInviteCode(CODE)).toBe("Invalid, expired, or already-used invite");
+    expect(await redeemInviteCode(CODE)).toMatch(/^That code doesn't work any more/);
+  });
+  it("says a network failure in plain words, never 'TypeError: Failed to fetch'", async () => {
+    rpc.mockResolvedValue({ error: { message: "TypeError: Failed to fetch" } });
+    expect(await redeemInviteCode(CODE)).toBe("Couldn't reach the server. Check your connection and try again.");
+  });
+});
+
+describe("unpair", () => {
+  it("deletes the owner's links and resolves to null", async () => {
+    unlink.mockResolvedValue({ error: null });
+    expect(await unpair("owner-1")).toBeNull();
+    expect(unlink).toHaveBeenCalledWith("owner_id", "owner-1");
+  });
+  it("says a failure in plain words", async () => {
+    unlink.mockResolvedValue({ error: { message: "TypeError: Failed to fetch" } });
+    expect(await unpair("owner-1")).toBe("Couldn't reach the server. Check your connection and try again.");
   });
 });
 
