@@ -28,6 +28,7 @@ import { AuthScreen } from "@/app/views/auth/AuthScreen";
 import { RoleSelect } from "@/app/views/auth/RoleSelect";
 import { Landing } from "@/app/views/landing/Landing";
 import { hasWelcomed, markWelcomed, isStandalone } from "@/app/lib/welcome";
+import { releaseStartupTheme } from "@/app/hooks/useTheme";
 
 // Toasts float over the screen, so they carry the soft elevation.
 const TOAST =
@@ -324,8 +325,20 @@ function AppScreens() {
     [saveActiveLogs, todayKey]
   );
 
+  const loadingScreen = auth.loading || dataLoading || dataFor !== dataKey;
+  // The landing never shows over an existing account's data or session, unless asked for (#welcome).
+  const onLanding = showLanding && (window.location.hash === "#welcome" || (!auth.user && !hasData));
+  // Anything but the landing hands the theme back (initTheme held it light for a possible
+  // landing). A returning account that skipped the landing is remembered as welcomed, so
+  // index.html paints its theme from the first frame next time.
+  useEffect(() => {
+    if (loadingScreen || onLanding) return;
+    if (showLanding) markWelcomed();
+    releaseStartupTheme();
+  }, [loadingScreen, onLanding, showLanding]);
+
   // ── Loading ──
-  if (auth.loading || dataLoading || dataFor !== dataKey) {
+  if (loadingScreen) {
     return (
       <div className="flex min-h-dvh items-center justify-center bg-background font-sans">
         <div role="status" className="flex flex-col items-center gap-4">
@@ -336,8 +349,8 @@ function AppScreens() {
     );
   }
 
-  // ── Landing ── never over an existing account's data or session, unless asked for (#welcome).
-  if (showLanding && (window.location.hash === "#welcome" || (!auth.user && !hasData))) {
+  // ── Landing ──
+  if (onLanding) {
     const enter = (mode: "signin" | "signup") => {
       markWelcomed();
       setAuthMode(mode);

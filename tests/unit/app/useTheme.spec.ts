@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { describe, it, expect, vi, afterEach } from "vitest";
 import { renderHook, act } from "@testing-library/react";
-import { holdLightTheme, initTheme, readTheme, useTheme } from "@/app/hooks/useTheme";
+import { holdLightTheme, initTheme, readTheme, releaseStartupTheme, useTheme } from "@/app/hooks/useTheme";
 
 const isDark = () => document.documentElement.classList.contains("dark");
 
@@ -42,6 +42,19 @@ describe("useTheme", () => {
     release(); // a second release is a no-op
     os.flip(false);
     expect(isDark()).toBe(false);
+  });
+
+  it("stays light from startup while index.html kept the page light for the landing, until App hands it back", () => {
+    vi.stubGlobal("localStorage", { getItem: () => { throw new Error("blocked"); } });
+    stubOs(true);
+    document.documentElement.setAttribute("data-landing", "");
+    initTheme();
+    expect(isDark()).toBe(false);
+    releaseStartupTheme();
+    expect(isDark()).toBe(true);
+    expect(document.documentElement.hasAttribute("data-landing")).toBe(false);
+    releaseStartupTheme(); // repeat calls are no-ops
+    expect(isDark()).toBe(true);
   });
 
   // Last: the session's choice stays for the rest of this module's life.

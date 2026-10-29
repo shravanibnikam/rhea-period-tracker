@@ -25,6 +25,7 @@
           navigator.standalone === true;
         var h = location.hash;
         var landing = h === "#welcome" || (h === "" && !welcomed && !standalone);
+        if (landing) document.documentElement.setAttribute("data-landing", "");
         var t = localStorage.getItem("rhea:theme");
         if (!landing && (t === "dark" || (t !== "light" && matchMedia("(prefers-color-scheme: dark)").matches)))
           document.documentElement.classList.add("dark");

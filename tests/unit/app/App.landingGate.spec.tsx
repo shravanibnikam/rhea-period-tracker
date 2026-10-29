@@ -74,6 +74,7 @@ describe("App: the landing gate follows the hash", () => {
     visit.welcomed = false;
     await renderAt("#insights", { withData: false });
     expect(await screen.findByRole("heading", { name: "Get started" })).toBeTruthy();
+    expect(visit.welcomed).toBe(false); // a deep link isn't a visit to the landing
     await go("#welcome");
     await landing();
   });
@@ -97,5 +98,12 @@ describe("App: the landing gate follows the hash", () => {
       await new Promise((r) => setTimeout(r, 50));
     });
     expect(await screen.findByRole("heading", { name: "Get started" })).toBeTruthy();
+  });
+
+  it("remembers a returning account that skips the landing, so its theme paints at once next time", async () => {
+    visit.welcomed = false;
+    await renderAt("", { withData: true });
+    expect(await screen.findByText(/Day \d+ of \d+/)).toBeTruthy();
+    expect(visit.welcomed).toBe(true);
   });
 });

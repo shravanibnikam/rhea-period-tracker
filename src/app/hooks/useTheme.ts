@@ -48,11 +48,24 @@ export function holdLightTheme(): () => void {
   };
 }
 
+/** The startup hold, while the landing gate may still open (see initTheme). */
+let releaseStartup: (() => void) | null = null;
+
 /** Once at startup: apply, then follow the OS while the preference is "system". */
 export function initTheme(): void {
-  applyTheme(readTheme());
+  // index.html kept the first paint light for a possible landing (data-landing): stay light
+  // until App shows something else, so the page doesn't flash dark in between.
+  if (document.documentElement.hasAttribute("data-landing")) releaseStartup = holdLightTheme();
+  else applyTheme(readTheme());
   // Re-reads storage on every change, so a later explicit choice always wins.
   darkQuery()?.addEventListener?.("change", () => applyTheme(readTheme()));
+}
+
+/** App shows something other than the landing: the preference applies again. Repeat calls are no-ops. */
+export function releaseStartupTheme(): void {
+  document.documentElement.removeAttribute("data-landing");
+  releaseStartup?.();
+  releaseStartup = null;
 }
 
 export function useTheme(): { theme: ThemePref; setTheme: (next: ThemePref) => void } {
