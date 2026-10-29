@@ -1,6 +1,6 @@
 import * as Dialog from "@radix-ui/react-dialog";
 import { X } from "lucide-react";
-import type { ReactNode } from "react";
+import { useRef, type ReactNode } from "react";
 import { cn } from "@/app/lib/cn";
 
 interface SheetProps {
@@ -20,7 +20,7 @@ interface SheetProps {
 /**
  * The one modal surface: a bottom sheet on phones, a centred dialog from `sm`.
  * Radix supplies the focus trap, scroll lock, Escape and `role="dialog"`
- * named by the title.
+ * named by the title. On close, focus returns to whatever opened the sheet.
  */
 export function Sheet({
   open,
@@ -32,12 +32,22 @@ export function Sheet({
   closeDisabled = false,
   className,
 }: SheetProps) {
+  // Sheets open from state, not a Dialog.Trigger, so Radix has no trigger to
+  // return focus to: keep what had focus as the sheet opened, and go back there.
+  const opener = useRef<HTMLElement | null>(null);
   return (
     <Dialog.Root open={open} onOpenChange={onOpenChange}>
       <Dialog.Portal>
         <Dialog.Overlay className="fixed inset-0 z-50 bg-charcoal/45 dark:bg-black/60 data-[state=open]:animate-in data-[state=open]:fade-in-0 data-[state=closed]:animate-out data-[state=closed]:fade-out-0" />
         <Dialog.Content
           {...(description ? {} : { "aria-describedby": undefined })}
+          onOpenAutoFocus={() => {
+            opener.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+          }}
+          onCloseAutoFocus={(e) => {
+            e.preventDefault();
+            opener.current?.focus();
+          }}
           className={cn(
             "fixed z-50 flex flex-col bg-card text-card-foreground shadow-soft outline-none",
             "inset-x-0 bottom-0 max-h-[92svh] rounded-t-3xl",
