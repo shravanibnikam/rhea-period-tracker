@@ -167,6 +167,9 @@ export const ENERGY_LABELS: Record<number, string> = {
 // (The spec \u00a72.2 boundary sketch had ovulation starting AT fertileStart \u2014 an
 // off-by-one inconsistent with its own "identical branching" requirement; the
 // branching wins, spec corrected. See IMPLEMENTATION_JOURNAL S2.3.)
+// The fertile window (cycle.computeFertileWindow) uses the same ovulationDay
+// (getOvulationDay): fertileStart .. ovulationDay+1, so its last day is the
+// ovulation phase's last day and it never runs into the luteal phase.
 
 export interface PhaseAnchors {
   avgCycleLength: number;
@@ -189,13 +192,19 @@ export interface PhaseBoundary {
 }
 export type PhaseBoundaries = Record<PhaseName, PhaseBoundary>;
 
+/** Cycle day (1-indexed) of the estimated ovulation: the one definition, shared with the fertile window. */
+export function getOvulationDay(avgCycleLength: number, lutealLength: number = DEFAULT_LUTEAL_LENGTH): number {
+  return avgCycleLength - lutealLength;
+}
+
 export function getPhaseBoundaries(a: PhaseAnchors): PhaseBoundaries {
-  const ovulationDay = a.avgCycleLength - a.lutealLength;
+  const ovulationDay = getOvulationDay(a.avgCycleLength, a.lutealLength);
   const fertileStart = ovulationDay - 5;
   // Sequential cut points, clamped so phases stay ordered even for degenerate
   // short cycles (fertileStart inside the period) — exactly what the branching
-  // in getPhaseForDay resolves to. A squeezed phase gets width 0, never a
-  // negative or overlapping range, and widths always sum to avgCycleLength.
+  // in getPhaseForDay resolves to. A squeezed phase gets width 0 (startDay =
+  // endDay + 1: getPhaseForDay gives it no day), never a negative or
+  // overlapping range, and widths always sum to avgCycleLength.
   const mEnd = a.avgPeriodLength;
   const fEnd = Math.max(fertileStart, mEnd);
   const oEnd = Math.max(ovulationDay + 1, fEnd);
@@ -210,7 +219,7 @@ export function getPhaseBoundaries(a: PhaseAnchors): PhaseBoundaries {
 /** THE phase-for-day decision. Identical branching to the legacy getCurrentPhase. */
 export function getPhaseForDay(cycleDay: number, a: PhaseAnchors): PhaseName {
   if (cycleDay <= a.avgPeriodLength) return "menstrual";
-  const ovulationDay = a.avgCycleLength - a.lutealLength;
+  const ovulationDay = getOvulationDay(a.avgCycleLength, a.lutealLength);
   const fertileStart = ovulationDay - 5;
   if (cycleDay <= fertileStart) return "follicular";
   if (cycleDay <= ovulationDay + 1) return "ovulation";
@@ -229,8 +238,12 @@ export function getPhaseLengths(a: PhaseAnchors): Record<PhaseName, number> {
   };
 }
 
-/** "Days 1\u20135" \u2014 derived, replacing the baked PhaseData.range strings. */
+/**
+ * "Days 1\u20135" \u2014 derived, replacing the baked PhaseData.range strings. A phase a
+ * short cycle squeezes out (getPhaseForDay gives it no day) reads "No days",
+ * never an empty or inverted range like "Days 6\u20135".
+ */
 export function getPhaseRangeLabel(p: PhaseName, a: PhaseAnchors): string {
   const b = getPhaseBoundaries(a)[p];
-  return `Days ${b.startDay}\u2013${b.endDay}`;
+  return b.endDay < b.startDay ? "No days" : `Days ${b.startDay}\u2013${b.endDay}`;
 }

@@ -4,7 +4,7 @@
 import type { DailyLog, FlowLevel, PhaseName, Period, Cycle, CycleState, PredictedCycle, FertileWindow } from "./types";
 import { DEFAULT_CYCLE_LENGTH, DEFAULT_LUTEAL_LENGTH, ROLLING_AVERAGE_WINDOW } from "./constants";
 import { parseDate, addDays, diffDays, toDateKey } from "./dates";
-import { anchorsFrom, getPhaseForDay } from "./phases";
+import { anchorsFrom, getOvulationDay, getPhaseForDay } from "./phases";
 
 /**
  * Build the flow patches for a quick-added period: `durationDays` consecutive
@@ -180,8 +180,9 @@ export function computeFertileWindow(
 ): FertileWindow | null {
   if (cycleCount < 1) return null;
 
-  const nextPeriod = addDays(parseDate(currentCycleStart), avgCycleLength);
-  const ovulationDate = addDays(nextPeriod, -DEFAULT_LUTEAL_LENGTH);
+  const cycleStart = parseDate(currentCycleStart);
+  // The phase oracle's ovulation day, so the window ends with the ovulation phase.
+  const ovulationDate = addDays(cycleStart, getOvulationDay(avgCycleLength, DEFAULT_LUTEAL_LENGTH) - 1);
 
   // Base window: ovulation -5 to +1
   let windowStart = -5;
@@ -201,8 +202,10 @@ export function computeFertileWindow(
   if (stdDev > 3) confidence *= 0.7;
   if (stdDev > 5) confidence *= 0.5;
 
+  const start = addDays(ovulationDate, windowStart);
   return {
-    start: addDays(ovulationDate, windowStart),
+    // Never before the cycle's first day: a short cycle's window would start in the previous cycle.
+    start: start < cycleStart ? cycleStart : start,
     end: addDays(ovulationDate, windowEnd),
     ovulationDate,
     confidence: Math.round(confidence * 100) / 100,

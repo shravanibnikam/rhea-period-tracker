@@ -100,7 +100,8 @@ describe("Landing", () => {
     expect(SAMPLE_STATE.cycleDay).toBe(18);
     expect(SAMPLE_STATE.phase).toBe("luteal");
     expect(toDateKey(SAMPLE_STATE.nextPeriodDate!)).toBe("2026-11-07");
-    expect(toDateKey(SAMPLE_STATE.fertileWindow!.start)).toBe("2026-10-19");
-    expect(toDateKey(SAMPLE_STATE.fertileWindow!.end)).toBe("2026-10-25");
+    // Ovulation on cycle day 14 (the phase oracle's), so the window ends with the ovulation phase.
+    expect(toDateKey(SAMPLE_STATE.fertileWindow!.start)).toBe("2026-10-18");
+    expect(toDateKey(SAMPLE_STATE.fertileWindow!.end)).toBe("2026-10-24");
   });
 });
