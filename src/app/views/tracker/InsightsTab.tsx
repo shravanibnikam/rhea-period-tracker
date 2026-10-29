@@ -371,7 +371,7 @@ function NextCycles({
         )}
       </div>
       <ul className="mt-3 grid gap-x-4 gap-y-2 text-sm sm:grid-cols-2">
-        {PHASE_ORDER.map((p) => (
+        {PHASE_ORDER.filter((p) => lengths[p] > 0).map((p) => (
           <li key={p} className="flex items-center gap-2">
             <Dot phase={p} />
             <span>{PHASES[p].name}</span>

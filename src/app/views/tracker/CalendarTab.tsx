@@ -6,6 +6,7 @@ import {
   PHASE_ORDER,
   getPhaseForDay,
   getPhaseRangeLabel,
+  getPhaseLengths,
   anchorsFrom,
   type PhaseAnchors,
 } from "@/domain/phases";
@@ -147,6 +148,8 @@ export function CalendarTab({
   hidePredictions = false,
 }: CalendarTabProps) {
   const anchors = anchorsFrom(avgLength, avgPeriodLength);
+  // A very short cycle squeezes a phase to no days: the legend leaves it out.
+  const lengths = getPhaseLengths(anchors);
   const [calMonth, setCalMonth] = useState(
     () => new Date(today.getFullYear(), today.getMonth(), 1)
   );
@@ -354,7 +357,7 @@ export function CalendarTab({
               />
             )}
             {cycles.length > 0 &&
-              PHASE_ORDER.map((p) => (
+              PHASE_ORDER.filter((p) => lengths[p] > 0).map((p) => (
                 <Key
                   key={p}
                   swatch={

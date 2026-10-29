@@ -1,7 +1,7 @@
 import { useState, useEffect, type ReactNode } from "react";
 import { CalendarHeart, CloudOff, HeartHandshake, Moon, type LucideIcon } from "lucide-react";
 import type { PhaseData, PhaseName, CycleState, DailyLog } from "@/domain/types";
-import { PHASES, PHASE_ORDER, ENERGY_LABELS, getPhaseRangeLabel, anchorsFrom } from "@/domain/phases";
+import { PHASES, PHASE_ORDER, ENERGY_LABELS, getPhaseRangeLabel, getPhaseLengths, anchorsFrom } from "@/domain/phases";
 import { toDateKey } from "@/domain/dates";
 import { fmt } from "@/app/lib/format";
 import { cn } from "@/app/lib/cn";
@@ -361,7 +361,7 @@ export function PartnerView({
               A cycle moves through four phases, each with different needs.
             </p>
             <ul className="mt-4 grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
-              {PHASE_ORDER.map((p) => {
+              {PHASE_ORDER.filter((p) => getPhaseLengths(anchors)[p] > 0).map((p) => {
                 const now = hasCycle && p === phase;
                 return (
                   <li
