@@ -1,9 +1,11 @@
-// Landing-page cycle maths, all through Rhea's own engine (domain/cycle). Pure: nothing is stored
+// Landing-page cycle maths, all through Rhea's own engine (domain/phases, domain/cycle). Pure: nothing is stored
 // or sent. Two uses: the visitor's estimate (the live thing) and Maya, the sample person whose
 // six logged cycles fill the interface fragments with numbers that add up.
-import { buildPeriodLogs, computeFertileWindow, deriveCycleState } from "@/domain/cycle";
+import { daysFrom } from "@/app/views/tracker/dateText";
+import { computeFertileWindow, deriveCycleState } from "@/domain/cycle";
 import { DEFAULT_CYCLE_LENGTH } from "@/domain/constants";
-import { addDays, diffDays, parseDate, toDateKey } from "@/domain/dates";
+import { addDays, parseDate, toDateKey } from "@/domain/dates";
+import { anchorsFrom, getPhaseForDay } from "@/domain/phases";
 import { emptyLog, type CycleState, type DailyLog, type FertileWindow, type FlowLevel, type PhaseName } from "@/domain/types";
 
 /** Rhea's period length before any history (domain/cycle computeAverages). */
@@ -11,11 +13,6 @@ export const PERIOD_LENGTH = 5;
 /** The range Settings accepts for a cycle-length override. */
 export const MIN_CYCLE = 18;
 export const MAX_CYCLE = 45;
-
-/** Local midnight: day counts are calendar days (a time of day would floor one away). */
-export function startOfDay(d: Date): Date {
-  return parseDate(toDateKey(d));
-}
 
 /** The usual cycle length typed by the visitor, or Rhea's default when empty or out of range. */
 export function cycleLengthFrom(raw: string): number {
@@ -35,29 +32,30 @@ export interface Estimate {
 
 export type EstimateResult = { estimate: Estimate } | { error: string };
 
-/** null while the date field is empty or half typed. */
+/**
+ * null while the date field is empty or half typed: a typed year passes through 0002, 0020 and
+ * 0202 on its way to 2026, so a year before 1900 is still being typed.
+ */
 export function estimateCycle(startKey: string, cycleLength: number, now: Date): EstimateResult | null {
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(startKey)) return null;
-  const today = startOfDay(now);
-  const ago = diffDays(today, parseDate(startKey));
-  if (Number.isNaN(ago)) return null;
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(startKey) || Number(startKey.slice(0, 4)) < 1900) return null;
+  const start = parseDate(startKey);
+  // Calendar days, rounded: a spring-forward night is 23 hours, not a lost day.
+  const ago = daysFrom(start, now);
   if (ago < 0) return { error: "That date is after today. Pick the first day of your most recent period." };
-  if (ago >= cycleLength * 3) {
-    return { error: `That was ${ago} days ago. Pick the first day of your most recent period.` };
+  if (ago > cycleLength * 1.5) {
+    return { error: `That was ${ago} days ago, more than one and a half cycles back. Pick the first day of your most recent period.` };
   }
-  const logs = buildPeriodLogs(startKey, PERIOD_LENGTH).map((l) => ({ ...emptyLog(l.date), ...l }));
-  const state = deriveCycleState(logs, cycleLength, today);
-  const nextPeriod = state.nextPeriodDate as Date; // one period is logged, so it is set
-  // computeFertileWindow wants one completed cycle; the visitor's usual length stands in for it.
-  const fertile = computeFertileWindow(startKey, state.avgCycleLength, 0, 1) as FertileWindow;
+  const cycleDay = ago + 1;
+  const nextPeriod = addDays(start, cycleLength);
   return {
     estimate: {
-      cycleDay: state.cycleDay,
-      cycleLength: state.avgCycleLength,
-      phase: state.phase,
+      cycleDay,
+      cycleLength,
+      phase: getPhaseForDay(cycleDay, anchorsFrom(cycleLength, PERIOD_LENGTH)),
       nextPeriod,
-      daysToNext: diffDays(nextPeriod, today),
-      fertile,
+      daysToNext: daysFrom(now, nextPeriod),
+      // computeFertileWindow wants one completed cycle; the visitor's usual length stands in for it.
+      fertile: computeFertileWindow(startKey, cycleLength, 0, 1) as FertileWindow,
     },
   };
 }
