@@ -1,6 +1,6 @@
 // domain/insights.ts — the aggregates behind the Insights screen. PURE:
 // imports domain modules only; DailyLog and derived cycles in, plain values out.
-import type { Cycle, DailyLog, PhaseName } from "./types";
+import type { Cycle, CycleState, DailyLog, PhaseName } from "./types";
 import { ROLLING_AVERAGE_WINDOW } from "./constants";
 import { analyzeSymptomPatterns, computeAverages } from "./cycle";
 import { PHASE_ORDER } from "./phases";
@@ -64,6 +64,33 @@ export function cycleStats(cycles: Cycle[]): CycleStats {
     // Same thresholds as cycle.ts getConfidence (private there).
     confidence: counted.length < 2 ? "early" : counted.length < 4 || stdDev > 5 ? "building" : "good",
   };
+}
+
+/**
+ * What the predictions' cycle length comes from, so their copy can name it.
+ * A cycle length set in Settings reaches the screens only as
+ * CycleState.avgCycleLength (with a zero stdDev), so it shows as figures that
+ * differ from what the logs measure.
+ */
+export type PredictionBasis =
+  | { from: "setting" }
+  | { from: "logs"; cycles: number }
+  /** Every completed cycle is excluded: the typical cycle length stands in. */
+  | { from: "allExcluded" }
+  /** No cycle has completed yet: the typical cycle length stands in. */
+  | { from: "firstPeriod" };
+
+export function predictionBasis(state: Pick<CycleState, "cycles" | "avgCycleLength" | "stdDev">): PredictionBasis {
+  const measured = computeAverages(state.cycles, null);
+  // ponytail: a setting equal to the measured length (and stdDev 0) reads as
+  // "logs"; the predictions are the same either way. Pass the setting down to
+  // name it even then.
+  if (state.avgCycleLength !== measured.avgCycleLength || state.stdDev !== measured.stdDev) {
+    return { from: "setting" };
+  }
+  const counted = state.cycles.filter((c) => c.cycleLength !== null && !c.excluded).length;
+  if (counted > 0) return { from: "logs", cycles: counted };
+  return state.cycles.some((c) => c.cycleLength !== null) ? { from: "allExcluded" } : { from: "firstPeriod" };
 }
 
 /** Symptoms ranked by the number of days they were logged on, inside a cycle or not. */

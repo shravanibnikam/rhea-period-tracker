@@ -3,6 +3,7 @@ import { toast } from "sonner";
 import { CalendarPlus, Droplet, PenLine } from "lucide-react";
 import type { CycleState, FlowLevel, PhaseData } from "@/domain/types";
 import { anchorsFrom, getPhaseRangeLabel } from "@/domain/phases";
+import { predictionBasis } from "@/domain/insights";
 import { ALL_SYMPTOMS } from "@/app/lib/constants";
 import { fmt } from "@/app/lib/format";
 import { cn } from "@/app/lib/cn";
@@ -209,10 +210,20 @@ function uncertainty(state: CycleState): string {
   return u > 0 ? `, give or take ${u} ${days(u)}` : "";
 }
 
+/** How sure the estimate is, and what it comes from. */
 function confidence(state: CycleState): string {
-  const complete = state.cycles.filter((c) => c.cycleLength !== null && !c.excluded).length;
-  const basis = complete === 0 ? "your first logged period" : `${complete} complete ${complete === 1 ? "cycle" : "cycles"}`;
-  return `${CONFIDENCE[state.confidence]}, from ${basis}`;
+  const basis = predictionBasis(state);
+  const sure = CONFIDENCE[state.confidence];
+  switch (basis.from) {
+    case "setting": // its accuracy is the setting's, not something the logs can measure
+      return `An estimate from the ${state.avgCycleLength}-day cycle you set`;
+    case "allExcluded":
+      return `${sure} from a typical ${state.avgCycleLength}-day cycle, as all your cycles are excluded`;
+    case "firstPeriod":
+      return `${sure}, from your first logged period`;
+    case "logs":
+      return `${sure}, from ${basis.cycles} complete ${basis.cycles === 1 ? "cycle" : "cycles"}`;
+  }
 }
 
 function ComingUp({ state, today }: { state: CycleState; today: Date }) {

@@ -127,9 +127,27 @@ describe("predictionsToICS", () => {
     expect(values(late!, "UID")[0]).toBe("rhea-cycle-7@rhea");
   });
 
-  it("predicts with the user's cycle length override, as the app does", () => {
+  it("predicts with the user's cycle length override, as the app does, and says so", () => {
     const fixed = predictionsToICS(deriveCycleState(logs, 30), new Date("2026-05-01T12:00:00Z"));
     expect(values(fixed!, "DTSTART;VALUE=DATE")[0]).toBe("20260525");
+    expect(unfold(fixed!)).toContain(
+      "DESCRIPTION:Estimated by Rhea from the 30-day cycle you set (period 5 days). An estimate\\, not a diagnosis."
+    );
+  });
+
+  it("names the typical cycle it falls back on", () => {
+    const now = new Date("2026-05-01T12:00:00Z");
+    const starts = new Set(["2026-01-01", "2026-01-29", "2026-02-28", "2026-03-27"]);
+    const excluded = predictionsToICS(deriveCycleState(logs, null, now, starts), now);
+    expect(unfold(excluded!)).toContain(
+      "DESCRIPTION:Estimated by Rhea from a typical 28-day cycle\\, as all your cycles are excluded (period 5 days). " +
+        "An estimate\\, not a diagnosis."
+    );
+    const first = predictionsToICS(deriveCycleState(period(parseDate("2026-04-25"), 5), null, now), now);
+    expect(unfold(first!)).toContain(
+      "DESCRIPTION:Estimated by Rhea from your first logged period and a typical 28-day cycle (period 5 days). " +
+        "An estimate\\, not a diagnosis."
+    );
   });
 
   it("uses CRLF line endings, folds at 75 octets and escapes text", () => {

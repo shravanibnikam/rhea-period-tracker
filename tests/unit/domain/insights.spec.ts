@@ -1,7 +1,8 @@
 import { describe, it, expect } from "vitest";
-import { cycleStats, mostLoggedSymptoms, moodByPhase } from "@/domain/insights";
-import { buildCycles, detectPeriods } from "@/domain/cycle";
+import { cycleStats, mostLoggedSymptoms, moodByPhase, predictionBasis } from "@/domain/insights";
+import { buildCycles, deriveCycleState, detectPeriods } from "@/domain/cycle";
 import type { DailyLog } from "@/domain/types";
+import { parseDate } from "@/domain/dates";
 import { bleedRun, makeLog, regularCycles, irregularCycles, singlePeriod } from "../../fixtures/logs";
 
 const cyclesOf = (logs: DailyLog[], excluded: string[] = []) =>
@@ -132,5 +133,25 @@ describe("moodByPhase", () => {
   it("limits each phase, and is empty without cycles", () => {
     expect(moodByPhase(logs, cycles, 28, 5, 1).luteal).toEqual([{ label: "Irritable", days: 2 }]);
     expect(moodByPhase(logs, [], 28, 5)).toEqual({ menstrual: [], follicular: [], ovulation: [], luteal: [] });
+  });
+});
+
+describe("predictionBasis", () => {
+  const basis = (logs: DailyLog[], override: number | null = null, excluded: string[] = []) =>
+    predictionBasis(deriveCycleState(logs, override, parseDate("2026-03-30"), new Set(excluded)));
+
+  it("names the logged cycles, the one period, or every cycle excluded", () => {
+    expect(basis(regularCycles)).toEqual({ from: "logs", cycles: 3 });
+    expect(basis(singlePeriod)).toEqual({ from: "firstPeriod" });
+    expect(basis(regularCycles, null, ["2026-01-01", "2026-01-29", "2026-02-26"])).toEqual({ from: "allExcluded" });
+  });
+
+  it("recognises a cycle length set in Settings", () => {
+    expect(basis(regularCycles, 30)).toEqual({ from: "setting" });
+    expect(basis(singlePeriod, 30)).toEqual({ from: "setting" });
+    expect(basis(regularCycles, 30, ["2026-01-01", "2026-01-29", "2026-02-26"])).toEqual({ from: "setting" });
+    // The same length as measured, but the setting's zero spread differs: 26 / 31 / 27 average 28.
+    expect(deriveCycleState(irregularCycles, null, parseDate("2026-03-30")).avgCycleLength).toBe(28);
+    expect(basis(irregularCycles, 28)).toEqual({ from: "setting" });
   });
 });

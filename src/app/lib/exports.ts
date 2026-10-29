@@ -7,6 +7,7 @@
 
 import type { Cycle, CycleState, DailyLog } from "@/domain/types";
 import { addDays, parseDate, toDateKey } from "@/domain/dates";
+import { predictionBasis } from "@/domain/insights";
 
 // ─── CSV (RFC 4180) ─────────────────────────────────────────────────────────
 
@@ -96,10 +97,14 @@ export function predictionsToICS(state: CycleState, now: Date = new Date()): str
   const periodLength = Math.max(1, state.avgPeriodLength);
   const today = toDateKey(now);
   const stamp = now.toISOString().replace(/[-:]/g, "").replace(/\.\d{3}/, "");
-  const description = icsText(
-    `Estimated by Rhea from your logged cycles (average cycle ${cycleLength} days, ` +
-      `period ${periodLength} days). An estimate, not a diagnosis.`
-  );
+  const period = `period ${periodLength} days`;
+  const source = {
+    logs: `your logged cycles (average cycle ${cycleLength} days, ${period})`,
+    setting: `the ${cycleLength}-day cycle you set (${period})`,
+    allExcluded: `a typical ${cycleLength}-day cycle, as all your cycles are excluded (${period})`,
+    firstPeriod: `your first logged period and a typical ${cycleLength}-day cycle (${period})`,
+  }[predictionBasis(state).from];
+  const description = icsText(`Estimated by Rhea from ${source}. An estimate, not a diagnosis.`);
 
   const lines = ["BEGIN:VCALENDAR", "VERSION:2.0", "PRODID:-//Rhea//Predicted periods//EN", "METHOD:PUBLISH"];
   for (let k = 1, added = 0; added < CALENDAR_EVENTS; k++) {

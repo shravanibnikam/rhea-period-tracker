@@ -1,13 +1,25 @@
 // @vitest-environment jsdom
-import { describe, it, expect, vi, afterEach } from "vitest";
+import { describe, it, expect, vi, afterEach, beforeAll } from "vitest";
 import { act, cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import { OverviewTab } from "@/app/views/tracker/OverviewTab";
+import { InsightsTab } from "@/app/views/tracker/InsightsTab";
 import { deriveCycleState } from "@/domain/cycle";
 import { parseDate } from "@/domain/dates";
 import { PHASES } from "@/domain/phases";
 import type { FlowLevel } from "@/domain/types";
 import { regularCycles } from "../../fixtures/logs";
 
+// The regular history: 28-day cycles, the latest starting 2026-03-26.
+const COMPLETED_STARTS = ["2026-01-01", "2026-01-29", "2026-02-26"];
+
+beforeAll(() => {
+  // Insights' cycle chart (recharts) measures its box; jsdom has no ResizeObserver.
+  globalThis.ResizeObserver ??= class {
+    observe() {}
+    unobserve() {}
+    disconnect() {}
+  };
+});
 afterEach(cleanup);
 
 function today(key: string, override: number | null = null, excluded: string[] = []) {
@@ -54,5 +66,47 @@ describe("Today: Coming up", () => {
     expect(within(comingUp).queryByText(/ago/)).toBeNull();
     expect(within(comingUp).getByText("June 18")).toBeTruthy();
     expect(within(comingUp).getByText("July 16")).toBeTruthy();
+  });
+});
+
+describe("Today and Insights name what the predictions come from", () => {
+  const insights = ({ state }: ReturnType<typeof today>, excluded: string[] = []) => (
+    <InsightsTab
+      phaseData={PHASES[state.phase]}
+      cycles={state.cycles}
+      avgLength={state.avgCycleLength}
+      avgPeriodLength={state.avgPeriodLength}
+      cycleDay={state.cycleDay}
+      stdDev={state.stdDev}
+      logs={regularCycles}
+      predictions={state.predictions}
+      excludedStarts={new Set(excluded)}
+      onToggleExcluded={vi.fn()}
+    />
+  );
+
+  it("the logged cycles", () => {
+    render(<OverviewTab {...today("2026-04-01").props} />);
+    expect(screen.getByText("Building accuracy, from 3 complete cycles")).toBeTruthy();
+  });
+
+  it("a cycle length set in Settings", () => {
+    const t = today("2026-04-01", 30);
+    render(<OverviewTab {...t.props} />);
+    expect(screen.getByText("An estimate from the 30-day cycle you set")).toBeTruthy();
+    cleanup();
+    render(insights(t));
+    expect(screen.getByText("Estimates from the 30-day cycle length you set.")).toBeTruthy();
+  });
+
+  it("every cycle excluded: both say so, and show the same estimates", () => {
+    const t = today("2026-04-01", null, COMPLETED_STARTS);
+    render(<OverviewTab {...t.props} />);
+    expect(screen.getByText("Early estimate from a typical 28-day cycle, as all your cycles are excluded")).toBeTruthy();
+    cleanup();
+    render(insights(t, COMPLETED_STARTS));
+    expect(screen.getByText("All your cycles are excluded, so these estimates use a typical 28-day cycle.")).toBeTruthy();
+    expect(screen.queryByText(/estimated here once a cycle completes/)).toBeNull();
+    expect(screen.getByText("Apr 23")).toBeTruthy();
   });
 });

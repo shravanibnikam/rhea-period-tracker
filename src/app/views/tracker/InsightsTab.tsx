@@ -14,7 +14,14 @@ import type { Cycle, DailyLog, PhaseData, PhaseName, PredictedCycle } from "@/do
 import { PHASES, PHASE_ORDER, anchorsFrom, getPhaseLengths, getPhaseRangeLabel } from "@/domain/phases";
 import { diffDays, parseDate, toDateKey } from "@/domain/dates";
 import { analyzeSymptomPatterns, getVariabilityLabel } from "@/domain/cycle";
-import { cycleStats, moodByPhase, mostLoggedSymptoms, type CycleStats } from "@/domain/insights";
+import {
+  cycleStats,
+  moodByPhase,
+  mostLoggedSymptoms,
+  predictionBasis,
+  type CycleStats,
+  type PredictionBasis,
+} from "@/domain/insights";
 import { fmt } from "@/app/lib/format";
 import { Button } from "@/app/components/ui/Button";
 
@@ -47,6 +54,7 @@ export function InsightsTab({
   avgLength,
   avgPeriodLength,
   cycleDay,
+  stdDev,
   logs,
   predictions,
   onToggleExcluded,
@@ -65,7 +73,7 @@ export function InsightsTab({
           {hasCycles && (
             <NextCycles
               predictions={predictions}
-              stats={stats}
+              basis={predictionBasis({ cycles, avgCycleLength: avgLength, stdDev })}
               avgLength={avgLength}
               avgPeriodLength={avgPeriodLength}
             />
@@ -309,16 +317,16 @@ function CycleLog({
 /** "When are the next ones?" — estimates, with how far each can move. */
 function NextCycles({
   predictions,
-  stats,
+  basis,
   avgLength,
   avgPeriodLength,
 }: {
   predictions: PredictedCycle[];
-  stats: CycleStats;
+  basis: PredictionBasis;
   avgLength: number;
   avgPeriodLength: number;
 }) {
-  if (stats.counted === 0) {
+  if (basis.from === "firstPeriod") {
     return (
       <Card title="Next 3 cycles">
         <p className="mt-3">Your next periods are estimated here once a cycle completes.</p>
@@ -329,11 +337,13 @@ function NextCycles({
   const anchors = anchorsFrom(avgLength, avgPeriodLength);
   const lengths = getPhaseLengths(anchors);
   const sub =
-    avgLength !== stats.avgCycleLength
+    basis.from === "setting"
       ? `Estimates from the ${avgLength}-day cycle length you set.`
-      : stats.counted === 1
-        ? "Rough estimates from your one completed cycle. They firm up as more cycles complete."
-        : `Estimates from your ${avgLength}-day average. Each date can move by the days shown.`;
+      : basis.from === "allExcluded"
+        ? `All your cycles are excluded, so these estimates use a typical ${avgLength}-day cycle.`
+        : basis.cycles === 1
+          ? "Rough estimates from your one completed cycle. They firm up as more cycles complete."
+          : `Estimates from your ${avgLength}-day average. Each date can move by the days shown.`;
   return (
     <Card title="Next 3 cycles" sub={sub}>
       <ul className="mt-4 divide-y divide-border">
