@@ -70,8 +70,8 @@ const BASE = {
 // domain computes on main TODAY, bugs included (a golden master, not a spec),
 // so a fix that changes the result moves a snapshot entry.
 const EXTENDED = {
-  // Every flow other than "none" is a bleed day, so one spotting tap becomes a
-  // one-day period that splits a 28-day cycle in two (E-04).
+  // A spotting day on its own is not a period (E-04), so the history stays
+  // three 28-day cycles. (It used to split a cycle in two.)
   straySpotting: {
     title: "a stray spotting day in the middle of a regular history",
     logs: [

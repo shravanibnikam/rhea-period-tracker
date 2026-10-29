@@ -51,6 +51,26 @@ describe("period + cycle detection", () => {
     const cycles = buildCycles(detectPeriods(regularCycles), new Set(["2026-01-29"]));
     expect(cycles.find((c) => c.periodStart === "2026-01-29")?.excluded).toBe(true);
   });
+
+  // E-04: a run of bleed days is a period only if it has light, medium or heavy flow.
+  it("a spotting day on its own mid-cycle starts no period", () => {
+    const logs = [...regularCycles, makeLog("2026-04-12", "spotting")]; // day 18 of the 2026-03-26 cycle
+    expect(detectPeriods(logs)).toEqual(detectPeriods(regularCycles));
+    const state = deriveCycleState(logs, null, parseDate("2026-04-12"));
+    expect(state.cycleDay).toBe(18);
+    expect(state.cycles.map((c) => c.cycleLength)).toEqual([28, 28, 28, null]);
+  });
+
+  it("spotting just before a period belongs to it", () => {
+    const logs = [makeLog("2026-03-01", "spotting"), ...bleedRun("2026-03-02", 4)];
+    expect(detectPeriods(logs)).toEqual([{ startDate: "2026-03-01", endDate: "2026-03-05", length: 5 }]);
+  });
+
+  it("spotting at a period's end belongs to it, as in the sample flows", () => {
+    const flows = ["heavy", "heavy", "medium", "light", "spotting", "spotting"] as const;
+    const logs = flows.map((f, i) => makeLog(toDateKey(addDays(parseDate("2026-03-02"), i)), f));
+    expect(detectPeriods(logs)).toEqual([{ startDate: "2026-03-02", endDate: "2026-03-07", length: 6 }]);
+  });
 });
 
 describe("averages", () => {

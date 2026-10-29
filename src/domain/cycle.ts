@@ -32,40 +32,36 @@ function isBleedDay(flow: FlowLevel): boolean {
 }
 
 // ─── Detect periods from daily logs ──────────────────────────────────────────
-// Groups consecutive bleed days into periods, with 1-day gap tolerance
-// (a single "none" day between two bleed days is treated as part of the same period).
+// Groups consecutive bleed days into runs, with 1-day gap tolerance (a single
+// "none" day between two bleed days is treated as part of the same run). A run
+// is a period only if it has a light, medium or heavy day (E-04): spotting on
+// its own is not a period, while spotting inside or next to real flow belongs
+// to that period.
 
 export function detectPeriods(logs: DailyLog[]): Period[] {
   const bleedDays = logs
     .filter((l) => isBleedDay(l.flow))
-    .map((l) => l.date)
-    .sort();
-
-  if (bleedDays.length === 0) return [];
+    .sort((a, b) => a.date.localeCompare(b.date));
 
   const periods: Period[] = [];
-  let currentStart = bleedDays[0];
-  let currentEnd = bleedDays[0];
+  let run: DailyLog[] = [];
+  const closeRun = () => {
+    if (!run.some((l) => l.flow !== "spotting")) return;
+    const startDate = run[0].date;
+    const endDate = run[run.length - 1].date;
+    periods.push({ startDate, endDate, length: diffDays(parseDate(endDate), parseDate(startDate)) + 1 });
+  };
 
-  for (let i = 1; i < bleedDays.length; i++) {
-    const prev = parseDate(currentEnd);
-    const curr = parseDate(bleedDays[i]);
-    const gap = diffDays(curr, prev);
-
-    // Allow a 1-day gap (e.g., spotting → skip → spotting = same period)
-    if (gap <= 2) {
-      currentEnd = bleedDays[i];
-    } else {
-      const length = diffDays(parseDate(currentEnd), parseDate(currentStart)) + 1;
-      periods.push({ startDate: currentStart, endDate: currentEnd, length });
-      currentStart = bleedDays[i];
-      currentEnd = bleedDays[i];
+  for (const day of bleedDays) {
+    const prev = run[run.length - 1];
+    // Allow a 1-day gap (e.g., spotting → skip → spotting = same run)
+    if (prev && diffDays(parseDate(day.date), parseDate(prev.date)) > 2) {
+      closeRun();
+      run = [];
     }
+    run.push(day);
   }
-
-  // Close the last period
-  const length = diffDays(parseDate(currentEnd), parseDate(currentStart)) + 1;
-  periods.push({ startDate: currentStart, endDate: currentEnd, length });
+  closeRun();
 
   return periods;
 }
