@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState, type FormEvent } from "react";
+import { useCallback, useEffect, useRef, useState, type FormEvent } from "react";
 import { ChevronRight, LogOut } from "lucide-react";
 import { toast } from "sonner";
 import { APP_VERSION, downloadJSON } from "@/data/exporter";
@@ -41,6 +41,9 @@ interface SettingsViewProps {
   role?: UserRole;
   onSignOut?: () => void;
   onRoleChanged?: () => void;
+  /** Onboarding's "Import from another app" sent the visitor: bring the file button into view. */
+  focusImport?: boolean;
+  onImportFocused?: () => void;
 }
 
 const THEMES: readonly SegmentedOption<ThemePref>[] = [
@@ -74,6 +77,8 @@ export function SettingsView({
   role,
   onSignOut,
   onRoleChanged,
+  focusImport = false,
+  onImportFocused,
 }: SettingsViewProps) {
   const container = useContainer();
   const { theme, setTheme } = useTheme();
@@ -89,6 +94,13 @@ export function SettingsView({
   const [importPreview, setImportPreview] = useState<ImportResult | null>(null);
   const [dataError, setDataError] = useState<string | null>(null);
   const [confirmErase, setConfirmErase] = useState(false);
+  const importButton = useRef<HTMLButtonElement>(null);
+  useEffect(() => {
+    if (!focusImport) return;
+    importButton.current?.scrollIntoView?.({ block: "center" });
+    importButton.current?.focus({ preventScroll: true });
+    onImportFocused?.();
+  }, [focusImport, onImportFocused]);
   const [busy, setBusy] = useState(false);
   const [summary, setSummary] = useState<CycleSummary | null>(null);
   const [summaryOpen, setSummaryOpen] = useState(false);
@@ -423,7 +435,7 @@ export function SettingsView({
                     title="Another app"
                     description="Clue, Flo, Apple Health or any CSV with a date column. You see what was found before anything is saved."
                     action={
-                      <Button variant="outline" onClick={importFromApp} disabled={busy}>
+                      <Button ref={importButton} variant="outline" onClick={importFromApp} disabled={busy}>
                         Choose file
                       </Button>
                     }

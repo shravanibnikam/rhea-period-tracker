@@ -70,3 +70,24 @@ describe("Settings by role", () => {
     expect(screen.getByText(/deletes all your logs, settings and cycle history on this device\. It does not sign you out/)).toBeTruthy();
   });
 });
+
+describe("Settings from onboarding's import action", () => {
+  it("focuses the file button for another app, once", () => {
+    const onImportFocused = vi.fn();
+    render(
+      <ContainerProvider value={container}>
+        <SettingsView
+          onDataChanged={vi.fn()}
+          cycleLengthOverride={null}
+          onCycleLengthOverrideChange={vi.fn()}
+          onSourcesClick={vi.fn()}
+          onPrivacyClick={vi.fn()}
+          focusImport
+          onImportFocused={onImportFocused}
+        />
+      </ContainerProvider>
+    );
+    expect(document.activeElement).toBe(screen.getByRole("button", { name: "Choose file" }));
+    expect(onImportFocused).toHaveBeenCalledOnce();
+  });
+});

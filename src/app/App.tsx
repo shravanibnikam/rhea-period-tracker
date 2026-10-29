@@ -60,6 +60,9 @@ function AppScreens() {
   const [symptomError, setSymptomError] = useState<string | null>(null);
   const [showLanding, setShowLanding] = useState(wantsLanding);
   const [authMode, setAuthMode] = useState<"signin" | "signup">("signin");
+  // Onboarding's import action: Settings brings its file button into view once.
+  const [focusImport, setFocusImport] = useState(false);
+  const clearFocusImport = useCallback(() => setFocusImport(false), []);
 
   // Local midnight, and it moves on at midnight (an app left open or resumed).
   const today = useToday();
@@ -432,6 +435,8 @@ function AppScreens() {
         role={auth.role}
         onSignOut={auth.user ? auth.signOut : undefined}
         onRoleChanged={auth.refreshRole}
+        focusImport={focusImport}
+        onImportFocused={clearFocusImport}
       />
     );
   } else if (isPartner && auth.linkedOwnerId === null) {
@@ -471,7 +476,10 @@ function AppScreens() {
     screen = (
       <Onboarding
         onStartLogging={() => setLogSheetDate(today)}
-        onImport={() => navigate("settings")}
+        onImport={() => {
+          setFocusImport(true);
+          navigate("settings");
+        }}
         onQuickAdd={() => setShowQuickAdd(true)}
         hosted={auth.isConfigured}
       />
