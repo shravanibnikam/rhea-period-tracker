@@ -23,10 +23,19 @@ describe("cycleStats", () => {
     });
   });
 
-  it("one period: a period length, but no cycle length (never the 28-day default)", () => {
+  it("one period: no cycle length (never the 28-day default) and no period figures yet", () => {
     const s = cycleStats(cyclesOf(singlePeriod));
-    expect(s).toMatchObject({ counted: 0, avgCycleLength: null, avgPeriodLength: 5, confidence: "early" });
+    expect(s).toMatchObject({ counted: 0, avgCycleLength: null, avgPeriodLength: null, confidence: "early" });
     expect(s.shortestPeriod).toBeNull(); // the only period belongs to the current cycle
+  });
+
+  it("period figures cover completed, counted cycles only, average and range alike", () => {
+    // Periods of 9 (excluded), 3, 3 and 9 days (still in progress).
+    const logs = ["2026-01-01", "2026-01-29", "2026-02-26", "2026-03-26"].flatMap((d, i) =>
+      bleedRun(d, i % 3 === 0 ? 9 : 3)
+    );
+    const s = cycleStats(cyclesOf(logs, ["2026-01-01"]));
+    expect(s).toMatchObject({ avgPeriodLength: 3, shortestPeriod: 3, longestPeriod: 3 });
   });
 
   it("measures a regular history", () => {

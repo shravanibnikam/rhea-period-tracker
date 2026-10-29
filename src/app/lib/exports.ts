@@ -157,8 +157,9 @@ const mean = (xs: number[]) => (xs.length ? xs.reduce((a, b) => a + b, 0) / xs.l
  */
 export function summarizeCycles(cycles: Cycle[], logs: DailyLog[]): CycleSummary {
   const recent = cycles.slice(-SUMMARY_CYCLES);
-  const kept = recent.filter((c) => !c.excluded);
-  const lengths = kept.flatMap((c) => (c.cycleLength === null ? [] : [c.cycleLength]));
+  // Completed and not excluded: the "From N completed cycles" every figure is over.
+  const counted = recent.filter((c) => !c.excluded && c.cycleLength !== null);
+  const lengths = counted.map((c) => c.cycleLength as number);
   const averageCycle = mean(lengths);
   const stdDev =
     averageCycle !== null && lengths.length > 1
@@ -183,7 +184,7 @@ export function summarizeCycles(cycles: Cycle[], logs: DailyLog[]): CycleSummary
     shortestCycle: lengths.length ? Math.min(...lengths) : null,
     longestCycle: lengths.length ? Math.max(...lengths) : null,
     stdDev,
-    averagePeriod: mean(kept.map((c) => c.periodLength)),
+    averagePeriod: mean(counted.map((c) => c.periodLength)),
     symptoms,
     since,
   };

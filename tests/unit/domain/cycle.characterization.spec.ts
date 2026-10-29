@@ -85,6 +85,14 @@ describe("averages", () => {
   it("respects a manual cycle-length override", () => {
     expect(computeAverages(buildCycles(detectPeriods(irregularCycles)), 30)).toMatchSnapshot();
   });
+
+  it("leaves an excluded cycle's period out of the period average", () => {
+    const longOnes = buildCycles(detectPeriods([...bleedRun("2026-01-01", 9), ...bleedRun("2026-01-29", 3)]));
+    expect(computeAverages(longOnes, null).avgPeriodLength).toBe(6);
+    longOnes[0].excluded = true;
+    expect(computeAverages(longOnes, null).avgPeriodLength).toBe(3);
+    expect(computeAverages(longOnes, 30).avgPeriodLength).toBe(3);
+  });
 });
 
 describe("phase boundaries (28-day / 5-day config)", () => {

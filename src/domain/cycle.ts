@@ -114,15 +114,14 @@ export function computeAverages(
   cycles: Cycle[],
   cycleLengthOverride: number | null
 ): { avgCycleLength: number; avgPeriodLength: number; stdDev: number } {
+  // An excluded cycle counts toward no average, its period included.
+  const periodLengths = cycles.filter((c) => !c.excluded).map((c) => c.periodLength);
+  const avgPeriodLength = periodLengths.length > 0
+    ? Math.round(periodLengths.reduce((a, b) => a + b, 0) / periodLengths.length)
+    : 5;
+
   if (cycleLengthOverride) {
-    const periodLengths = cycles.map((c) => c.periodLength);
-    return {
-      avgCycleLength: cycleLengthOverride,
-      avgPeriodLength: periodLengths.length > 0
-        ? Math.round(periodLengths.reduce((a, b) => a + b, 0) / periodLengths.length)
-        : 5,
-      stdDev: 0,
-    };
+    return { avgCycleLength: cycleLengthOverride, avgPeriodLength, stdDev: 0 };
   }
 
   const completedLengths = cycles
@@ -130,13 +129,9 @@ export function computeAverages(
     .map((c) => c.cycleLength as number)
     .slice(-ROLLING_AVERAGE_WINDOW);
 
-  const periodLengths = cycles.map((c) => c.periodLength);
-
   return {
     avgCycleLength: weightedAverage(completedLengths),
-    avgPeriodLength: periodLengths.length > 0
-      ? Math.round(periodLengths.reduce((a, b) => a + b, 0) / periodLengths.length)
-      : 5,
+    avgPeriodLength,
     stdDev: standardDeviation(completedLengths),
   };
 }

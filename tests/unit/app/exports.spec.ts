@@ -210,6 +210,14 @@ describe("summarizeCycles", () => {
     const empty = summarizeCycles([], []);
     expect(empty).toMatchObject({ cycles: [], counted: 0, averageCycle: null, stdDev: null, since: null, symptoms: [] });
     const one = summarizeCycles(deriveCycleState(period(parseDate("2026-01-01"), 4), null).cycles, []);
-    expect(one).toMatchObject({ counted: 0, averageCycle: null, shortestCycle: null, averagePeriod: 4 });
+    expect(one).toMatchObject({ counted: 0, averageCycle: null, shortestCycle: null, averagePeriod: null });
+  });
+
+  it("averages the periods of the counted cycles only, not an excluded one or the one in progress", () => {
+    // Periods of 9 (excluded), 3, 3 and 9 days (in progress).
+    const starts = ["2026-01-01", "2026-01-29", "2026-02-26", "2026-03-26"].map(parseDate);
+    const logs = starts.flatMap((s, i) => period(s, i % 3 === 0 ? 9 : 3));
+    const cycles = deriveCycleState(logs, null, parseDate("2026-04-04"), new Set(["2026-01-01"])).cycles;
+    expect(summarizeCycles(cycles, logs)).toMatchObject({ counted: 2, averagePeriod: 3 });
   });
 });

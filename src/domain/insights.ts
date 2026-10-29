@@ -26,9 +26,11 @@ export interface CycleStats {
   stdDev: number;
   shortest: number | null;
   longest: number | null;
-  /** Mean over every logged period; null when none is logged. */
+  /**
+   * Like the range below, over the periods of completed, counted cycles only:
+   * the latest period may still be going. Null until a cycle counts.
+   */
   avgPeriodLength: number | null;
-  /** Over completed cycles only: the latest period may still be going. */
   shortestPeriod: number | null;
   longestPeriod: number | null;
   confidence: "early" | "building" | "good";
@@ -41,12 +43,13 @@ function extremes(xs: number[]): [number | null, number | null] {
 /** "How regular am I?": the measured figures, with null wherever there is no data yet. */
 export function cycleStats(cycles: Cycle[]): CycleStats {
   // No override: Insights reports what was logged, whatever predictions are set to use.
-  const { avgCycleLength, avgPeriodLength, stdDev } = computeAverages(cycles, null);
+  const { avgCycleLength, stdDev } = computeAverages(cycles, null);
   const completed = cycles.filter((c) => c.cycleLength !== null);
-  const counted = completed.filter((c) => !c.excluded).map((c) => c.cycleLength as number);
+  const kept = completed.filter((c) => !c.excluded);
+  const counted = kept.map((c) => c.cycleLength as number);
   const recent = counted.slice(-ROLLING_AVERAGE_WINDOW); // the same window computeAverages uses
   const [shortest, longest] = extremes(recent);
-  const [shortestPeriod, longestPeriod] = extremes(completed.map((c) => c.periodLength));
+  const [shortestPeriod, longestPeriod] = extremes(kept.map((c) => c.periodLength));
   return {
     counted: counted.length,
     excluded: completed.length - counted.length,
@@ -55,7 +58,7 @@ export function cycleStats(cycles: Cycle[]): CycleStats {
     stdDev,
     shortest,
     longest,
-    avgPeriodLength: cycles.length ? avgPeriodLength : null,
+    avgPeriodLength: kept.length ? computeAverages(kept, null).avgPeriodLength : null,
     shortestPeriod,
     longestPeriod,
     // Same thresholds as cycle.ts getConfidence (private there).
