@@ -41,91 +41,29 @@ const NON_UTC_ZONES = SWEEP_ZONES.filter((z): z is NonUtcZone => z !== "UTC");
 // runs as it.fails, which passes only while the property FAILS; every other
 // case is a plain it, a regression guard.
 //
-// Root cause, as measured: diffDays (src/domain/dates.ts) floors the
-// millisecond difference of two local midnights. A span that contains a
-// spring-forward is 60 minutes (Lord Howe: 30) short of whole days and loses a
-// day; a negative span that contains a fall-back loses one too. Cycle and
-// period lengths, cycleDay and the symptom day-of-cycle all go through it.
-// UTC and Kolkata have no DST, so every case holds there.
-//
-// E-01 (civil diffDays) makes every listed case pass, which fails its it.fails:
-// E-01 must empty both ledgers, flipping every case to it. If another domain
-// change lands first and moves a case, re-measure: RHEA_INVARIANCE_STRICT=1
-// runs every case as a plain it and prints each violation.
+// Both ledgers are empty since E-01: diffDays (src/domain/dates.ts) used to
+// floor the millisecond difference of two local midnights, so a span that
+// contained a spring-forward lost a day (and a negative span a fall-back). It
+// now counts calendar days, and every case is a plain it. If a later domain
+// change breaks a case on purpose, list it here and say why;
+// RHEA_INVARIANCE_STRICT=1 runs every case as a plain it and prints each
+// violation.
 const KNOWN_TZ_VIOLATIONS: Record<NonUtcZone, readonly ScenarioId[]> = {
-  "America/New_York": [
-    "regularCycles",
-    "irregularCycles",
-    "singlePeriod",
-    "withSymptoms",
-    "straySpotting",
-    "shortGapEpisodes",
-    "futureDatedLog",
-    "degenerateAnchor",
-    "oneCompletedCycle",
-    "twoCompletedCycles",
-  ],
-  "Europe/London": [
-    "regularCycles",
-    "irregularCycles",
-    "singlePeriod",
-    "withSymptoms",
-    "straySpotting",
-    "shortGapEpisodes",
-    "futureDatedLog",
-    "twoCompletedCycles",
-  ],
-  "Australia/Sydney": ["futureDatedLog", "octoberSouthernDst"],
+  "America/New_York": [],
+  "Europe/London": [],
+  "Australia/Sydney": [],
   "Asia/Kolkata": [],
-  "Australia/Lord_Howe": ["futureDatedLog", "octoberSouthernDst"],
-  "Pacific/Chatham": ["futureDatedLog", "octoberSouthernDst"],
+  "Australia/Lord_Howe": [],
+  "Pacific/Chatham": [],
 };
 const KNOWN_TRANSLATION_VIOLATIONS: Record<SweepZone, readonly ScenarioId[]> = {
   UTC: [],
-  "America/New_York": [
-    "regularCycles",
-    "irregularCycles",
-    "singlePeriod",
-    "withSymptoms",
-    "straySpotting",
-    "shortGapEpisodes",
-    "futureDatedLog",
-    "degenerateAnchor",
-    "octoberSouthernDst",
-    "gap300Days",
-    "yearBoundary",
-    "oneCompletedCycle",
-    "twoCompletedCycles",
-  ],
-  "Europe/London": [
-    "regularCycles",
-    "irregularCycles",
-    "singlePeriod",
-    "withSymptoms",
-    "straySpotting",
-    "shortGapEpisodes",
-    "futureDatedLog",
-    "octoberSouthernDst",
-    "gap300Days",
-    "yearBoundary",
-    "oneCompletedCycle",
-    "twoCompletedCycles",
-  ],
-  "Australia/Sydney": ["futureDatedLog", "octoberSouthernDst", "gap300Days", "twoCompletedCycles"],
+  "America/New_York": [],
+  "Europe/London": [],
+  "Australia/Sydney": [],
   "Asia/Kolkata": [],
-  "Australia/Lord_Howe": ["futureDatedLog", "octoberSouthernDst", "gap300Days", "twoCompletedCycles"],
-  "Pacific/Chatham": [
-    "regularCycles",
-    "irregularCycles",
-    "singlePeriod",
-    "withSymptoms",
-    "straySpotting",
-    "shortGapEpisodes",
-    "futureDatedLog",
-    "octoberSouthernDst",
-    "gap300Days",
-    "twoCompletedCycles",
-  ],
+  "Australia/Lord_Howe": [],
+  "Pacific/Chatham": [],
 };
 
 const STRICT = process.env.RHEA_INVARIANCE_STRICT === "1";
@@ -202,9 +140,9 @@ describe("zone sweep harness", () => {
     }
   });
 
-  // The guards below keep the properties meaningful once E-01 empties the
-  // ledgers: a comparator or projection that saw nothing would otherwise turn
-  // every property case green.
+  // The guards below keep the properties meaningful with empty ledgers: a
+  // comparator or projection that saw nothing would otherwise turn every
+  // property case green.
   it("the comparison sees every derived date: a one-day shift changes each date leaf", () => {
     for (const s of DOMAIN_SCENARIOS) {
       const base = projectScenario(s);

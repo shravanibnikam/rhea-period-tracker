@@ -13,6 +13,8 @@ import {
 import { parseDate, addDays, diffDays, toDateKey } from "@/domain/dates";
 import { getPhaseForDay, getPhaseLengths, anchorsFrom } from "@/domain/phases";
 import {
+  bleedRun,
+  makeLog,
   regularCycles,
   irregularCycles,
   singlePeriod,
@@ -152,6 +154,28 @@ describe("date utils characterization (TZ-independent invariants preserved by M1
   it("adds and diffs whole days", () => {
     expect(toDateKey(addDays(parseDate("2026-03-07"), 3))).toBe("2026-03-10");
     expect(diffDays(parseDate("2026-03-10"), parseDate("2026-03-07"))).toBe(3);
+  });
+
+  it("counts calendar days across a DST change (E-01)", () => {
+    const tz = process.env.TZ;
+    process.env.TZ = "America/Los_Angeles"; // springs forward on 2026-03-08
+    try {
+      expect(new Date(2026, 0, 1).getTimezoneOffset()).toBe(480); // the zone took effect
+      expect(diffDays(parseDate("2026-04-03"), parseDate("2026-03-06"))).toBe(28);
+      expect(diffDays(parseDate("2026-03-06"), parseDate("2026-04-03"))).toBe(-28);
+      // A time-of-day "now" against a local-midnight start counts as before.
+      expect(diffDays(new Date(2026, 3, 2, 0, 30), parseDate("2026-03-06"))).toBe(27);
+      expect(diffDays(new Date(2026, 2, 30, 15), parseDate("2026-04-20"))).toBe(-21);
+
+      // Starts 28 days apart: two 28-day cycles, and the period across the change keeps its 5 days.
+      const logs = ["2026-02-06", "2026-03-06", "2026-04-03"].flatMap((d) => bleedRun(d, 5));
+      const state = deriveCycleState(logs, null, new Date(2026, 3, 10, 15));
+      expect(state.cycles.map((c) => [c.cycleLength, c.periodLength])).toEqual([[28, 5], [28, 5], [null, 5]]);
+      expect(state.avgCycleLength).toBe(28);
+      expect(state.cycleDay).toBe(8);
+    } finally {
+      process.env.TZ = tz;
+    }
   });
 
   // ── M1.3 DOCUMENTED SNAPSHOT CHANGE ─────────────────────────────────────
