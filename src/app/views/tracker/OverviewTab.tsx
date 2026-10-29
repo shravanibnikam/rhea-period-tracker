@@ -138,8 +138,8 @@ export function OverviewTab({
               <>
                 <h2 id="today-cycle" className="text-2xl">No period logged yet</h2>
                 <p className="mt-2 max-w-prose text-base text-muted-foreground">
-                  Add your last period, or log one when it starts, to see your cycle day, your next
-                  period and your fertile window.
+                  Add your last period, or log one when it starts, to see your cycle day and your next
+                  period. Your fertile window follows once your next period is logged.
                 </p>
               </>
             )}

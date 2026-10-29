@@ -55,8 +55,9 @@ export function Onboarding({ onStartLogging, onImport, onQuickAdd, hosted = fals
           Get started
         </h1>
         <p className="mt-2 max-w-prose text-base text-muted-foreground">
-          Add your last period and Rhea estimates your cycle day, your next period and your fertile
-          window. The estimates sharpen with every cycle you log.
+          Add your last period and Rhea estimates your cycle day and your next period. Once your
+          next period is logged, it estimates your fertile window too, and every cycle you log
+          sharpens the estimates.
         </p>
         <div className="mt-6 grid gap-3">
           <Action
