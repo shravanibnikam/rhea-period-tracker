@@ -170,7 +170,7 @@ export function summarizeCycles(cycles: Cycle[], logs: DailyLog[]): CycleSummary
   const days = new Map<string, number>();
   for (const log of logs) {
     if (since && log.date < since) continue;
-    for (const s of log.symptoms) days.set(s, (days.get(s) ?? 0) + 1);
+    for (const s of new Set(log.symptoms)) days.set(s, (days.get(s) ?? 0) + 1);
   }
   const symptoms = [...days]
     .map(([name, n]) => ({ name, days: n }))

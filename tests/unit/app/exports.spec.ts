@@ -220,4 +220,10 @@ describe("summarizeCycles", () => {
     const cycles = deriveCycleState(logs, null, parseDate("2026-04-04"), new Set(["2026-01-01"])).cycles;
     expect(summarizeCycles(cycles, logs)).toMatchObject({ counted: 2, averagePeriod: 3 });
   });
+
+  it("counts a symptom logged twice on one day as one day", () => {
+    const logs = [{ ...emptyLog("2026-01-02"), flow: "medium" as const, symptoms: ["Cramps", "Cramps"] }];
+    const cycles = deriveCycleState(logs, null, parseDate("2026-01-05")).cycles;
+    expect(summarizeCycles(cycles, logs).symptoms).toEqual([{ name: "Cramps", days: 1 }]);
+  });
 });
